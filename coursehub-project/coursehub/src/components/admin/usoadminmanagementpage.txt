@@ -1,0 +1,14 @@
+<AdminManagementPage
+  title="Gerenciamento de Alunos"
+  description="Acompanhe alunos cadastrados, cursos, status e progresso."
+  createButtonText="+ Novo Aluno"
+  onCreateClick={handleCreateClick}
+  stats={stats}
+  tableTitle="Lista de alunos"
+  searchValue={busca}
+  onSearchChange={setBusca}
+  searchPlaceholder="Buscar aluno..."
+  quickActions={quickActions}
+>
+  {/* AdminTable entra aqui */}
+</AdminManagementPage>
