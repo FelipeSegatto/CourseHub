@@ -189,7 +189,7 @@ export const router = createBrowserRouter([
               { index: true, element: <HomeProfessor /> },
               { path: "dashboard-professor", element: <DashboardProfessor /> },
               { path: "minhas-turmas", element: <MyClassesProfessor /> },
-              { path: "turmas/:classId", element: <TeacherClassDetails />, },
+              { path: "turmas/:classId", element: <ClassDetailsProfessor />, },
               { path: "atividades", element: <TasksProfessor /> },
               { path: "avaliacoes", element: <ExamProfessor />},
               { path: "materiais", element: <MaterialProfessor />},
