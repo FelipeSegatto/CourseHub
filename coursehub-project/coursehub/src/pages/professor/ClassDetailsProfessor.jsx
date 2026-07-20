@@ -12,6 +12,7 @@ import {
 
 import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
+import SessionModal from "../../components/teachers/SessionModal";
 
 const sessionTypeOptions = [
   {
@@ -71,16 +72,6 @@ const sessionStatusFilterOptions = [
   ...sessionStatusOptions,
 ];
 
-const initialSessionForm = {
-  sessionNumber: "",
-  title: "",
-  sessionDate: "",
-  startTime: "",
-  endTime: "",
-  sessionType: "class",
-  description: "",
-  status: "scheduled",
-};
 
 function formatDate(dateValue) {
   if (!dateValue) return "Data não informada";
@@ -252,14 +243,8 @@ export default function ClassDetailsProfessor() {
   const [editingSession, setEditingSession] =
     useState(null);
 
-  const [sessionForm, setSessionForm] =
-    useState(initialSessionForm);
 
-  const [saving, setSaving] =
-    useState(false);
 
-  const [formError, setFormError] =
-    useState("");
 
   const [cancellingSessionId, setCancellingSessionId] =
     useState(null);
@@ -338,231 +323,21 @@ export default function ClassDetailsProfessor() {
 
   function openCreateModal() {
     setEditingSession(null);
-
-    setSessionForm({
-      ...initialSessionForm,
-      sessionNumber: String(nextSessionNumber),
-    });
-
-    setFormError("");
     setIsModalOpen(true);
   }
 
   function openEditModal(session) {
     setEditingSession(session);
-
-    setSessionForm({
-      sessionNumber: String(
-        session.sessionNumber || ""
-      ),
-
-      title: session.title || "",
-
-      sessionDate: session.sessionDate
-        ? String(session.sessionDate).split("T")[0]
-        : "",
-
-      startTime: formatTime(
-        session.startTime
-      ) || "",
-
-      endTime: formatTime(
-        session.endTime
-      ) || "",
-
-      sessionType:
-        session.sessionType || "class",
-
-      description:
-        session.description || "",
-
-      status:
-        session.status || "scheduled",
-    });
-
-    setFormError("");
     setIsModalOpen(true);
   }
 
   function closeSessionModal() {
-    if (saving) return;
-
     setIsModalOpen(false);
     setEditingSession(null);
-    setSessionForm(initialSessionForm);
-    setFormError("");
   }
 
-  function handleSessionFormChange(event) {
-    const { name, value } = event.target;
-
-    setSessionForm((currentForm) => ({
-      ...currentForm,
-      [name]: value,
-    }));
-  }
-
-  function validateSessionForm() {
-    if (
-      !sessionForm.sessionNumber ||
-      Number(sessionForm.sessionNumber) <= 0
-    ) {
-      return "Informe um número válido para o encontro.";
-    }
-
-    if (!sessionForm.title.trim()) {
-      return "Informe o título do encontro.";
-    }
-
-    if (!sessionForm.sessionDate) {
-      return "Informe a data do encontro.";
-    }
-
-    if (
-      sessionForm.startTime &&
-      sessionForm.endTime &&
-      sessionForm.endTime <=
-        sessionForm.startTime
-    ) {
-      return "O horário final deve ser posterior ao horário inicial.";
-    }
-
-    return "";
-  }
-
-  async function handleSessionSubmit(event) {
-    event.preventDefault();
-
-    if (!usuarioLogado?.id || !classId) {
-      return;
-    }
-
-    const validationError =
-      validateSessionForm();
-
-    if (validationError) {
-      setFormError(validationError);
-      return;
-    }
-
-    const payload = {
-      sessionNumber: Number(
-        sessionForm.sessionNumber
-      ),
-
-      title: sessionForm.title.trim(),
-
-      sessionDate:
-        sessionForm.sessionDate,
-
-      startTime:
-        sessionForm.startTime || null,
-
-      endTime:
-        sessionForm.endTime || null,
-
-      sessionType:
-        sessionForm.sessionType,
-
-      description:
-        sessionForm.description.trim() ||
-        null,
-
-      status:
-        sessionForm.status,
-    };
-
-    try {
-      setSaving(true);
-      setFormError("");
-
-      if (editingSession) {
-        const data = await apiFetch(
-          `/teacher/by-user/${usuarioLogado.id}/class-sessions/${editingSession.id}`,
-          {
-            method: "PUT",
-            body: JSON.stringify(payload),
-          }
-        );
-
-        const updatedSession =
-          data?.session;
-
-        if (updatedSession) {
-          setSessions((currentSessions) =>
-            currentSessions
-              .map((session) =>
-                session.id ===
-                updatedSession.id
-                  ? {
-                      ...session,
-                      ...updatedSession,
-                    }
-                  : session
-              )
-              .sort(
-                (
-                  firstSession,
-                  secondSession
-                ) =>
-                  Number(
-                    firstSession.sessionNumber
-                  ) -
-                  Number(
-                    secondSession.sessionNumber
-                  )
-              )
-          );
-        }
-      } else {
-        const data = await apiFetch(
-          `/teacher/by-user/${usuarioLogado.id}/classes/${classId}/sessions`,
-          {
-            method: "POST",
-            body: JSON.stringify(payload),
-          }
-        );
-
-        const createdSession =
-          data?.session;
-
-        if (createdSession) {
-          setSessions((currentSessions) =>
-            [
-              ...currentSessions,
-              createdSession,
-            ].sort(
-              (
-                firstSession,
-                secondSession
-              ) =>
-                Number(
-                  firstSession.sessionNumber
-                ) -
-                Number(
-                  secondSession.sessionNumber
-                )
-            )
-          );
-        }
-      }
-
-      closeSessionModal();
-
-      // Recarrega também o resumo das sessões.
-      await loadClassSessions();
-    } catch (saveError) {
-      console.error(
-        "Erro ao salvar encontro:",
-        saveError
-      );
-
-      setFormError(
-        getErrorMessage(saveError)
-      );
-    } finally {
-      setSaving(false);
-    }
+  async function handleSessionSaved() {
+    await loadClassSessions();
   }
 
   async function handleCancelSession(session) {
@@ -866,17 +641,14 @@ export default function ClassDetailsProfessor() {
         </section>
       </div>
 
-      {isModalOpen && (
-        <SessionModal
-          editingSession={editingSession}
-          form={sessionForm}
-          saving={saving}
-          error={formError}
-          onChange={handleSessionFormChange}
-          onSubmit={handleSessionSubmit}
-          onClose={closeSessionModal}
-        />
-      )}
+      <SessionModal
+        open={isModalOpen}
+        classId={classId}
+        session={editingSession}
+        nextSessionNumber={nextSessionNumber}
+        onClose={closeSessionModal}
+        onSaved={handleSessionSaved}
+      />
     </main>
   );
 }
@@ -1046,254 +818,5 @@ function SessionCard({
         </div>
       </div>
     </article>
-  );
-}
-
-function SessionModal({
-  editingSession,
-  form,
-  saving,
-  error,
-  onChange,
-  onSubmit,
-  onClose,
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose();
-        }
-      }}
-    >
-      <div className="max-h-full w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b border-gray-100 p-6">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">
-              {editingSession
-                ? "Editar encontro"
-                : "Novo encontro"}
-            </h2>
-
-            <p className="mt-1 text-sm text-gray-500">
-              {editingSession
-                ? "Atualize as informações do encontro selecionado."
-                : "Cadastre uma aula, prova, revisão ou outro encontro da turma."}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-lg px-3 py-2 text-xl text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Fechar modal"
-          >
-            ×
-          </button>
-        </div>
-
-        <form
-          onSubmit={onSubmit}
-          className="space-y-5 p-6"
-        >
-          {error && (
-            <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
-          <div className="grid gap-5 sm:grid-cols-3">
-            <FormField
-              label="Número"
-              htmlFor="sessionNumber"
-            >
-              <input
-                id="sessionNumber"
-                name="sessionNumber"
-                type="number"
-                min="1"
-                value={form.sessionNumber}
-                onChange={onChange}
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                required
-              />
-            </FormField>
-
-            <div className="sm:col-span-2">
-              <FormField
-                label="Título"
-                htmlFor="title"
-              >
-                <input
-                  id="title"
-                  name="title"
-                  type="text"
-                  maxLength="180"
-                  value={form.title}
-                  onChange={onChange}
-                  placeholder="Ex.: Introdução ao React"
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                  required
-                />
-              </FormField>
-            </div>
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-3">
-            <FormField
-              label="Data"
-              htmlFor="sessionDate"
-            >
-              <input
-                id="sessionDate"
-                name="sessionDate"
-                type="date"
-                value={form.sessionDate}
-                onChange={onChange}
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                required
-              />
-            </FormField>
-
-            <FormField
-              label="Horário inicial"
-              htmlFor="startTime"
-            >
-              <input
-                id="startTime"
-                name="startTime"
-                type="time"
-                value={form.startTime}
-                onChange={onChange}
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
-            </FormField>
-
-            <FormField
-              label="Horário final"
-              htmlFor="endTime"
-            >
-              <input
-                id="endTime"
-                name="endTime"
-                type="time"
-                value={form.endTime}
-                onChange={onChange}
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
-            </FormField>
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <FormField
-              label="Tipo de encontro"
-              htmlFor="sessionType"
-            >
-              <select
-                id="sessionType"
-                name="sessionType"
-                value={form.sessionType}
-                onChange={onChange}
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              >
-                {sessionTypeOptions.map(
-                  (option) => (
-                    <option
-                      key={option.value}
-                      value={option.value}
-                    >
-                      {option.label}
-                    </option>
-                  )
-                )}
-              </select>
-            </FormField>
-
-            <FormField
-              label="Status"
-              htmlFor="status"
-            >
-              <select
-                id="status"
-                name="status"
-                value={form.status}
-                onChange={onChange}
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              >
-                {sessionStatusOptions.map(
-                  (option) => (
-                    <option
-                      key={option.value}
-                      value={option.value}
-                    >
-                      {option.label}
-                    </option>
-                  )
-                )}
-              </select>
-            </FormField>
-          </div>
-
-          <FormField
-            label="Descrição"
-            htmlFor="description"
-          >
-            <textarea
-              id="description"
-              name="description"
-              rows="4"
-              value={form.description}
-              onChange={onChange}
-              placeholder="Conteúdo previsto, observações ou objetivos do encontro..."
-              className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
-          </FormField>
-
-          <div className="flex flex-col-reverse gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={saving}
-              className="rounded-xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Cancelar
-            </button>
-
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving
-                ? "Salvando..."
-                : editingSession
-                  ? "Salvar alterações"
-                  : "Criar encontro"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function FormField({
-  label,
-  htmlFor,
-  children,
-}) {
-  return (
-    <div>
-      <label
-        htmlFor={htmlFor}
-        className="mb-2 block text-sm font-semibold text-gray-700"
-      >
-        {label}
-      </label>
-
-      {children}
-    </div>
   );
 }

@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import { Link } from "react-router-dom";
 
 import { useAuth } from "../../auth/AuthContext";
@@ -24,39 +29,146 @@ const classStatusOptions = [
     label: "Inativas",
   },
   {
-    value: "completed",
+    value: "finished",
     label: "Concluídas",
-  },
-  {
-    value: "archived",
-    label: "Arquivadas",
   },
 ];
 
 function formatDate(dateValue) {
   if (!dateValue) return "-";
 
-  const datePart = String(dateValue).split("T")[0];
-  const [year, month, day] = datePart.split("-");
+  const datePart =
+    String(dateValue).split("T")[0];
 
-  if (!year || !month || !day) return "-";
+  const [year, month, day] =
+    datePart.split("-");
+
+  if (!year || !month || !day) {
+    return "-";
+  }
 
   return `${day}/${month}/${year}`;
+}
+
+function normalizeClassItem(classItem) {
+  return {
+    id: classItem.id,
+
+    name:
+      classItem.name ||
+      `Turma #${classItem.id}`,
+
+    courseId:
+      classItem.courseId ??
+      classItem.course_id ??
+      null,
+
+    teacherId:
+      classItem.teacherId ??
+      classItem.teacher_id ??
+      null,
+
+    courseName:
+      classItem.courseName ??
+      classItem.course_name ??
+      "",
+
+    courseDescription:
+      classItem.courseDescription ??
+      classItem.course_description ??
+      "",
+
+    courseImageUrl:
+      classItem.courseImageUrl ??
+      classItem.course_image_url ??
+      null,
+
+    courseCategory:
+      classItem.courseCategory ??
+      classItem.course_category ??
+      "",
+
+    courseLevel:
+      classItem.courseLevel ??
+      classItem.course_level ??
+      "",
+
+    shift:
+      classItem.shift ?? "",
+
+    startDate:
+      classItem.startDate ??
+      classItem.start_date ??
+      null,
+
+    endDate:
+      classItem.endDate ??
+      classItem.end_date ??
+      null,
+
+    status:
+      classItem.status ?? "inactive",
+
+    studentCount: Number(
+      classItem.studentCount ??
+        classItem.student_count ??
+        0
+    ),
+
+    contentCount: Number(
+      classItem.contentCount ??
+        classItem.content_count ??
+        0
+    ),
+
+    activityCount: Number(
+      classItem.activityCount ??
+        classItem.activity_count ??
+        0
+    ),
+
+    attendancePercentage:
+      classItem.attendancePercentage ??
+      classItem.attendance_percentage ??
+      null,
+
+    createdAt:
+      classItem.createdAt ??
+      classItem.created_at ??
+      null,
+
+    updatedAt:
+      classItem.updatedAt ??
+      classItem.updated_at ??
+      null,
+  };
 }
 
 export default function MyClassesProfessor() {
   const { usuarioLogado } = useAuth();
 
-  const [classes, setClasses] = useState([]);
+  const [classes, setClasses] =
+    useState([]);
 
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("active");
+  const [search, setSearch] =
+    useState("");
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [
+    statusFilter,
+    setStatusFilter,
+  ] = useState("active");
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
 
   async function loadClasses() {
-    if (!usuarioLogado?.id) return;
+    if (!usuarioLogado?.id) {
+      setClasses([]);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -66,15 +178,21 @@ export default function MyClassesProfessor() {
         `/teacher/by-user/${usuarioLogado.id}/classes`
       );
 
-      const classList = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.classes)
-          ? data.classes
-          : Array.isArray(data?.data)
-            ? data.data
-            : [];
+      const rawClasses =
+        Array.isArray(data)
+          ? data
+          : Array.isArray(data?.classes)
+            ? data.classes
+            : Array.isArray(data?.data)
+              ? data.data
+              : [];
 
-      setClasses(classList);
+      const normalizedClasses =
+        rawClasses.map(
+          normalizeClassItem
+        );
+
+      setClasses(normalizedClasses);
     } catch (loadError) {
       console.error(
         "Erro ao carregar turmas do professor:",
@@ -96,71 +214,115 @@ export default function MyClassesProfessor() {
     loadClasses();
   }, [usuarioLogado?.id]);
 
-  const filteredClasses = useMemo(() => {
-    const normalizedSearch = search
-      .trim()
-      .toLowerCase();
+  const filteredClasses =
+    useMemo(() => {
+      const normalizedSearch =
+        search
+          .trim()
+          .toLowerCase();
 
-    return classes.filter((classItem) => {
-      const className =
-        classItem.name?.toLowerCase() || "";
+      return classes.filter(
+        (classItem) => {
+          const className =
+            classItem.name
+              ?.toLowerCase() || "";
 
-      const courseName =
-        classItem.course_title?.toLowerCase() ||
-        classItem.course_name?.toLowerCase() ||
-        "";
+          const courseName =
+            classItem.courseName
+              ?.toLowerCase() || "";
 
-      const schedule =
-        classItem.schedule?.toLowerCase() || "";
+          const shift =
+            classItem.shift
+              ?.toLowerCase() || "";
 
-      const matchesSearch =
-        !normalizedSearch ||
-        className.includes(normalizedSearch) ||
-        courseName.includes(normalizedSearch) ||
-        schedule.includes(normalizedSearch);
+          const matchesSearch =
+            !normalizedSearch ||
+            className.includes(
+              normalizedSearch
+            ) ||
+            courseName.includes(
+              normalizedSearch
+            ) ||
+            shift.includes(
+              normalizedSearch
+            );
 
-      const matchesStatus =
-        !statusFilter ||
-        classItem.status === statusFilter;
+          const matchesStatus =
+            !statusFilter ||
+            classItem.status ===
+              statusFilter;
 
-      return matchesSearch && matchesStatus;
-    });
-  }, [classes, search, statusFilter]);
+          return (
+            matchesSearch &&
+            matchesStatus
+          );
+        }
+      );
+    }, [
+      classes,
+      search,
+      statusFilter,
+    ]);
 
   const stats = useMemo(() => {
-    const activeClasses = classes.filter(
-      (classItem) => classItem.status === "active"
-    ).length;
+    const activeClasses =
+      classes.filter(
+        (classItem) =>
+          classItem.status ===
+          "active"
+      ).length;
 
-    const totalStudents = classes.reduce(
-      (total, classItem) =>
-        total + Number(classItem.student_count || 0),
-      0
-    );
+    const totalStudents =
+      classes.reduce(
+        (total, classItem) =>
+          total +
+          Number(
+            classItem.studentCount ||
+              0
+          ),
+        0
+      );
 
-    const totalActivities = classes.reduce(
-      (total, classItem) =>
-        total + Number(classItem.activity_count || 0),
-      0
-    );
+    const totalActivities =
+      classes.reduce(
+        (total, classItem) =>
+          total +
+          Number(
+            classItem.activityCount ||
+              0
+          ),
+        0
+      );
 
-    const classesWithAttendance = classes.filter(
-      (classItem) =>
-        classItem.attendance_percentage !== null &&
-        classItem.attendance_percentage !== undefined
-    );
+    const classesWithAttendance =
+      classes.filter(
+        (classItem) =>
+          classItem
+            .attendancePercentage !==
+            null &&
+          classItem
+            .attendancePercentage !==
+            undefined
+      );
 
     const averageAttendance =
-      classesWithAttendance.length > 0
+      classesWithAttendance.length >
+      0
         ? Math.round(
             classesWithAttendance.reduce(
-              (total, classItem) =>
+              (
+                total,
+                classItem
+              ) =>
                 total +
                 Number(
-                  classItem.attendance_percentage || 0
+                  classItem
+                    .attendancePercentage ||
+                    0
                 ),
               0
-            ) / classesWithAttendance.length
+            ) /
+              classesWithAttendance.length
           )
         : 0;
 
@@ -170,7 +332,8 @@ export default function MyClassesProfessor() {
         value: activeClasses,
       },
       {
-        title: "Alunos matriculados",
+        title:
+          "Alunos matriculados",
         value: totalStudents,
       },
       {
@@ -178,29 +341,43 @@ export default function MyClassesProfessor() {
         value: totalActivities,
       },
       {
-        title: "Frequência média",
-        value: `${averageAttendance}%`,
+        title:
+          "Frequência média",
+        value:
+          classesWithAttendance.length >
+          0
+            ? `${averageAttendance}%`
+            : "-",
       },
     ];
   }, [classes]);
 
   const quickActions = [
     {
-      title: "Registrar frequência",
+      title:
+        "Registrar frequência",
+
       description:
         "Selecione uma turma e registre a presença dos alunos.",
+
       onClick: () => {},
     },
     {
-      title: "Gerenciar atividades",
+      title:
+        "Gerenciar atividades",
+
       description:
         "Crie e acompanhe atividades das suas turmas.",
+
       onClick: () => {},
     },
     {
-      title: "Acompanhar alunos",
+      title:
+        "Acompanhar alunos",
+
       description:
         "Consulte alunos e informações acadêmicas por turma.",
+
       onClick: () => {},
     },
   ];
@@ -241,8 +418,12 @@ export default function MyClassesProfessor() {
       tableActions={
         <TeacherStatusFilter
           value={statusFilter}
-          onChange={setStatusFilter}
-          options={classStatusOptions}
+          onChange={
+            setStatusFilter
+          }
+          options={
+            classStatusOptions
+          }
         />
       }
       searchValue={search}
@@ -258,7 +439,9 @@ export default function MyClassesProfessor() {
 
       {!loading && error && (
         <div className="py-8 text-center">
-          <p className="text-red-500">{error}</p>
+          <p className="text-red-500">
+            {error}
+          </p>
 
           <button
             type="button"
@@ -275,7 +458,9 @@ export default function MyClassesProfessor() {
           columns={classColumns}
           data={filteredClasses}
           emptyMessage="Nenhuma turma encontrada."
-          renderRow={(classItem) => (
+          renderRow={(
+            classItem
+          ) => (
             <tr
               key={classItem.id}
               className="border-b border-gray-100"
@@ -286,33 +471,55 @@ export default function MyClassesProfessor() {
                 </p>
 
                 <p className="mt-1 text-xs text-gray-500">
-                  Turma #{classItem.id}
+                  Turma #
+                  {classItem.id}
                 </p>
 
-                {classItem.schedule && (
-                  <p className="mt-1 text-xs text-gray-500">
-                    {classItem.schedule}
+                {classItem.shift && (
+                  <p className="mt-1 text-xs capitalize text-gray-500">
+                    {classItem.shift}
+                  </p>
+                )}
+              </td>
+
+              <td className="py-5">
+                <p className="font-medium text-gray-700">
+                  {classItem.courseName ||
+                    (classItem.courseId
+                      ? `Curso #${classItem.courseId}`
+                      : "Curso não informado")}
+                </p>
+
+                {classItem.courseLevel && (
+                  <p className="mt-1 text-xs text-gray-400">
+                    Nível:{" "}
+                    {
+                      classItem.courseLevel
+                    }
                   </p>
                 )}
               </td>
 
               <td className="py-5 text-gray-600">
-                {classItem.course_title ||
-                  classItem.course_name ||
-                  `Curso #${classItem.course_id}`}
-              </td>
-
-              <td className="py-5 text-gray-600">
-                <p>{formatDate(classItem.start_date)}</p>
+                <p>
+                  {formatDate(
+                    classItem.startDate
+                  )}
+                </p>
 
                 <p className="mt-1 text-xs text-gray-400">
-                  até {formatDate(classItem.end_date)}
+                  até{" "}
+                  {formatDate(
+                    classItem.endDate
+                  )}
                 </p>
               </td>
 
               <td className="py-5">
                 <p className="font-semibold text-gray-800">
-                  {classItem.student_count ?? 0}
+                  {
+                    classItem.studentCount
+                  }
                 </p>
 
                 <p className="mt-1 text-xs text-gray-500">
@@ -322,7 +529,9 @@ export default function MyClassesProfessor() {
 
               <td className="py-5">
                 <StatusBadge
-                  status={classItem.status}
+                  status={
+                    classItem.status
+                  }
                 />
               </td>
 

@@ -109,7 +109,6 @@ function SummaryItem({
 
 export default function AttendanceSummaryCard({
   classData,
-  attendanceDate,
   summary,
 }) {
   if (!classData) return null;
@@ -177,16 +176,6 @@ export default function AttendanceSummaryCard({
               <p className="mt-1 text-sm font-medium text-slate-500">
                 {classData.courseTitle ||
                   "Curso não informado"}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 lg:text-right">
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
-                Data da chamada
-              </p>
-
-              <p className="mt-1 text-sm font-bold capitalize text-slate-800">
-                {formatDate(attendanceDate)}
               </p>
             </div>
           </div>
@@ -264,46 +253,6 @@ export default function AttendanceSummaryCard({
           </div>
         </div>
       </div>
-
-      {total > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryItem
-            label="Presença"
-            value={present}
-            percentage={presentPercentage}
-            description="Alunos presentes"
-            icon="✓"
-            iconClassName="bg-emerald-50 text-emerald-700"
-          />
-
-          <SummaryItem
-            label="Ausência"
-            value={absent}
-            percentage={absentPercentage}
-            description="Alunos ausentes"
-            icon="×"
-            iconClassName="bg-rose-50 text-rose-700"
-          />
-
-          <SummaryItem
-            label="Atrasos"
-            value={late}
-            percentage={latePercentage}
-            description="Alunos atrasados"
-            icon="⌚"
-            iconClassName="bg-amber-50 text-amber-700"
-          />
-
-          <SummaryItem
-            label="Justificativas"
-            value={excused}
-            percentage={excusedPercentage}
-            description="Ausências justificadas"
-            icon="!"
-            iconClassName="bg-violet-50 text-violet-700"
-          />
-        </div>
-      )}
     </section>
   );
 }

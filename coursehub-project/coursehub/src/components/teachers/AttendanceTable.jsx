@@ -251,13 +251,7 @@ export default function AttendanceTable({
 
         <div className="divide-y divide-slate-100">
           {students.map((student) => {
-            const statusLabel =
-              statusLabels[student.status] ||
-              "Não informado";
-
-            const statusClassName =
-              statusBadgeStyles[student.status] ||
-              "border-slate-200 bg-slate-50 text-slate-600";
+            
 
             return (
               <article
@@ -289,11 +283,7 @@ export default function AttendanceTable({
                           "Matrícula não informada"}
                     </p>
 
-                    <span
-                      className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold ${statusClassName}`}
-                    >
-                      {statusLabel}
-                    </span>
+                    
                   </div>
                 </div>
 

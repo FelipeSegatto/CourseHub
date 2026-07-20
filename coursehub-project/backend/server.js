@@ -7381,45 +7381,7 @@ async function getTeacherIdByUserId(userId) {
  * - a turma está vinculada ao professor;
  * - o curso relacionado existe.
  */
-async function getTeacherClassByUserId(userId, classId) {
-  const [rows] = await db.promise().query(
-    `
-      SELECT
-        cl.id,
-        cl.course_id,
-        cl.teacher_id,
-        cl.name,
-        cl.shift,
-        cl.start_date,
-        cl.end_date,
-        cl.status,
-        cl.created_at,
-        cl.updated_at,
 
-        c.title AS course_title,
-        c.description AS course_description,
-        c.image_url AS course_image_url,
-        c.category AS course_category,
-        c.nivel AS course_level
-
-      FROM classes cl
-
-      INNER JOIN teachers t
-        ON t.id = cl.teacher_id
-
-      INNER JOIN courses c
-        ON c.id = cl.course_id
-
-      WHERE t.user_id = ?
-        AND cl.id = ?
-
-      LIMIT 1
-    `,
-    [userId, classId]
-  );
-
-  return rows[0] ?? null;
-}
 
 /*
  * ============================================================
@@ -7465,180 +7427,259 @@ function validateTeacherClassParams(req, res) {
  * - quantidade de conteúdos ativos;
  * - quantidade de atividades ativas.
  */
-app.get("/teacher/by-user/:userId/classes", async (req, res) => {
-  try {
-    const userId = Number(req.params.userId);
-    const status = req.query.status?.trim() || "";
+app.get(
+  "/teacher/by-user/:userId/classes",
+  async (req, res) => {
+    try {
+      const userId = Number(
+        req.params.userId
+      );
 
-    if (!Number.isInteger(userId) || userId <= 0) {
-      return res.status(400).json({
-        message: "ID do usuário inválido.",
+      const status =
+        typeof req.query.status === "string"
+          ? req.query.status.trim()
+          : "";
+
+      if (
+        !Number.isInteger(userId) ||
+        userId <= 0
+      ) {
+        return res.status(400).json({
+          message:
+            "ID do usuário inválido.",
+        });
+      }
+
+      const allowedStatuses = new Set([
+        "",
+        "active",
+        "inactive",
+        "finished",
+      ]);
+
+      if (!allowedStatuses.has(status)) {
+        return res.status(400).json({
+          message:
+            "Status de turma inválido.",
+        });
+      }
+
+      const teacherId =
+        await getTeacherIdByUserId(userId);
+
+      if (!teacherId) {
+        return res.status(404).json({
+          message:
+            "Professor não encontrado.",
+        });
+      }
+
+      const queryParams = [teacherId];
+
+      let statusCondition = "";
+
+      if (status) {
+        statusCondition =
+          "AND cl.status = ?";
+
+        queryParams.push(status);
+      }
+
+      const [rows] =
+        await db.promise().query(
+          `
+            SELECT
+              cl.id,
+              cl.course_id,
+              cl.teacher_id,
+              cl.name,
+              cl.shift,
+              cl.start_date,
+              cl.end_date,
+              cl.status,
+              cl.created_at,
+              cl.updated_at,
+
+              c.name AS course_name,
+              c.description
+                AS course_description,
+              c.image_url
+                AS course_image_url,
+              c.category
+                AS course_category,
+              c.nivel
+                AS course_level,
+
+              COALESCE(
+                enrollment_stats.student_count,
+                0
+              ) AS student_count,
+
+              COALESCE(
+                content_stats.content_count,
+                0
+              ) AS content_count,
+
+              COALESCE(
+                activity_stats.activity_count,
+                0
+              ) AS activity_count
+
+            FROM classes cl
+
+            INNER JOIN courses c
+              ON c.id = cl.course_id
+
+            LEFT JOIN (
+              SELECT
+                e.class_id,
+
+                COUNT(
+                  DISTINCT e.student_id
+                ) AS student_count
+
+              FROM enrollments e
+
+              WHERE e.status = 'active'
+
+              GROUP BY e.class_id
+            ) enrollment_stats
+              ON enrollment_stats.class_id =
+                cl.id
+
+            LEFT JOIN (
+              SELECT
+                cc.course_id,
+
+                COUNT(*) AS content_count
+
+              FROM course_contents cc
+
+              WHERE cc.status = 'active'
+                AND cc.type IN (
+                  'video',
+                  'pdf',
+                  'text',
+                  'live_class'
+                )
+
+              GROUP BY cc.course_id
+            ) content_stats
+              ON content_stats.course_id =
+                cl.course_id
+
+            LEFT JOIN (
+              SELECT
+                a.course_id,
+
+                COUNT(*) AS activity_count
+
+              FROM activities a
+
+              WHERE a.status = 'active'
+
+              GROUP BY a.course_id
+            ) activity_stats
+              ON activity_stats.course_id =
+                cl.course_id
+
+            WHERE cl.teacher_id = ?
+              ${statusCondition}
+
+            ORDER BY
+              CASE
+                WHEN cl.status = 'active'
+                  THEN 1
+                WHEN cl.status = 'inactive'
+                  THEN 2
+                WHEN cl.status = 'finished'
+                  THEN 3
+                ELSE 4
+              END,
+
+              cl.start_date DESC,
+              cl.name ASC
+          `,
+          queryParams
+        );
+
+      return res.status(200).json({
+        classes: rows.map(
+          (classItem) => ({
+            id: classItem.id,
+            name: classItem.name,
+
+            courseId:
+              classItem.course_id,
+
+            teacherId:
+              classItem.teacher_id,
+
+            courseName:
+              classItem.course_name,
+
+            courseDescription:
+              classItem.course_description,
+
+            courseImageUrl:
+              classItem.course_image_url,
+
+            courseCategory:
+              classItem.course_category,
+
+            courseLevel:
+              classItem.course_level,
+
+            shift: classItem.shift,
+
+            startDate:
+              classItem.start_date,
+
+            endDate:
+              classItem.end_date,
+
+            status: classItem.status,
+
+            studentCount: Number(
+              classItem.student_count || 0
+            ),
+
+            contentCount: Number(
+              classItem.content_count || 0
+            ),
+
+            activityCount: Number(
+              classItem.activity_count || 0
+            ),
+
+            createdAt:
+              classItem.created_at,
+
+            updatedAt:
+              classItem.updated_at,
+          })
+        ),
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao listar turmas do professor:",
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          "Erro interno ao buscar turmas do professor.",
+
+        error: error.message,
+
+        sqlMessage:
+          error.sqlMessage || null,
+
+        code: error.code || null,
       });
     }
-
-    const allowedStatuses = new Set([
-      "",
-      "active",
-      "inactive",
-      "finished",
-    ]);
-
-    if (!allowedStatuses.has(status)) {
-      return res.status(400).json({
-        message: "Status de turma inválido.",
-      });
-    }
-
-    const teacherId = await getTeacherIdByUserId(userId);
-
-    if (!teacherId) {
-      return res.status(404).json({
-        message: "Professor não encontrado.",
-      });
-    }
-
-    const queryParams = [teacherId];
-    let statusCondition = "";
-
-    if (status) {
-      statusCondition = "AND cl.status = ?";
-      queryParams.push(status);
-    }
-
-    const [rows] = await db.promise().query(
-      `
-        SELECT
-          cl.id,
-          cl.course_id,
-          cl.teacher_id,
-          cl.name,
-          cl.shift,
-          cl.start_date,
-          cl.end_date,
-          cl.status,
-          cl.created_at,
-          cl.updated_at,
-
-          c.name AS course_name,
-          c.description AS course_description,
-          c.image_url AS course_image_url,
-          c.category AS course_category,
-          c.nivel AS course_level,
-
-          COALESCE(
-            enrollment_stats.student_count,
-            0
-          ) AS student_count,
-
-          COALESCE(
-            content_stats.content_count,
-            0
-          ) AS content_count,
-
-          COALESCE(
-            activity_stats.activity_count,
-            0
-          ) AS activity_count
-
-        FROM classes cl
-
-        INNER JOIN courses c
-          ON c.id = cl.course_id
-
-        LEFT JOIN (
-          SELECT
-            e.class_id,
-            COUNT(DISTINCT e.student_id) AS student_count
-          FROM enrollments e
-          WHERE e.status = 'active'
-          GROUP BY e.class_id
-        ) enrollment_stats
-          ON enrollment_stats.class_id = cl.id
-
-        LEFT JOIN (
-          SELECT
-            cc.course_id,
-            COUNT(*) AS content_count
-          FROM course_contents cc
-          WHERE cc.status = 'active'
-            AND cc.type IN (
-              'video',
-              'pdf',
-              'text',
-              'live_class'
-            )
-          GROUP BY cc.course_id
-        ) content_stats
-          ON content_stats.course_id = cl.course_id
-
-        LEFT JOIN (
-          SELECT
-            a.course_id,
-            COUNT(*) AS activity_count
-          FROM activities a
-          WHERE a.status = 'active'
-          GROUP BY a.course_id
-        ) activity_stats
-          ON activity_stats.course_id = cl.course_id
-
-        WHERE cl.teacher_id = ?
-          ${statusCondition}
-
-        ORDER BY
-          CASE
-            WHEN cl.status = 'active' THEN 1
-            WHEN cl.status = 'inactive' THEN 2
-            WHEN cl.status = 'finished' THEN 3
-            ELSE 4
-          END,
-          cl.start_date DESC,
-          cl.name ASC
-      `,
-      queryParams
-    );
-
-    return res.status(200).json({
-      classes: rows.map((classItem) => ({
-        id: classItem.id,
-        name: classItem.name,
-
-        courseId: classItem.course_id,
-        teacherId: classItem.teacher_id,
-
-        courseName: classItem.course_name,
-        courseDescription: classItem.course_description,
-        courseImageUrl: classItem.course_image_url,
-        courseCategory: classItem.course_category,
-        courseLevel: classItem.course_level,
-
-        shift: classItem.shift,
-        startDate: classItem.start_date,
-        endDate: classItem.end_date,
-        status: classItem.status,
-
-        studentCount: Number(classItem.student_count || 0),
-        contentCount: Number(classItem.content_count || 0),
-        activityCount: Number(classItem.activity_count || 0),
-
-        createdAt: classItem.created_at,
-        updatedAt: classItem.updated_at,
-      })),
-    });
-  } catch (error) {
-    console.error(
-      "Erro ao listar turmas do professor:",
-      error
-    );
-
-    return res.status(500).json({
-      message:
-        "Erro interno ao buscar turmas do professor.",
-      error: error.message,
-      sqlMessage: error.sqlMessage,
-      code: error.code,
-    });
   }
-});
+);
 
 /*
  * ============================================================
@@ -7657,15 +7698,20 @@ app.get(
   "/teacher/by-user/:userId/classes/:classId",
   async (req, res) => {
     try {
-      const params = validateTeacherClassParams(req, res);
+      const params = validateTeacherClassParams(
+        req,
+        res
+      );
 
       if (!params) return;
 
       const { userId, classId } = params;
 
-      const classData = await getTeacherClassByUserId(
-        userId,
-        classId
+      const classData =
+        await getTeacherClassByUserId(
+          db.promise(),
+          userId,
+          classId
       );
 
       if (!classData) {
@@ -7676,11 +7722,11 @@ app.get(
       }
 
       const [
-        [studentStats],
-        [contentStats],
-        [activityStats],
+        [studentRows],
+        [contentRows],
+        [activityRows],
       ] = await Promise.all([
-        pool.query(
+        db.promise().query(
           `
             SELECT
               COUNT(DISTINCT e.student_id)
@@ -7694,7 +7740,7 @@ app.get(
           [classId]
         ),
 
-        pool.query(
+        db.promise().query(
           `
             SELECT
               COUNT(*) AS content_count
@@ -7713,7 +7759,7 @@ app.get(
           [classData.course_id]
         ),
 
-        pool.query(
+        db.promise().query(
           `
             SELECT
               COUNT(*) AS activity_count
@@ -7726,6 +7772,15 @@ app.get(
           [classData.course_id]
         ),
       ]);
+
+      const studentStats =
+        studentRows[0] || {};
+
+      const contentStats =
+        contentRows[0] || {};
+
+      const activityStats =
+        activityRows[0] || {};
 
       return res.status(200).json({
         class: {
@@ -7747,24 +7802,31 @@ app.get(
         course: {
           id: classData.course_id,
           name: classData.course_name,
+
           description:
             classData.course_description,
-          imageUrl: classData.course_image_url,
-          category: classData.course_category,
-          level: classData.course_level,
+
+          imageUrl:
+            classData.course_image_url,
+
+          category:
+            classData.course_category,
+
+          level:
+            classData.course_level,
         },
 
         stats: {
           studentCount: Number(
-            studentStats?.student_count || 0
+            studentStats.student_count || 0
           ),
 
           contentCount: Number(
-            contentStats?.content_count || 0
+            contentStats.content_count || 0
           ),
 
           activityCount: Number(
-            activityStats?.activity_count || 0
+            activityStats.activity_count || 0
           ),
 
           attendancePercentage: null,
@@ -7779,9 +7841,10 @@ app.get(
       return res.status(500).json({
         message:
           "Erro interno ao buscar os dados da turma.",
+
         error: error.message,
-        sqlMessage: error.sqlMessage,
-        code: error.code,
+        sqlMessage: error.sqlMessage || null,
+        code: error.code || null,
       });
     }
   }
@@ -7806,9 +7869,10 @@ app.get(
       const { userId, classId } = params;
 
       const classData = await getTeacherClassByUserId(
-        userId,
-        classId
-      );
+                                db.promise(),
+                                userId,
+                                classId
+                              );
 
       if (!classData) {
         return res.status(404).json({
@@ -7817,7 +7881,7 @@ app.get(
         });
       }
 
-      const [rows] = await pool.query(
+      const [rows] = await db.promise().query(
         `
           SELECT
             e.id AS enrollment_id,
@@ -7931,9 +7995,10 @@ app.get(
       }
 
       const classData = await getTeacherClassByUserId(
-        userId,
-        classId
-      );
+                                db.promise(),
+                                userId,
+                                classId
+                              );
 
       if (!classData) {
         return res.status(404).json({
@@ -7950,7 +8015,7 @@ app.get(
         queryParams.push(status);
       }
 
-      const [rows] = await pool.query(
+      const [rows] = await db.promise().query(
         `
           SELECT
             cc.id,
@@ -8091,9 +8156,10 @@ app.get(
       }
 
       const classData = await getTeacherClassByUserId(
-        userId,
-        classId
-      );
+              db.promise(),
+              userId,
+              classId
+            );
 
       if (!classData) {
         return res.status(404).json({
@@ -8119,7 +8185,7 @@ app.get(
         queryParams.push(status);
       }
 
-      const [rows] = await pool.query(
+      const [rows] = await db.promise().query(
         `
           SELECT
             a.id,
@@ -8354,61 +8420,70 @@ async function getTeacherSessionByUserId(
 ) {
   const {
     includeCancelled = true,
-    connection = pool,
+    connection = null,
   } = options;
 
-  const cancelledCondition = includeCancelled
-    ? ""
-    : "AND cs.status <> 'cancelled'";
+  const queryExecutor =
+    connection || db.promise();
 
-  const [rows] = await connection.query(
-    `
-      SELECT
-        cs.id,
-        cs.class_id,
-        cs.session_number,
-        cs.title,
-        cs.session_date,
-        cs.start_time,
-        cs.end_time,
-        cs.session_type,
-        cs.description,
-        cs.status,
-        cs.created_at,
-        cs.updated_at,
+  const cancelledCondition =
+    includeCancelled
+      ? ""
+      : "AND cs.status <> 'cancelled'";
 
-        cl.name AS class_name,
-        cl.shift,
-        cl.course_id,
-        cl.teacher_id,
-        cl.start_date AS class_start_date,
-        cl.end_date AS class_end_date,
-        cl.status AS class_status,
+  const [rows] =
+    await queryExecutor.query(
+      `
+        SELECT
+          cs.id,
+          cs.class_id,
+          cs.session_number,
+          cs.title,
+          cs.session_date,
+          cs.start_time,
+          cs.end_time,
+          cs.session_type,
+          cs.description,
+          cs.status,
+          cs.created_at,
+          cs.updated_at,
 
-        c.name AS course_name,
-        c.planned_session_count,
+          cl.name AS class_name,
+          cl.shift,
+          cl.course_id,
+          cl.teacher_id,
+          cl.start_date
+            AS class_start_date,
+          cl.end_date
+            AS class_end_date,
+          cl.status
+            AS class_status,
 
-        t.user_id AS teacher_user_id
+          c.name AS course_name,
+          c.planned_session_count,
 
-      FROM class_sessions cs
+          t.user_id
+            AS teacher_user_id
 
-      INNER JOIN classes cl
-        ON cl.id = cs.class_id
+        FROM class_sessions cs
 
-      INNER JOIN courses c
-        ON c.id = cl.course_id
+        INNER JOIN classes cl
+          ON cl.id = cs.class_id
 
-      INNER JOIN teachers t
-        ON t.id = cl.teacher_id
+        INNER JOIN courses c
+          ON c.id = cl.course_id
 
-      WHERE cs.id = ?
-        AND t.user_id = ?
-        ${cancelledCondition}
+        INNER JOIN teachers t
+          ON t.id = cl.teacher_id
 
-      LIMIT 1
-    `,
-    [sessionId, userId]
-  );
+        WHERE cs.id = ?
+          AND t.user_id = ?
+          ${cancelledCondition}
+
+        LIMIT 1
+      `,
+      [sessionId, userId]
+    );
 
   return rows[0] || null;
 }
@@ -8418,19 +8493,32 @@ function mapClassSession(session) {
     id: session.id,
     classId: session.class_id,
 
-    sessionNumber: session.session_number,
+    sessionNumber:
+      session.session_number,
+
     title: session.title,
-    sessionDate: session.session_date,
+    sessionDate:
+      session.session_date,
 
-    startTime: session.start_time,
-    endTime: session.end_time,
+    startTime:
+      session.start_time,
 
-    sessionType: session.session_type,
-    description: session.description,
+    endTime:
+      session.end_time,
+
+    sessionType:
+      session.session_type,
+
+    description:
+      session.description,
+
     status: session.status,
 
-    createdAt: session.created_at,
-    updatedAt: session.updated_at,
+    createdAt:
+      session.created_at,
+
+    updatedAt:
+      session.updated_at,
   };
 }
 
@@ -8491,12 +8579,11 @@ app.get(
         });
       }
 
-      const classData =
-        await getTeacherClassByUserId(
-          userId,
-          classId
-        );
-
+      const classData = await getTeacherClassByUserId(
+              db.promise(),
+              userId,
+              classId
+            );
       if (!classData) {
         return res.status(404).json({
           message:
@@ -8521,7 +8608,7 @@ app.get(
         queryParams.push(sessionType);
       }
 
-      const [sessionRows] = await pool.query(
+      const [sessionRows] = await db.promise().query(
         `
           SELECT
             cs.id,
@@ -8602,7 +8689,7 @@ app.get(
         queryParams
       );
 
-      const [summaryRows] = await pool.query(
+      const [summaryRows] = await db.promise().query(
         `
           SELECT
             COUNT(*) AS total_sessions,
@@ -8938,11 +9025,11 @@ app.post(
         });
       }
 
-      const classData =
-        await getTeacherClassByUserId(
-          userId,
-          classId
-        );
+      const classData = await getTeacherClassByUserId(
+              db.promise(),
+              userId,
+              classId
+            );
 
       if (!classData) {
         return res.status(404).json({
@@ -8951,7 +9038,7 @@ app.post(
         });
       }
 
-      const [result] = await pool.query(
+      const [result] = await db.promise().query(
         `
           INSERT INTO class_sessions (
             class_id,
@@ -9157,7 +9244,7 @@ app.put(
         });
       }
 
-      await pool.query(
+      await db.promise().query(
         `
           UPDATE class_sessions
           SET
@@ -9315,6 +9402,11 @@ app.delete(
   }
 );
 
+// ======================================================
+// LEGACY — FREQUÊNCIA BASEADA EM DATA
+// Mantido temporariamente durante migração para sessões.
+// Novas rotas usam class_sessions e sessionId.
+// ======================================================
 /*
  * ============================================================
  * PROFESSOR — CONSULTA DE FREQUÊNCIA DE UMA TURMA
@@ -9323,96 +9415,97 @@ app.delete(
 app.get(
   "/teacher/by-user/:userId/classes/:classId/attendance",
   async (req, res) => {
-    /*
-     * Cria uma interface Promise somente para esta rota.
-     * O db original continua funcionando com callbacks nas
-     * demais rotas do servidor.
-     */
     const promiseDb = db.promise();
 
     try {
       const userId = Number(req.params.userId);
       const classId = Number(req.params.classId);
-      const attendanceDate = req.query.date;
 
-      if (!Number.isInteger(userId) || userId <= 0) {
+      const attendanceDate =
+        typeof req.query.date === "string"
+          ? req.query.date.trim()
+          : "";
+
+      if (
+        !Number.isInteger(userId) ||
+        userId <= 0
+      ) {
         return res.status(400).json({
           message: "ID do usuário inválido.",
         });
       }
 
-      if (!Number.isInteger(classId) || classId <= 0) {
+      if (
+        !Number.isInteger(classId) ||
+        classId <= 0
+      ) {
         return res.status(400).json({
           message: "ID da turma inválido.",
         });
       }
 
-      if (!attendanceDate) {
-        return res.status(400).json({
-          message: "A data da frequência é obrigatória.",
-        });
-      }
-
       if (
+        !attendanceDate ||
         !/^\d{4}-\d{2}-\d{2}$/.test(
           attendanceDate
         )
       ) {
         return res.status(400).json({
           message:
-            "A data deve estar no formato YYYY-MM-DD.",
+            "A data da frequência é obrigatória e deve estar no formato YYYY-MM-DD.",
         });
       }
 
-      /*
-       * Recebemos users.id na URL e encontramos
-       * o respectivo teachers.id.
-       */
-      const [teacherRows] = await promiseDb.query(
-        `
-          SELECT id
-          FROM teachers
-          WHERE user_id = ?
-          LIMIT 1
-        `,
-        [userId]
-      );
+      const [teacherRows] =
+        await promiseDb.query(
+          `
+            SELECT id
+
+            FROM teachers
+
+            WHERE user_id = ?
+
+            LIMIT 1
+          `,
+          [userId]
+        );
 
       if (teacherRows.length === 0) {
         return res.status(404).json({
-          message: "Professor não encontrado.",
+          message:
+            "Professor não encontrado.",
         });
       }
 
-      const teacherId = teacherRows[0].id;
+      const teacherId =
+        teacherRows[0].id;
 
-      /*
-       * Verifica se a turma pertence ao professor.
-       */
-      const [classRows] = await promiseDb.query(
-        `
-          SELECT
-            cl.id,
-            cl.name,
-            cl.shift,
-            cl.course_id,
-            c.name AS course_name,
-            cl.start_date,
-            cl.end_date,
-            cl.status
+      const [classRows] =
+        await promiseDb.query(
+          `
+            SELECT
+              cl.id,
+              cl.name,
+              cl.shift,
+              cl.course_id,
+              cl.start_date,
+              cl.end_date,
+              cl.status,
 
-          FROM classes cl
+              c.name AS course_name
 
-          INNER JOIN courses c
-            ON c.id = cl.course_id
+            FROM classes cl
 
-          WHERE cl.id = ?
-            AND cl.teacher_id = ?
+            INNER JOIN courses c
+              ON c.id = cl.course_id
 
-          LIMIT 1
-        `,
-        [classId, teacherId]
-      );
+            WHERE cl.id = ?
+              AND cl.teacher_id = ?
+
+            LIMIT 1
+          `,
+          [classId, teacherId]
+        );
 
       if (classRows.length === 0) {
         return res.status(404).json({
@@ -9421,125 +9514,218 @@ app.get(
         });
       }
 
-      const classData = classRows[0];
+      const classData =
+        classRows[0];
 
       /*
-       * Busca todos os alunos matriculados na turma.
-       *
-       * O LEFT JOIN permite que alunos ainda sem registro
-       * de frequência também apareçam.
+       * Localiza a sessão da turma na data informada.
        */
-      const [studentRows] = await promiseDb.query(
-        `
-          SELECT
-            s.id AS student_id,
-            u.name AS student_name,
-            u.email,
-            s.registration_number,
+      const [sessionRows] =
+        await promiseDb.query(
+          `
+            SELECT
+              cs.id,
+              cs.session_number,
+              cs.title,
+              cs.session_date,
+              cs.start_time,
+              cs.end_time,
+              cs.session_type,
+              cs.description,
+              cs.status
 
-            a.id AS attendance_id,
-            a.notes,
+            FROM class_sessions cs
 
-            COALESCE(
-              a.status,
-              'present'
-            ) AS status,
+            WHERE cs.class_id = ?
+              AND cs.session_date = ?
+              AND cs.status <> 'cancelled'
 
-            CASE
-              WHEN a.id IS NULL THEN 0
-              ELSE 1
-            END AS is_saved
+            ORDER BY
+              cs.start_time ASC,
+              cs.session_number ASC
 
-          FROM enrollments e
+            LIMIT 1
+          `,
+          [classId, attendanceDate]
+        );
 
-          INNER JOIN students s
-            ON s.id = e.student_id
+      /*
+       * Pode existir uma data ainda sem sessão cadastrada.
+       * Nesse caso, os alunos continuam sendo retornados,
+       * mas sem registros de frequência salvos.
+       */
+      const session =
+        sessionRows[0] || null;
 
-          INNER JOIN users u
-            ON u.id = s.user_id
+      const classSessionId =
+        session?.id || null;
 
-          LEFT JOIN attendance a
-            ON a.student_id = s.id
-           AND a.class_id = ?
-           AND a.attendance_date = ?
+      const [studentRows] =
+        await promiseDb.query(
+          `
+            SELECT
+              s.id AS student_id,
+              u.name AS student_name,
+              u.email,
+              s.registration_number,
 
-          WHERE e.class_id = ?
-            AND e.status = 'active'
-            AND s.status = 'active'
+              a.id AS attendance_id,
+              a.class_session_id,
+              a.notes,
 
-          ORDER BY u.name ASC
-        `,
-        [
-          classId,
-          attendanceDate,
-          classId,
-        ]
-      );
+              COALESCE(
+                a.status,
+                'present'
+              ) AS attendance_status,
 
-      const summary = studentRows.reduce(
-        (accumulator, student) => {
-          accumulator.total += 1;
+              CASE
+                WHEN a.id IS NULL THEN 0
+                ELSE 1
+              END AS is_saved
 
-          if (
-            Object.prototype.hasOwnProperty.call(
-              accumulator,
-              student.status
-            )
-          ) {
-            accumulator[student.status] += 1;
+            FROM enrollments e
+
+            INNER JOIN students s
+              ON s.id = e.student_id
+
+            INNER JOIN users u
+              ON u.id = s.user_id
+
+            LEFT JOIN attendance a
+              ON a.student_id = s.id
+             AND a.class_session_id = ?
+
+            WHERE e.class_id = ?
+              AND e.status = 'active'
+              AND s.status = 'active'
+
+            ORDER BY u.name ASC
+          `,
+          [
+            classSessionId,
+            classId,
+          ]
+        );
+
+      const summary =
+        studentRows.reduce(
+          (accumulator, student) => {
+            accumulator.total += 1;
+
+            const status =
+              student.attendance_status;
+
+            if (
+              Object.prototype.hasOwnProperty.call(
+                accumulator,
+                status
+              )
+            ) {
+              accumulator[status] += 1;
+            }
+
+            if (student.is_saved) {
+              accumulator.saved += 1;
+            } else {
+              accumulator.unsaved += 1;
+            }
+
+            return accumulator;
+          },
+          {
+            total: 0,
+            present: 0,
+            absent: 0,
+            late: 0,
+            excused: 0,
+            saved: 0,
+            unsaved: 0,
           }
-
-          if (student.is_saved) {
-            accumulator.saved += 1;
-          } else {
-            accumulator.unsaved += 1;
-          }
-
-          return accumulator;
-        },
-        {
-          total: 0,
-          present: 0,
-          absent: 0,
-          late: 0,
-          excused: 0,
-          saved: 0,
-          unsaved: 0,
-        }
-      );
+        );
 
       return res.status(200).json({
         class: {
           id: classData.id,
           name: classData.name,
           shift: classData.shift,
-          courseId: classData.course_id,
-          courseName: classData.course_name,
-          startDate: classData.start_date,
-          endDate: classData.end_date,
-          status: classData.status,
+
+          courseId:
+            classData.course_id,
+
+          courseName:
+            classData.course_name,
+
+          startDate:
+            classData.start_date,
+
+          endDate:
+            classData.end_date,
+
+          status:
+            classData.status,
         },
 
         attendanceDate,
 
-        students: studentRows.map((student) => ({
-          studentId: student.student_id,
-          name: student.student_name,
-          email: student.email,
+        session: session
+          ? {
+              id: session.id,
 
-          registrationNumber:
-            student.registration_number,
+              sessionNumber:
+                session.session_number,
 
-          attendanceId:
-            student.attendance_id,
+              title: session.title,
 
-          status: student.status,
-          notes: student.notes ?? "",
+              sessionDate:
+                session.session_date,
 
-          isSaved: Boolean(
-            student.is_saved
-          ),
-        })),
+              startTime:
+                session.start_time,
+
+              endTime:
+                session.end_time,
+
+              sessionType:
+                session.session_type,
+
+              description:
+                session.description,
+
+              status:
+                session.status,
+            }
+          : null,
+
+        students: studentRows.map(
+          (student) => ({
+            studentId:
+              student.student_id,
+
+            name:
+              student.student_name,
+
+            email:
+              student.email,
+
+            registrationNumber:
+              student.registration_number,
+
+            attendanceId:
+              student.attendance_id,
+
+            classSessionId:
+              student.class_session_id,
+
+            status:
+              student.attendance_status,
+
+            notes:
+              student.notes ?? "",
+
+            isSaved:
+              Boolean(student.is_saved),
+          })
+        ),
 
         summary,
       });
@@ -9564,11 +9750,849 @@ app.get(
           error.sqlMessage ||
           error.message,
 
-        code: error.code || null,
+        code:
+          error.code || null,
       });
     }
   }
 );
+
+//Helper para validar professor e turma
+
+async function getTeacherClassByUserId(
+  database,
+  userId,
+  classId
+) {
+  const [rows] = await database.execute(
+    `
+      SELECT
+        c.id,
+        c.name,
+        c.shift,
+        c.status,
+        c.course_id,
+        c.start_date,
+        c.end_date,
+        co.name AS course_name,
+        t.id AS teacher_id
+      FROM classes c
+      INNER JOIN teachers t
+        ON t.id = c.teacher_id
+      LEFT JOIN courses co
+        ON co.id = c.course_id
+      WHERE c.id = ?
+        AND t.user_id = ?
+        AND c.status <> 'archived'
+      LIMIT 1
+    `,
+    [classId, userId]
+  );
+
+  return rows[0] || null;
+}
+
+// ======================================================
+// PROFESSOR - LISTAR ENCONTROS DA TURMA
+//
+// Retorna todos os encontros ativos vinculados à turma,
+// após validar que ela pertence ao professor informado.
+// Também retorna os dados básicos da turma utilizados
+// pela tela de frequência.
+// ======================================================
+
+app.get(
+  "/teacher/by-user/:userId/classes/:classId/sessions",
+  async (req, res) => {
+    const userId = Number(req.params.userId);
+    const classId = Number(req.params.classId);
+
+    if (
+      !Number.isInteger(userId) ||
+      userId <= 0 ||
+      !Number.isInteger(classId) ||
+      classId <= 0
+    ) {
+      return res.status(400).json({
+        message:
+          "Professor ou turma inválidos.",
+      });
+    }
+
+    try {
+      const classData =
+        await getTeacherClassByUserId(
+          db.promise(),
+          userId,
+          classId
+        );
+
+      if (!classData) {
+        return res.status(404).json({
+          message:
+            "Turma não encontrada para este professor.",
+        });
+      }
+
+      const [sessions] =
+        await db.promise().execute(
+          `
+            SELECT
+              cs.id,
+              cs.class_id AS classId,
+              cs.session_number AS sessionNumber,
+              cs.title,
+              cs.description,
+              cs.session_date AS sessionDate,
+              cs.start_time AS startTime,
+              cs.end_time AS endTime,
+              cs.session_type AS sessionType,
+              cs.status,
+              cs.created_at AS createdAt,
+              cs.updated_at AS updatedAt
+            FROM class_sessions cs
+            WHERE cs.class_id = ?
+              AND cs.status <> 'archived'
+            ORDER BY
+              cs.session_number ASC,
+              cs.session_date ASC,
+              cs.start_time ASC
+          `,
+          [classId]
+        );
+
+      return res.json({
+        class: classData,
+        sessions,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao listar encontros:",
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          "Não foi possível carregar os encontros da turma.",
+      });
+    }
+  }
+);
+
+// ======================================================
+// PROFESSOR - CADASTRAR ENCONTRO DA TURMA
+//
+// Cria um novo encontro para a turma informada,
+// validando se ela pertence ao professor responsável.
+// O encontro passa a ficar disponível para registro
+// de frequência e consultas posteriores.
+// ======================================================
+
+app.post(
+  "/teacher/by-user/:userId/classes/:classId/sessions",
+  async (req, res) => {
+    const userId = Number(req.params.userId);
+    const classId = Number(req.params.classId);
+
+    const {
+      sessionNumber,
+      title,
+      description = "",
+      sessionDate,
+      startTime = null,
+      endTime = null,
+      sessionType = "class",
+      status = "scheduled",
+    } = req.body;
+
+    const normalizedSessionNumber =
+      Number(sessionNumber);
+
+    const validSessionTypes = new Set([
+      "class",
+      "review",
+      "exam",
+      "presentation",
+      "workshop",
+      "lab",
+      "recovery",
+      "other",
+    ]);
+
+    const validStatuses = new Set([
+      "scheduled",
+      "completed",
+      "cancelled",
+    ]);
+
+    if (
+      !Number.isInteger(userId) ||
+      userId <= 0 ||
+      !Number.isInteger(classId) ||
+      classId <= 0
+    ) {
+      return res.status(400).json({
+        message:
+          "Professor ou turma inválidos.",
+      });
+    }
+
+    if (
+      !Number.isInteger(
+        normalizedSessionNumber
+      ) ||
+      normalizedSessionNumber <= 0
+    ) {
+      return res.status(400).json({
+        message:
+          "O número do encontro é obrigatório.",
+      });
+    }
+
+    if (
+      !title ||
+      !String(title).trim()
+    ) {
+      return res.status(400).json({
+        message:
+          "O título do encontro é obrigatório.",
+      });
+    }
+
+    if (!sessionDate) {
+      return res.status(400).json({
+        message:
+          "A data do encontro é obrigatória.",
+      });
+    }
+
+    if (
+      !validSessionTypes.has(sessionType)
+    ) {
+      return res.status(400).json({
+        message:
+          "Tipo de encontro inválido.",
+      });
+    }
+
+    if (!validStatuses.has(status)) {
+      return res.status(400).json({
+        message:
+          "Status do encontro inválido.",
+      });
+    }
+
+    if (
+      startTime &&
+      endTime &&
+      startTime >= endTime
+    ) {
+      return res.status(400).json({
+        message:
+          "O horário final deve ser posterior ao horário inicial.",
+      });
+    }
+
+    const connection =
+      await db.promise().getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      const classData =
+        await getTeacherClassByUserId(
+          connection,
+          userId,
+          classId
+        );
+
+      if (!classData) {
+        await connection.rollback();
+
+        return res.status(404).json({
+          message:
+            "Turma não encontrada para este professor.",
+        });
+      }
+
+      const [duplicateRows] =
+        await connection.execute(
+          `
+            SELECT id
+            FROM class_sessions
+            WHERE class_id = ?
+              AND session_number = ?
+              AND status <> 'archived'
+            LIMIT 1
+          `,
+          [
+            classId,
+            normalizedSessionNumber,
+          ]
+        );
+
+      if (duplicateRows.length > 0) {
+        await connection.rollback();
+
+        return res.status(409).json({
+          message:
+            "Já existe um encontro com esse número nesta turma.",
+        });
+      }
+
+      const [result] =
+        await connection.execute(
+          `
+            INSERT INTO class_sessions (
+              class_id,
+              session_number,
+              title,
+              description,
+              session_date,
+              start_time,
+              end_time,
+              session_type,
+              status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+          [
+            classId,
+            normalizedSessionNumber,
+            String(title).trim(),
+            String(description || "").trim(),
+            sessionDate,
+            startTime || null,
+            endTime || null,
+            sessionType,
+            status,
+          ]
+        );
+
+      const [createdRows] =
+        await connection.execute(
+          `
+            SELECT
+              cs.id,
+              cs.class_id AS classId,
+              cs.session_number AS sessionNumber,
+              cs.title,
+              cs.description,
+              cs.session_date AS sessionDate,
+              cs.start_time AS startTime,
+              cs.end_time AS endTime,
+              cs.session_type AS sessionType,
+              cs.status,
+              cs.created_at AS createdAt,
+              cs.updated_at AS updatedAt
+            FROM class_sessions cs
+            WHERE cs.id = ?
+            LIMIT 1
+          `,
+          [result.insertId]
+        );
+
+      await connection.commit();
+
+      return res.status(201).json({
+        message:
+          "Encontro cadastrado com sucesso.",
+        session: createdRows[0],
+      });
+    } catch (error) {
+      await connection.rollback();
+
+      console.error(
+        "Erro ao cadastrar encontro:",
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          "Não foi possível cadastrar o encontro.",
+      });
+    } finally {
+      connection.release();
+    }
+  }
+);
+
+// ======================================================
+// PROFESSOR - EDITAR ENCONTRO DA TURMA
+//
+// Atualiza os dados de um encontro existente,
+// permitindo alterar informações como título,
+// data, horário, tipo, descrição e status,
+// após validar a permissão do professor.
+// ======================================================
+
+app.put(
+  "/teacher/by-user/:userId/classes/:classId/sessions/:sessionId",
+  async (req, res) => {
+    const userId = Number(req.params.userId);
+    const classId = Number(req.params.classId);
+    const sessionId = Number(
+      req.params.sessionId
+    );
+
+    const {
+      sessionNumber,
+      title,
+      description = "",
+      sessionDate,
+      startTime = null,
+      endTime = null,
+      sessionType = "class",
+      status = "scheduled",
+    } = req.body;
+
+    const normalizedSessionNumber =
+      Number(sessionNumber);
+
+    const validSessionTypes = new Set([
+      "class",
+      "review",
+      "exam",
+      "presentation",
+      "workshop",
+      "lab",
+      "recovery",
+      "other",
+    ]);
+
+    const validStatuses = new Set([
+      "scheduled",
+      "completed",
+      "cancelled",
+    ]);
+
+    if (
+      !Number.isInteger(userId) ||
+      userId <= 0 ||
+      !Number.isInteger(classId) ||
+      classId <= 0 ||
+      !Number.isInteger(sessionId) ||
+      sessionId <= 0
+    ) {
+      return res.status(400).json({
+        message:
+          "Parâmetros inválidos.",
+      });
+    }
+
+    if (
+      !Number.isInteger(
+        normalizedSessionNumber
+      ) ||
+      normalizedSessionNumber <= 0 ||
+      !title?.trim() ||
+      !sessionDate
+    ) {
+      return res.status(400).json({
+        message:
+          "Número, título e data são obrigatórios.",
+      });
+    }
+
+    if (
+      !validSessionTypes.has(sessionType) ||
+      !validStatuses.has(status)
+    ) {
+      return res.status(400).json({
+        message:
+          "Tipo ou status do encontro inválido.",
+      });
+    }
+
+    if (
+      startTime &&
+      endTime &&
+      startTime >= endTime
+    ) {
+      return res.status(400).json({
+        message:
+          "O horário final deve ser posterior ao horário inicial.",
+      });
+    }
+
+    const connection =
+      await db.promise().getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      const classData =
+        await getTeacherClassByUserId(
+          connection,
+          userId,
+          classId
+        );
+
+      if (!classData) {
+        await connection.rollback();
+
+        return res.status(404).json({
+          message:
+            "Turma não encontrada para este professor.",
+        });
+      }
+
+      const [sessionRows] =
+        await connection.execute(
+          `
+            SELECT id
+            FROM class_sessions
+            WHERE id = ?
+              AND class_id = ?
+              AND status <> 'archived'
+            LIMIT 1
+          `,
+          [sessionId, classId]
+        );
+
+      if (sessionRows.length === 0) {
+        await connection.rollback();
+
+        return res.status(404).json({
+          message:
+            "Encontro não encontrado.",
+        });
+      }
+
+      const [duplicateRows] =
+        await connection.execute(
+          `
+            SELECT id
+            FROM class_sessions
+            WHERE class_id = ?
+              AND session_number = ?
+              AND id <> ?
+              AND status <> 'archived'
+            LIMIT 1
+          `,
+          [
+            classId,
+            normalizedSessionNumber,
+            sessionId,
+          ]
+        );
+
+      if (duplicateRows.length > 0) {
+        await connection.rollback();
+
+        return res.status(409).json({
+          message:
+            "Já existe outro encontro com esse número.",
+        });
+      }
+
+      await connection.execute(
+        `
+          UPDATE class_sessions
+          SET
+            session_number = ?,
+            title = ?,
+            description = ?,
+            session_date = ?,
+            start_time = ?,
+            end_time = ?,
+            session_type = ?,
+            status = ?
+          WHERE id = ?
+            AND class_id = ?
+        `,
+        [
+          normalizedSessionNumber,
+          title.trim(),
+          String(description || "").trim(),
+          sessionDate,
+          startTime || null,
+          endTime || null,
+          sessionType,
+          status,
+          sessionId,
+          classId,
+        ]
+      );
+
+      const [updatedRows] =
+        await connection.execute(
+          `
+            SELECT
+              cs.id,
+              cs.class_id AS classId,
+              cs.session_number AS sessionNumber,
+              cs.title,
+              cs.description,
+              cs.session_date AS sessionDate,
+              cs.start_time AS startTime,
+              cs.end_time AS endTime,
+              cs.session_type AS sessionType,
+              cs.status,
+              cs.created_at AS createdAt,
+              cs.updated_at AS updatedAt
+            FROM class_sessions cs
+            WHERE cs.id = ?
+            LIMIT 1
+          `,
+          [sessionId]
+        );
+
+      await connection.commit();
+
+      return res.json({
+        message:
+          "Encontro atualizado com sucesso.",
+        session: updatedRows[0],
+      });
+    } catch (error) {
+      await connection.rollback();
+
+      console.error(
+        "Erro ao atualizar encontro:",
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          "Não foi possível atualizar o encontro.",
+      });
+    } finally {
+      connection.release();
+    }
+  }
+);
+
+// ======================================================
+// PROFESSOR - REMOVER ENCONTRO DA TURMA
+//
+// Realiza o arquivamento (soft delete) de um encontro,
+// preservando a integridade dos registros acadêmicos.
+// Apenas o professor responsável pela turma pode
+// remover seus próprios encontros.
+// ======================================================
+
+app.delete(
+  "/teacher/by-user/:userId/classes/:classId/sessions/:sessionId",
+  async (req, res) => {
+    const userId = Number(req.params.userId);
+    const classId = Number(req.params.classId);
+    const sessionId = Number(
+      req.params.sessionId
+    );
+
+    if (
+      !Number.isInteger(userId) ||
+      userId <= 0 ||
+      !Number.isInteger(classId) ||
+      classId <= 0 ||
+      !Number.isInteger(sessionId) ||
+      sessionId <= 0
+    ) {
+      return res.status(400).json({
+        message:
+          "Parâmetros inválidos.",
+      });
+    }
+
+    try {
+      const classData =
+        await getTeacherClassByUserId(
+          db.promise(),
+          userId,
+          classId
+        );
+
+      if (!classData) {
+        return res.status(404).json({
+          message:
+            "Turma não encontrada para este professor.",
+        });
+      }
+
+      const [result] =
+        await db.promise().execute(
+          `
+            UPDATE class_sessions
+            SET status = 'archived'
+            WHERE id = ?
+              AND class_id = ?
+              AND status <> 'archived'
+          `,
+          [sessionId, classId]
+        );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          message:
+            "Encontro não encontrado.",
+        });
+      }
+
+      return res.json({
+        message:
+          "Encontro arquivado com sucesso.",
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao arquivar encontro:",
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          "Não foi possível arquivar o encontro.",
+      });
+    }
+  }
+);
+
+/*
+ * ============================================================
+ * PROFESSOR - CARREGAR FREQUÊNCIA DE UM ENCONTRO DA TURMA
+ * ============================================================
+ *
+ * Retorna todos os alunos ativos matriculados na turma,
+ * juntamente com os registros de frequência do encontro
+ * selecionado (quando já existirem).
+ *
+ * Caso ainda não exista frequência registrada para o
+ * encontro, os alunos são retornados com status padrão
+ * "present", permitindo que o professor realize a chamada.
+ */
+app.get(
+  "/teacher/by-user/:userId/classes/:classId/sessions/:sessionId/attendance",
+  async (req, res) => {
+    const userId = Number(req.params.userId);
+    const classId = Number(req.params.classId);
+    const sessionId = Number(
+      req.params.sessionId
+    );
+
+    if (
+      !Number.isInteger(userId) ||
+      userId <= 0 ||
+      !Number.isInteger(classId) ||
+      classId <= 0 ||
+      !Number.isInteger(sessionId) ||
+      sessionId <= 0
+    ) {
+      return res.status(400).json({
+        message:
+          "Parâmetros inválidos.",
+      });
+    }
+
+    try {
+      const classData =
+        await getTeacherClassByUserId(
+          db.promise(),
+          userId,
+          classId
+        );
+
+      if (!classData) {
+        return res.status(404).json({
+          message:
+            "Turma não encontrada para este professor.",
+        });
+      }
+
+      const [sessionRows] =
+        await db.promise().execute(
+          `
+            SELECT
+              cs.id,
+              cs.class_id AS classId,
+              cs.session_number AS sessionNumber,
+              cs.title,
+              cs.description,
+              cs.session_date AS sessionDate,
+              cs.start_time AS startTime,
+              cs.end_time AS endTime,
+              cs.session_type AS sessionType,
+              cs.status
+            FROM class_sessions cs
+            WHERE cs.id = ?
+              AND cs.class_id = ?
+              AND cs.status <> 'archived'
+            LIMIT 1
+          `,
+          [sessionId, classId]
+        );
+
+      if (sessionRows.length === 0) {
+        return res.status(404).json({
+          message:
+            "Encontro não encontrado para esta turma.",
+        });
+      }
+
+      const [students] =
+        await db.promise().execute(
+          `
+            SELECT
+              s.id AS studentId,
+              u.name,
+              u.email,
+              s.registration_number AS registrationNumber,
+
+              a.id AS attendanceId,
+
+              COALESCE(
+                a.status,
+                'present'
+              ) AS status,
+
+              COALESCE(
+                a.notes,
+                ''
+              ) AS notes,
+
+              CASE
+                WHEN a.id IS NULL THEN 0
+                ELSE 1
+              END AS isSaved
+
+            FROM enrollments e
+
+            INNER JOIN students s
+              ON s.id = e.student_id
+
+            INNER JOIN users u
+              ON u.id = s.user_id
+
+            LEFT JOIN attendance a
+              ON a.student_id = s.id
+              AND a.class_session_id = ?
+
+            WHERE e.class_id = ?
+              AND e.status = 'active'
+              AND u.status = 'active'
+
+            ORDER BY u.name ASC
+          `,
+          [sessionId, classId]
+        );
+      return res.json({
+        class: classData,
+        session: sessionRows[0],
+        students,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao carregar frequência:",
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          "Não foi possível carregar a frequência deste encontro.",
+      });
+    }
+  }
+);
+
 
 
 /*
@@ -9577,176 +10601,154 @@ app.get(
  * ============================================================
  */
 app.post(
-  "/teacher/by-user/:userId/classes/:classId/attendance",
+  "/teacher/by-user/:userId/classes/:classId/sessions/:sessionId/attendance",
   async (req, res) => {
-    /*
-     * O wrapper Promise existe apenas dentro desta rota.
-     */
-    const promiseDb = db.promise();
+   
+    const userId = Number(
+      req.params.userId
+    );
 
-    let connection = null;
-    let transactionStarted = false;
+    const classId = Number(
+      req.params.classId
+    );
 
-    try {
-      const userId = Number(req.params.userId);
-      const classId = Number(req.params.classId);
+    const sessionId = Number(
+      req.params.sessionId
+    );
 
-      const {
-        attendanceDate,
-        records,
-      } = req.body;
+    const { records } = req.body;
 
-      if (!Number.isInteger(userId) || userId <= 0) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
+    if (
+      !Number.isInteger(userId) ||
+      userId <= 0
+    ) {
+      return res.status(400).json({
+        message:
+          "ID do usuário inválido.",
+      });
+    }
 
-      if (!Number.isInteger(classId) || classId <= 0) {
-        return res.status(400).json({
-          message: "ID da turma inválido.",
-        });
-      }
+    if (
+      !Number.isInteger(classId) ||
+      classId <= 0
+    ) {
+      return res.status(400).json({
+        message:
+          "ID da turma inválido.",
+      });
+    }
 
-      if (
-        !attendanceDate ||
-        !/^\d{4}-\d{2}-\d{2}$/.test(
-          attendanceDate
-        )
-      ) {
-        return res.status(400).json({
-          message:
-            "A data da frequência é obrigatória e deve usar o formato YYYY-MM-DD.",
-        });
-      }
+    if (
+      !Number.isInteger(sessionId) ||
+      sessionId <= 0
+    ) {
+      return res.status(400).json({
+        message:
+          "ID do encontro inválido.",
+      });
+    }
 
-      if (
-        !Array.isArray(records) ||
-        records.length === 0
-      ) {
-        return res.status(400).json({
-          message:
-            "Envie pelo menos um registro de frequência.",
-        });
-      }
+    if (
+      !Array.isArray(records) ||
+      records.length === 0
+    ) {
+      return res.status(400).json({
+        message:
+          "Envie pelo menos um registro de frequência.",
+      });
+    }
 
-      const allowedStatuses = new Set([
+    const allowedStatuses =
+      new Set([
         "present",
         "absent",
         "late",
         "excused",
       ]);
 
-      const normalizedRecords = records.map(
-        (record) => ({
-          studentId: Number(record.studentId),
+    const normalizedRecords =
+      records.map((record) => ({
+        studentId: Number(
+          record.studentId
+        ),
 
-          status: record.status,
+        status: record.status,
 
-          notes:
-            typeof record.notes === "string"
-              ? record.notes.trim() || null
-              : null,
-        })
+        notes:
+          typeof record.notes ===
+          "string"
+            ? record.notes.trim() ||
+              null
+            : null,
+      }));
+
+    const invalidRecord =
+      normalizedRecords.find(
+        (record) =>
+          !Number.isInteger(
+            record.studentId
+          ) ||
+          record.studentId <= 0 ||
+          !allowedStatuses.has(
+            record.status
+          ) ||
+          (
+            record.notes !== null &&
+            record.notes.length > 500
+          )
       );
 
-      const invalidRecord =
-        normalizedRecords.find(
-          (record) =>
-            !Number.isInteger(
-              record.studentId
-            ) ||
-            record.studentId <= 0 ||
-            !allowedStatuses.has(
-              record.status
-            )
-        );
+    if (invalidRecord) {
+      return res.status(400).json({
+        message:
+          "Existe um registro com aluno, status ou observação inválida. As observações podem ter até 500 caracteres.",
+      });
+    }
 
-      if (invalidRecord) {
-        return res.status(400).json({
-          message:
-            "Existe um registro com aluno ou status de frequência inválido.",
-        });
-      }
+    const studentIds =
+      normalizedRecords.map(
+        (record) => record.studentId
+      );
 
-      const studentIds =
-        normalizedRecords.map(
-          (record) => record.studentId
-        );
+    const uniqueStudentIds = [
+      ...new Set(studentIds),
+    ];
 
-      const uniqueStudentIds = [
-        ...new Set(studentIds),
-      ];
+    if (
+      uniqueStudentIds.length !==
+      studentIds.length
+    ) {
+      return res.status(400).json({
+        message:
+          "A requisição possui registros duplicados para o mesmo aluno.",
+      });
+    }
 
-      if (
-        uniqueStudentIds.length !==
-        studentIds.length
-      ) {
-        return res.status(400).json({
-          message:
-            "A requisição possui registros duplicados para o mesmo aluno.",
-        });
-      }
+    let connection;
+    let transactionStarted = false;
 
-      /*
-       * Obtém uma conexão Promise somente para esta
-       * transação.
-       */
+    try {
       connection =
-        await promiseDb.getConnection();
+        await db
+          .promise()
+          .getConnection();
 
       await connection.beginTransaction();
+
       transactionStarted = true;
 
       /*
-       * Converte users.id para teachers.id utilizando
-       * a mesma conexão da transação.
+       * Confirma que a turma pertence
+       * ao professor autenticado.
        */
-      const [teacherRows] =
-        await connection.query(
-          `
-            SELECT id
-            FROM teachers
-            WHERE user_id = ?
-            LIMIT 1
-          `,
-          [userId]
+      const classData =
+        await getTeacherClassByUserId(
+          connection,
+          userId,
+          classId
         );
 
-      if (teacherRows.length === 0) {
-        await connection.rollback();
-        transactionStarted = false;
-
-        return res.status(404).json({
-          message: "Professor não encontrado.",
-        });
-      }
-
-      const teacherId = teacherRows[0].id;
-
-      /*
-       * Verifica e bloqueia a turma durante a operação.
-       */
-      const [classRows] =
-        await connection.query(
-          `
-            SELECT
-              id,
-              name,
-              teacher_id
-
-            FROM classes
-
-            WHERE id = ?
-              AND teacher_id = ?
-
-            LIMIT 1
-            FOR UPDATE
-          `,
-          [classId, teacherId]
-        );
-
-      if (classRows.length === 0) {
+      if (!classData) {
         await connection.rollback();
         transactionStarted = false;
 
@@ -9756,31 +10758,123 @@ app.post(
         });
       }
 
-      const studentPlaceholders =
+      /*
+       * Carrega o encontro e calcula
+       * se a chamada já foi liberada.
+       *
+       * Se start_time for NULL,
+       * a chamada é liberada às 00:00
+       * da data do encontro.
+       */
+      const [sessionRows] =
+        await connection.execute(
+          `
+            SELECT
+              cs.id,
+              cs.class_id AS classId,
+              cs.session_number AS sessionNumber,
+              cs.title,
+              cs.session_date AS sessionDate,
+              cs.start_time AS startTime,
+              cs.end_time AS endTime,
+              cs.session_type AS sessionType,
+              cs.status,
+
+              cs.session_date AS attendanceOpensAt,
+
+              CASE
+                WHEN CURDATE() >= cs.session_date
+                THEN 1
+                ELSE 0
+              END AS canRegisterAttendance
+
+            FROM class_sessions cs
+
+            WHERE cs.id = ?
+              AND cs.class_id = ?
+
+            LIMIT 1
+
+            FOR UPDATE
+          `,
+          [sessionId, classId]
+        );
+
+      if (sessionRows.length === 0) {
+        await connection.rollback();
+        transactionStarted = false;
+
+        return res.status(404).json({
+          message:
+            "Encontro não encontrado para esta turma.",
+        });
+      }
+
+      const classSession =
+        sessionRows[0];
+
+      if (
+        classSession.status ===
+          "cancelled" ||
+        classSession.status ===
+          "archived"
+      ) {
+        await connection.rollback();
+        transactionStarted = false;
+
+        return res.status(400).json({
+          message:
+            "Não é possível registrar frequência em um encontro cancelado ou arquivado.",
+        });
+      }
+
+      if (
+        Number(
+          classSession
+            .canRegisterAttendance
+        ) !== 1
+      ) {
+        await connection.rollback();
+        transactionStarted = false;
+
+        return res.status(403).json({
+          message:
+            "A chamada só será liberada a partir da data e do horário de início do encontro.",
+
+          attendanceOpensAt:
+            classSession
+              .attendanceOpensAt,
+        });
+      }
+
+      /*
+       * Confirma que todos os alunos
+       * possuem matrícula ativa.
+       */
+      const placeholders =
         uniqueStudentIds
           .map(() => "?")
           .join(", ");
 
-      /*
-       * Verifica se todos os alunos enviados realmente
-       * possuem matrícula ativa na turma.
-       */
       const [enrolledRows] =
-        await connection.query(
+        await connection.execute(
           `
             SELECT DISTINCT
-              e.student_id
+              e.student_id AS studentId
 
             FROM enrollments e
 
             INNER JOIN students s
               ON s.id = e.student_id
 
+            INNER JOIN users u
+              ON u.id = s.user_id
+
             WHERE e.class_id = ?
               AND e.status = 'active'
-              AND s.status = 'active'
+              AND u.status = 'active'
               AND e.student_id IN (
-                ${studentPlaceholders}
+                ${placeholders}
               )
           `,
           [
@@ -9789,11 +10883,12 @@ app.post(
           ]
         );
 
-      const enrolledStudentIds = new Set(
-        enrolledRows.map((row) =>
-          Number(row.student_id)
-        )
-      );
+      const enrolledStudentIds =
+        new Set(
+          enrolledRows.map((row) =>
+            Number(row.studentId)
+          )
+        );
 
       const invalidStudentIds =
         uniqueStudentIds.filter(
@@ -9803,7 +10898,9 @@ app.post(
             )
         );
 
-      if (invalidStudentIds.length > 0) {
+      if (
+        invalidStudentIds.length > 0
+      ) {
         await connection.rollback();
         transactionStarted = false;
 
@@ -9815,53 +10912,42 @@ app.post(
         });
       }
 
+      /*
+       * Cria ou atualiza a frequência.
+       *
+       * A tabela real é attendance.
+       * A FK real é class_session_id.
+       */
       const valuesPlaceholders =
         normalizedRecords
-          .map(
-            () => "(?, ?, ?, ?, ?)"
-          )
+          .map(() => "(?, ?, ?, ?)")
           .join(", ");
 
       const insertValues =
         normalizedRecords.flatMap(
           (record) => [
+            sessionId,
             record.studentId,
-            classId,
-            attendanceDate,
             record.status,
             record.notes,
           ]
         );
 
-      /*
-       * A chave única é:
-       *
-       * student_id + class_id + attendance_date
-       *
-       * Se a frequência já existir, ela será atualizada.
-       */
       const [saveResult] =
-        await connection.query(
+        await connection.execute(
           `
             INSERT INTO attendance (
+              class_session_id,
               student_id,
-              class_id,
-              attendance_date,
               status,
               notes
             )
 
             VALUES ${valuesPlaceholders}
 
-            AS new_attendance
-
             ON DUPLICATE KEY UPDATE
-              status =
-                new_attendance.status,
-
-              notes =
-                new_attendance.notes,
-
+              status = VALUES(status),
+              notes = VALUES(notes),
               updated_at =
                 CURRENT_TIMESTAMP
           `,
@@ -9875,7 +10961,10 @@ app.post(
         normalizedRecords.reduce(
           (accumulator, record) => {
             accumulator.total += 1;
-            accumulator[record.status] += 1;
+
+            accumulator[
+              record.status
+            ] += 1;
 
             return accumulator;
           },
@@ -9893,7 +10982,31 @@ app.post(
           "Frequência salva com sucesso.",
 
         classId,
-        attendanceDate,
+
+        session: {
+          id: classSession.id,
+
+          sessionNumber:
+            classSession.sessionNumber,
+
+          title:
+            classSession.title,
+
+          sessionDate:
+            classSession.sessionDate,
+
+          startTime:
+            classSession.startTime,
+
+          endTime:
+            classSession.endTime,
+
+          sessionType:
+            classSession.sessionType,
+
+          status:
+            classSession.status,
+        },
 
         savedRecords:
           normalizedRecords.length,
@@ -9912,41 +11025,29 @@ app.post(
           await connection.rollback();
         } catch (rollbackError) {
           console.error(
-            "Erro ao desfazer transação de frequência:",
+            "Erro no rollback:",
             rollbackError
           );
         }
       }
 
-      console.error(
-        "Erro ao salvar frequência:",
-        {
-          message: error.message,
-          code: error.code,
-          errno: error.errno,
-          sqlState: error.sqlState,
-          sqlMessage: error.sqlMessage,
-          sql: error.sql,
-        }
-      );
 
       return res.status(500).json({
         message:
-          "Erro interno ao salvar a frequência.",
-
-        error:
           error.sqlMessage ||
-          error.message,
+          error.message ||
+          "Não foi possível salvar a frequência deste encontro.",
 
-        code: error.code || null,
+        code:
+          error.code || null,
       });
     } finally {
       if (connection) {
         connection.release();
       }
-    }
   }
-);
+});
+
 
 
 
