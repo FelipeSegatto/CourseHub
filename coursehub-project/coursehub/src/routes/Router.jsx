@@ -47,6 +47,10 @@ import AttendanceProfessor from "../pages/professor/AttendanceProfessor";
 import GradesProfessor from "../pages/professor/GradesProfessor";
 import ProfileProfessor from "../pages/professor/ProfileProfessor";
 
+import UserProfile from "../pages/profile/UserProfile";
+import ProfileSecurity from "../pages/profile/ProfileSecurity";
+import ForgotPassword from "../pages/public/ForgotPassword";
+
 import ProtectedRoute from "../auth/ProtectedRoute";
 import PublicOnlyRoute from "../auth/PublicOnlyRoute";
 import RoleRoute from "./RoleRoute";
@@ -94,6 +98,10 @@ export const router = createBrowserRouter([
         path: "profile",
         element: <ProfilePage />,
       },
+      {
+        path: "/esqueci-minha-senha",
+        element: <ForgotPassword />
+      }
     ],
   },
 
@@ -112,6 +120,7 @@ export const router = createBrowserRouter([
         path: "/register",
         element: <SignUpPage />,
       },
+    
     ],
   },
 
@@ -194,9 +203,13 @@ export const router = createBrowserRouter([
                 element: <ProgressoAluno />,
               },
               {
-                path: "perfil-aluno",
-                element: <ProfileAluno />,
+                path: "perfil",
+                element: <UserProfile />,
               },
+                {
+                  path: "perfil/seguranca",
+                  element: <ProfileSecurity />
+                },
             ],
           },
         ],
@@ -250,7 +263,11 @@ export const router = createBrowserRouter([
               },
               {
                 path: "perfil",
-                element: <ProfileAdmin />,
+                element: <UserProfile />,
+              },
+              {
+                path: "perfil/seguranca",
+                element: <ProfileSecurity />
               },
             ],
           },
@@ -376,8 +393,12 @@ export const router = createBrowserRouter([
                 element: <GradesProfessor />,
               },
               {
-                path: "perfil-professor",
-                element: <ProfileProfessor />,
+                path: "perfil",
+                element: <UserProfile />,
+              },
+               {
+                path: "perfil/seguranca",
+                element: <ProfileSecurity />
               },
             ],
           },
@@ -385,6 +406,8 @@ export const router = createBrowserRouter([
       },
     ],
   },
+
+  
 
   // =========================================================
   // ROTA GLOBAL 404

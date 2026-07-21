@@ -164,7 +164,459 @@ app.post("/login", async (req, res) => {
   }
 });
 
+/*==========================================================
+LISTAR E ALTERAR DADOS DOS USUÁRIOS 
+ ========================================================== /*
+ 
+ // ======================================================
+// PROFILE
+// ======================================================
 
+/**
+ * GET /api/profile/:userId
+ *
+ * Retorna todas as informações necessárias para a página
+ * "Meu Perfil".
+ *
+ * Dependendo da role do usuário, busca os dados
+ * específicos em students ou teachers.
+ */
+app.get("/api/profile/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // 1. Busca os dados principais na tabela users
+    const [userRows] = await db.promise().query(
+      `
+      SELECT
+        id,
+        name,
+        email,
+        gender,
+        role,
+        status,
+        avatar_key
+      FROM users
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [userId]
+    );
+
+    // 2. Verifica se o usuário existe
+    if (userRows.length === 0) {
+      return res.status(404).json({
+        message: "Usuário não encontrado.",
+      });
+    }
+
+    const user = userRows[0];
+
+    // 3. Estrutura base do perfil
+    const profile = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      gender: user.gender,
+      role: user.role,
+      status: user.status,
+      avatarKey: user.avatar_key || null,
+      phone: null,
+      address: null,
+      specialty: null,
+    };
+
+    // 4. Caso seja aluno, busca dados complementares
+    if (user.role === "student") {
+      const [studentRows] = await db.promise().query(
+        `
+        SELECT
+          phone,
+          address
+        FROM students
+        WHERE user_id = ?
+        LIMIT 1
+        `,
+        [userId]
+      );
+
+      if (studentRows.length > 0) {
+        profile.phone = studentRows[0].phone || null;
+        profile.address = studentRows[0].address || null;
+      }
+    }
+
+    // 5. Caso seja professor, busca dados complementares
+    if (user.role === "teacher") {
+      const [teacherRows] = await db.promise().query(
+        `
+        SELECT
+          phone,
+          specialty
+        FROM teachers
+        WHERE user_id = ?
+        LIMIT 1
+        `,
+        [userId]
+      );
+
+      if (teacherRows.length > 0) {
+        profile.phone = teacherRows[0].phone || null;
+        profile.specialty = teacherRows[0].specialty || null;
+      }
+    }
+
+    // 6. Responde ao frontend
+    return res.status(200).json({
+      profile,
+    });
+  } catch (error) {
+    console.error("Erro ao carregar perfil:", error);
+
+    return res.status(500).json({
+      message: "Erro ao carregar perfil.",
+      error: error.message,
+    });
+  }
+});
+
+
+
+
+
+
+/**
+ * PATCH /api/profile/:userId/password
+ *
+ * Atualiza a senha do usuário.
+ *
+ * Fluxo:
+ *
+ * 1. Buscar password_hash
+ * 2. Comparar senha atual
+ * 3. Gerar novo hash
+ * 4. Atualizar users.password_hash
+ */
+
+
+
+app.patch("/api/profile/:userId/password", async (req, res) => {
+  let connection;
+
+  try {
+    connection = await db.promise().getConnection();
+    await connection.beginTransaction();
+
+    const { userId } = req.params;
+
+    const {
+      currentPassword,
+      newPassword,
+    } = req.body;
+
+    // 1. Valida os campos obrigatórios
+    if (!currentPassword || !newPassword) {
+      await connection.rollback();
+
+      return res.status(400).json({
+        message:
+          "A senha atual e a nova senha são obrigatórias.",
+      });
+    }
+
+    // 2. Valida o tamanho mínimo da nova senha
+    if (newPassword.length < 6) {
+      await connection.rollback();
+
+      return res.status(400).json({
+        message:
+          "A nova senha deve possuir pelo menos 6 caracteres.",
+      });
+    }
+
+    // 3. Busca o usuário e o hash atual
+    const [userRows] = await connection.query(
+      `
+      SELECT
+        id,
+        password_hash,
+        status
+      FROM users
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [userId]
+    );
+
+    if (userRows.length === 0) {
+      await connection.rollback();
+
+      return res.status(404).json({
+        message: "Usuário não encontrado.",
+      });
+    }
+
+    const user = userRows[0];
+
+    // 4. Impede alteração para usuário inativo ou bloqueado
+    if (user.status !== "active") {
+      await connection.rollback();
+
+      return res.status(403).json({
+        message:
+          "Não é possível alterar a senha deste usuário.",
+      });
+    }
+
+    // 5. Compara a senha atual com o hash armazenado
+    const currentPasswordMatches =
+      await bcrypt.compare(
+        currentPassword,
+        user.password_hash
+      );
+
+    if (!currentPasswordMatches) {
+      await connection.rollback();
+
+      return res.status(401).json({
+        message: "A senha atual está incorreta.",
+      });
+    }
+
+    // 6. Impede que a nova senha seja igual à atual
+    const newPasswordMatchesCurrent =
+      await bcrypt.compare(
+        newPassword,
+        user.password_hash
+      );
+
+    if (newPasswordMatchesCurrent) {
+      await connection.rollback();
+
+      return res.status(400).json({
+        message:
+          "A nova senha deve ser diferente da senha atual.",
+      });
+    }
+
+    // 7. Gera o novo hash
+    const newPasswordHash = await bcrypt.hash(
+      newPassword,
+      10
+    );
+
+    // 8. Atualiza somente a senha
+    await connection.query(
+      `
+      UPDATE users
+      SET
+        password_hash = ?,
+        updated_at = NOW()
+      WHERE id = ?
+      `,
+      [
+        newPasswordHash,
+        userId,
+      ]
+    );
+
+    await connection.commit();
+
+    return res.status(200).json({
+      message: "Senha alterada com sucesso.",
+    });
+  } catch (error) {
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        console.error(
+          "Erro ao executar rollback:",
+          rollbackError
+        );
+      }
+    }
+
+    console.error(
+      "Erro ao atualizar senha:",
+      error
+    );
+
+    return res.status(500).json({
+      message: "Erro ao atualizar senha.",
+      error:
+        error.message ||
+        "Erro interno do servidor.",
+    });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+
+/*TROCA DE SENHA - ROTA PARA VERIFICAÇÃO DO EMAIL  */
+
+app.post(
+  "/api/forgot-password/check-email",
+  async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({
+          message: "O e-mail é obrigatório.",
+        });
+      }
+
+      const normalizedEmail = email
+        .trim()
+        .toLowerCase();
+
+      const [userRows] = await db.promise().query(
+        `
+        SELECT
+          id,
+          email,
+          status
+        FROM users
+        WHERE email = ?
+        LIMIT 1
+        `,
+        [normalizedEmail]
+      );
+
+      if (userRows.length === 0) {
+        return res.status(404).json({
+          message:
+            "Não existe uma conta cadastrada com este e-mail.",
+        });
+      }
+
+      const user = userRows[0];
+
+      if (user.status !== "active") {
+        return res.status(403).json({
+          message:
+            "Esta conta não está ativa. Entre em contato com a instituição.",
+        });
+      }
+
+      return res.status(200).json({
+        message: "E-mail encontrado.",
+        email: user.email,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao verificar e-mail:",
+        error
+      );
+
+      return res.status(500).json({
+        message: "Erro ao verificar o e-mail.",
+        error: error.message,
+      });
+    }
+  }
+);
+
+/* ROTA PARA ATUALIZAÇÃO DA SENHA */
+app.patch(
+  "/api/forgot-password/reset",
+  async (req, res) => {
+    try {
+      const {
+        email,
+        newPassword,
+        confirmPassword,
+      } = req.body;
+
+      if (
+        !email ||
+        !newPassword ||
+        !confirmPassword
+      ) {
+        return res.status(400).json({
+          message:
+            "E-mail, nova senha e confirmação são obrigatórios.",
+        });
+      }
+
+      if (newPassword !== confirmPassword) {
+        return res.status(400).json({
+          message:
+            "A nova senha e a confirmação não coincidem.",
+        });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({
+          message:
+            "A nova senha deve possuir pelo menos 6 caracteres.",
+        });
+      }
+
+      const normalizedEmail = email
+        .trim()
+        .toLowerCase();
+
+      const [userRows] = await db.promise().query(
+        `
+        SELECT
+          id,
+          status
+        FROM users
+        WHERE email = ?
+        LIMIT 1
+        `,
+        [normalizedEmail]
+      );
+
+      if (userRows.length === 0) {
+        return res.status(404).json({
+          message: "Usuário não encontrado.",
+        });
+      }
+
+      const user = userRows[0];
+
+      if (user.status !== "active") {
+        return res.status(403).json({
+          message:
+            "Esta conta não está ativa.",
+        });
+      }
+
+      await db.promise().query(
+        `
+        UPDATE users
+        SET
+          password_hash = ?,
+          updated_at = NOW()
+        WHERE id = ?
+        `,
+        [newPassword, user.id]
+      );
+
+      return res.status(200).json({
+        message:
+          "Senha redefinida com sucesso. Você será direcionado para o login.",
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao redefinir senha:",
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          "Erro ao redefinir a senha.",
+        error: error.message,
+      });
+    }
+  }
+);
 /* ==========================================================
    CURSOS — ROTAS GERAIS
    ========================================================== */
