@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
+import { apiFetch } from "../../services/APIService";
 
 import TeacherManagementPage from "../../components/teachers/TeacherManagementPage";
 import TeacherTable from "../../components/teachers/TeacherTable";
@@ -101,28 +102,26 @@ export default function ActivitySubmissionProfessor() {
   }
 
   const requestUrl =
-    `http://localhost:3001/teacher/by-user/` +
+    `/api/teacher/by-user/` +
     `${usuarioLogado.id}/activities/` +
     `${activityId}/submissions`;
 
   console.log("URL da requisição:", requestUrl);
 
-  const response = await fetch(requestUrl);
-
-  console.log("Status da resposta:", response.status);
-
-  const data = await response.json();
+  let data;
+  try {
+    data = await apiFetch(requestUrl);
+  } catch (loadSubmissionsError) {
+    throw new Error(
+      loadSubmissionsError.data?.message ||
+        "Erro ao buscar entregas da atividade.",
+      { cause: loadSubmissionsError }
+    );
+  }
 
   console.log("Resposta completa do backend:", data);
   console.log("Atividade recebida:", data.activity);
   console.log("Submissions recebidas:", data.submissions);
-
-  if (!response.ok) {
-    throw new Error(
-      data.message ||
-        "Erro ao buscar entregas da atividade."
-    );
-  }
 
   setActivity(data.activity || null);
 

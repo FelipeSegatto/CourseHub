@@ -175,7 +175,7 @@ export default function MyClassesProfessor() {
       setError("");
 
       const data = await apiFetch(
-        `/teacher/by-user/${usuarioLogado.id}/classes`
+        `/api/teacher/by-user/${usuarioLogado.id}/classes`
       );
 
       const rawClasses =

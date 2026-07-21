@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
+import { apiFetch } from "../../services/APIService";
 import LessonPlayer from "../../components/LessonPlayer";
 
 export default function DashboardMaterial() {
@@ -29,22 +30,26 @@ export default function DashboardMaterial() {
         setLoading(true);
         setError("");
 
-        const courseResponse = await fetch(`http://localhost:3001/courses/${id}`);
-        const courseData = await courseResponse.json();
-
-        if (!courseResponse.ok) {
-          throw new Error(courseData.message || "Curso não encontrado.");
+        let courseData;
+        try {
+          courseData = await apiFetch(`/api/courses/${id}`);
+        } catch (courseRequestError) {
+          throw new Error(courseRequestError.data?.message || "Curso não encontrado.", {
+            cause: courseRequestError,
+          });
         }
 
         setCourse(courseData);
 
-        const contentsResponse = await fetch(
-          `http://localhost:3001/courses/${id}/contents`
-        );
-        const contentsData = await contentsResponse.json();
-
-        if (!contentsResponse.ok) {
-          throw new Error(contentsData.message || "Erro ao buscar conteúdos.");
+        let contentsData;
+        try {
+          contentsData = await apiFetch(
+            `/api/courses/${id}/contents`
+          );
+        } catch (contentsRequestError) {
+          throw new Error(contentsRequestError.data?.message || "Erro ao buscar conteúdos.", {
+            cause: contentsRequestError,
+          });
         }
 
         setAllContents(contentsData);

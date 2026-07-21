@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
+import { apiFetch } from "../../services/APIService";
 
 import TeacherManagementPage from "./TeacherManagementPage";
 import ActivityModal from "./ActivityModal";
@@ -86,37 +87,47 @@ export default function TeacherActivitiesPage({
   async function loadActivities() {
     if (!usuarioLogado?.id) return;
 
-    const response = await fetch(
-      `http://localhost:3001/teacher/by-user/${usuarioLogado.id}/activities`
+    const endpoint =
+      `/api/teacher/by-user/${usuarioLogado.id}/activities`;
+
+    console.log(
+      "Buscando atividades do professor:",
+      endpoint
     );
 
-    const data = await response.json();
+    const data = await apiFetch(endpoint);
 
-    if (!response.ok) {
-      throw new Error(
-        data.message || "Erro ao buscar atividades do professor."
-      );
-    }
+    console.log(
+      "Atividades recebidas:",
+      data
+    );
 
-    setAllActivities(Array.isArray(data) ? data : []);
+    setAllActivities(
+      Array.isArray(data) ? data : []
+    );
   }
 
   async function loadCourses() {
     if (!usuarioLogado?.id) return;
 
-    const response = await fetch(
-      `http://localhost:3001/teacher/by-user/${usuarioLogado.id}/courses`
+    const endpoint =
+      `/api/teacher/by-user/${usuarioLogado.id}/courses`;
+
+    console.log(
+      "Buscando cursos do professor:",
+      endpoint
     );
 
-    const data = await response.json();
+    const data = await apiFetch(endpoint);
 
-    if (!response.ok) {
-      throw new Error(
-        data.message || "Erro ao buscar cursos do professor."
-      );
-    }
+    console.log(
+      "Cursos recebidos:",
+      data
+    );
 
-    setCourses(Array.isArray(data) ? data : []);
+    setCourses(
+      Array.isArray(data) ? data : []
+    );
   }
 
   useEffect(() => {
@@ -249,27 +260,23 @@ export default function TeacherActivitiesPage({
       setLoadingDelete(true);
       setError("");
 
-      const response = await fetch(
-        `http://localhost:3001/activities/${activity.id}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userId: usuarioLogado.id,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
+      try {
+        await apiFetch(
+          `/api/activities/${activity.id}`,
+          {
+            method: "DELETE",
+            body: JSON.stringify({
+              userId: usuarioLogado.id,
+            }),
+          }
+        );
+      } catch (deleteActivityError) {
         throw new Error(
-          data.message ||
+          deleteActivityError.data?.message ||
             `Erro ao remover ${
               activityKind === "exam" ? "avaliação" : "atividade"
-            }.`
+            }.`,
+          { cause: deleteActivityError }
         );
       }
 

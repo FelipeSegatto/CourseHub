@@ -6,7 +6,7 @@ export default function CourseService() {
     useEffect(() => {
       async function fetchCursos() {
         try {
-          const resposta = await fetch("http://localhost:3001/courses");
+          const resposta = await fetch("http://localhost:3001/api/courses");
           const dados = await resposta.json();
     
           setCursosAPI(Array.isArray(dados) ? dados : []);

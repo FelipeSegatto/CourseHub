@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
+import { apiFetch } from "../../services/APIService";
 
 import SubmissionAnswerReviewCard from "../../components/submissions/SubmissionAnswerReviewCard";
 import StatusBadge from "../../components/ui/StatusBadge";
@@ -63,16 +64,16 @@ export default function SubmissionReviewProfessor() {
       );
     }
 
-    const response = await fetch(
-      `http://localhost:3001/teacher/by-user/${usuarioLogado.id}/submissions/${submissionId}/full`
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
+    let data;
+    try {
+      data = await apiFetch(
+        `/api/teacher/by-user/${usuarioLogado.id}/submissions/${submissionId}/full`
+      );
+    } catch (loadSubmissionError) {
       throw new Error(
-        data.message ||
-          "Erro ao buscar a entrega do aluno."
+        loadSubmissionError.data?.message ||
+          "Erro ao buscar a entrega do aluno.",
+        { cause: loadSubmissionError }
       );
     }
 
@@ -327,25 +328,22 @@ export default function SubmissionReviewProfessor() {
         payload
       );
 
-      const response = await fetch(
-        `http://localhost:3001/teacher/by-user/${usuarioLogado.id}/submissions/${submissionId}/grade`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
+      let data;
+      try {
+        data = await apiFetch(
+          `/api/teacher/by-user/${usuarioLogado.id}/submissions/${submissionId}/grade`,
+          {
+            method: "PUT",
+            body: JSON.stringify(payload),
+          }
+        );
+      } catch (saveGradeError) {
         throw new Error(
-          data.message ||
-            data.sqlMessage ||
-            data.error ||
-            "Não foi possível salvar a correção."
+          saveGradeError.data?.message ||
+            saveGradeError.data?.sqlMessage ||
+            saveGradeError.data?.error ||
+            "Não foi possível salvar a correção.",
+          { cause: saveGradeError }
         );
       }
 

@@ -356,7 +356,7 @@ export default function SessionModal({
 
       if (isEditing) {
         data = await apiFetch(
-          `/teacher/by-user/${usuarioLogado.id}/class-sessions/${session.id}`,
+          `/api/teacher/by-user/${usuarioLogado.id}/class-sessions/${session.id}`,
           {
             method: "PUT",
             body: JSON.stringify(
@@ -366,7 +366,7 @@ export default function SessionModal({
         );
       } else {
         data = await apiFetch(
-          `/teacher/by-user/${usuarioLogado.id}/classes/${classId}/sessions`,
+          `/api/teacher/by-user/${usuarioLogado.id}/classes/${classId}/sessions`,
           {
             method: "POST",
             body: JSON.stringify(

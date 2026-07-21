@@ -84,46 +84,46 @@ export default function StudentActivitiesList({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!usuarioLogado?.id) return;
+  async function loadActivities() {
+    try {
+      setLoading(true);
+      setError("");
 
-    async function loadActivities() {
-      try {
-        setLoading(true);
-        setError("");
-
-        const response = await fetch(
-          `http://localhost:3001/students/by-user/${usuarioLogado.id}/activities`
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(
-            data.message ||
-              "Erro ao buscar atividades."
-          );
+      const response = await fetch(
+        "http://localhost:3001/api/students/by-user/activities",
+        {
+          method: "GET",
+          credentials: "include",
         }
+      );
 
-        setActivities(
-          Array.isArray(data) ? data : []
-        );
-      } catch (error) {
-        console.error(
-          "Erro ao buscar atividades do aluno:",
-          error
-        );
+      const data = await response.json();
 
-        setError(
-          error.message ||
-            "Erro ao buscar atividades."
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Erro ao carregar atividades."
         );
-      } finally {
-        setLoading(false);
       }
-    }
 
-    loadActivities();
-  }, [usuarioLogado?.id]);
+      setActivities(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error(
+        "Erro ao carregar atividades:",
+        error
+      );
+
+      setActivities([]);
+      setError(
+        error.message ||
+          "Não foi possível carregar as atividades."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  loadActivities();
+}, []);
 
   const activitiesByKind = useMemo(() => {
     return activities.filter(

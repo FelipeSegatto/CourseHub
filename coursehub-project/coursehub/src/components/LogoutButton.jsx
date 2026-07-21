@@ -8,8 +8,6 @@ export default function LogoutButton() {
   function handleLogout() {
     logout();
 
-    localStorage.removeItem("usuarioLogado");
-
     navigate("/", {
       replace: true,
     });

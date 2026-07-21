@@ -123,7 +123,7 @@ export default function NotasAluno() {
         setError("");
 
         const data = await apiFetch(
-          `/students/by-user/${usuarioLogado.id}/grades`
+          `/api/students/by-user/${usuarioLogado.id}/grades`
         );
 
         setGrades(

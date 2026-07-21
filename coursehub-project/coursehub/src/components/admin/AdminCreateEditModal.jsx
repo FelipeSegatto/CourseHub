@@ -98,7 +98,7 @@ function AdminCreateEditModal({
         setError("");
 
         const response = await apiFetch(
-          "/admin/teachers"
+          "/api/admin/teachers"
         );
 
         const teacherList = Array.isArray(response)
@@ -196,7 +196,7 @@ function AdminCreateEditModal({
         setError("");
 
         const response = await apiFetch(
-          `/admin/courses/${initialData.id}`
+          `/api/admin/courses/${initialData.id}`
         );
 
         const course =
@@ -287,7 +287,7 @@ function AdminCreateEditModal({
         setError("");
 
         const response = await apiFetch(
-          `/admin/students/${initialData.id}`
+          `/api/admin/students/${initialData.id}`
         );
 
         const student =
@@ -463,20 +463,20 @@ function AdminCreateEditModal({
   function getEndpoint() {
     if (isStudentVariant) {
       return isEditMode
-        ? `/admin/students/${initialData.id}`
-        : "/admin/students";
+        ? `/api/admin/students/${initialData.id}`
+        : "/api/admin/students";
     }
 
     if (isTeacherVariant) {
       return isEditMode
-        ? `/admin/teachers/${initialData.id}`
-        : "/admin/teachers";
+        ? `/api/admin/teachers/${initialData.id}`
+        : "/api/admin/teachers";
     }
 
     if (isCourseVariant) {
       return isEditMode
-        ? `/admin/courses/${initialData.id}`
-        : "/admin/courses";
+        ? `/api/admin/courses/${initialData.id}`
+        : "/api/admin/courses";
     }
 
     throw new Error(

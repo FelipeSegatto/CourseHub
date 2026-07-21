@@ -1,53 +1,91 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
 import { apiFetch } from "../services/APIService";
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [usuarioLogado, setUsuarioLogado] = useState(null);
+  const [usuarioLogado, setUsuarioLogado] =
+    useState(null);
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const usuarioSalvo = localStorage.getItem("usuarioLogado");
+    async function loadAuthenticatedUser() {
+      try {
+        // Usa apiFetch (não fetch cru) para que, se o access token já
+        // tiver expirado quando a página carrega, a sessão seja
+        // renovada automaticamente via refresh token antes de desistir.
+        const data = await apiFetch("/api/profile/me");
 
-    if (usuarioSalvo) {
-      setUsuarioLogado(JSON.parse(usuarioSalvo));
+        setUsuarioLogado(data.profile);
+      } catch (error) {
+        console.error(
+          "Erro ao carregar usuário autenticado:",
+          error
+        );
+
+        setUsuarioLogado(null);
+      } finally {
+        setLoading(false);
+      }
     }
 
-    setLoading(false);
+    loadAuthenticatedUser();
   }, []);
 
   async function login(email, password) {
-    localStorage.removeItem("usuarioLogado");
-    setUsuarioLogado(null);
-
-    const data = await apiFetch("/login", {
+    const data = await apiFetch("/api/auth/login", {
       method: "POST",
-      body: JSON.stringify({
-        email,
-        password,
-      }),
+      body: JSON.stringify({ email, password }),
     });
 
-    setUsuarioLogado(data.user);
-    localStorage.setItem("usuarioLogado", JSON.stringify(data.user));
+    setUsuarioLogado(data.profile);
 
-    return data.user;
+    return data.profile;
   }
 
-  function logout() {
-    setUsuarioLogado(null);
-    localStorage.removeItem("usuarioLogado");
+  async function logout() {
+    try {
+      await apiFetch("/api/auth/logout", {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error("Erro ao sair:", error);
+    } finally {
+      setUsuarioLogado(null);
+    }
   }
+
+  function atualizarUsuarioLogado(updatedData) {
+    setUsuarioLogado((currentUser) => {
+      if (!currentUser) {
+        return currentUser;
+      }
+
+      return {
+        ...currentUser,
+        ...updatedData,
+      };
+    });
+  }
+
+  const estaLogado = Boolean(usuarioLogado);
 
   return (
     <AuthContext.Provider
       value={{
         usuarioLogado,
+        loading,
+        estaLogado,
         login,
         logout,
-        loading,
-        estaLogado: !!usuarioLogado,
+        atualizarUsuarioLogado,
       }}
     >
       {children}
@@ -56,5 +94,13 @@ export function AuthProvider({ children }) {
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error(
+      "useAuth deve ser usado dentro de AuthProvider."
+    );
+  }
+
+  return context;
 }

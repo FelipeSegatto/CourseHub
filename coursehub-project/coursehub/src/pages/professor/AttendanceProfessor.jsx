@@ -530,7 +530,7 @@ const nextSessionNumber = useMemo(() => {
     setError("");
 
     const data = await apiFetch(
-      `/teacher/by-user/${usuarioLogado.id}/classes/${normalizedClassId}/sessions`
+      `/api/teacher/by-user/${usuarioLogado.id}/classes/${normalizedClassId}/sessions`
     );
     console.log(data);
 
@@ -645,7 +645,7 @@ const nextSessionNumber = useMemo(() => {
     setSuccessMessage("");
 
     const data = await apiFetch(
-      `/teacher/by-user/${usuarioLogado.id}/classes/${normalizedClassId}/sessions/${normalizedSessionId}/attendance`
+      `/api/teacher/by-user/${usuarioLogado.id}/classes/${normalizedClassId}/sessions/${normalizedSessionId}/attendance`
     );
 
     if (
@@ -1020,7 +1020,7 @@ useEffect(() => {
     
 
     const data = await apiFetch(
-      `/teacher/by-user/${usuarioLogado.id}/classes/${normalizedClassId}/sessions/${selectedSessionId}/attendance`,
+      `/api/teacher/by-user/${usuarioLogado.id}/classes/${normalizedClassId}/sessions/${selectedSessionId}/attendance`,
       {
         method: "POST",
         body: JSON.stringify(payload),

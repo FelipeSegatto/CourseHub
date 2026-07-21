@@ -37,7 +37,7 @@ export default function CourseAdmin() {
       setLoading(true);
       setError("");
 
-      const response = await apiFetch("/admin/courses");
+      const response = await apiFetch("/api/admin/courses");
 
       const courseList = Array.isArray(response)
         ? response
@@ -114,7 +114,7 @@ export default function CourseAdmin() {
       setError("");
 
       await apiFetch(
-        `/admin/courses/${selectedCourse.id}`,
+        `/api/admin/courses/${selectedCourse.id}`,
         {
           method: "DELETE",
         }

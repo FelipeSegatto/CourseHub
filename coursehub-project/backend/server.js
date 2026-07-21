@@ -2,15 +2,65 @@
    COURSEHUB API
    Configuração inicial, autenticação e rotas gerais
    ========================================================== */
+require("dotenv").config();
+
+if (
+  process.env.NODE_ENV === "production" &&
+  process.env.PAYMENT_GATEWAY === "simulated"
+) {
+  throw new Error(
+    "O gateway de pagamento simulado não pode ser utilizado em produção."
+  );
+}
 
 const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const generateAccessToken = require("./utils/generateToken");
 
 const db = require("./db");
+const authenticateToken = require("./middleware/authenticateToken");
+const authorizeRoles = require("./middleware/authorizeRoles");
+const cookieParser = require("cookie-parser");
+
+const {
+  loginRateLimiter,
+  forgotPasswordRateLimiter,
+} = require("./middleware/rateLimiters");
+
+const {
+  setAccessTokenCookie,
+  setRefreshTokenCookie,
+  clearAuthCookies,
+  REFRESH_TOKEN_COOKIE,
+} = require("./utils/cookies");
+
+const {
+  createRefreshToken,
+  findValidRefreshToken,
+  revokeRefreshTokenByRawValue,
+  revokeAllUserRefreshTokens,
+  createPasswordResetToken,
+  findValidPasswordResetToken,
+  markPasswordResetTokenUsed,
+} = require("./repositories/authTokens");
+
+const { sendPasswordResetEmail } = require("./utils/mailer");
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
+
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+    credentials: true,
+  })
+);
+
+app.use(express.json());
+app.use(cookieParser());
+
 
 
 /* ==========================================================
@@ -20,12 +70,10 @@ const PORT = 3001;
 /**
  * Permite requisições vindas do frontend.
  */
-app.use(cors());
 
 /**
  * Permite que a API receba dados JSON no corpo das requisições.
  */
-app.use(express.json());
 
 
 /* ==========================================================
@@ -39,9 +87,11 @@ app.use(express.json());
  * users.id -> students.user_id -> students.id
  */
 async function getStudentIdByUserId(userId) {
+  console.log("userId recebido:", userId);
+
   const [studentRows] = await db.promise().query(
     `
-      SELECT id
+      SELECT id, user_id
       FROM students
       WHERE user_id = ?
       LIMIT 1
@@ -49,9 +99,128 @@ async function getStudentIdByUserId(userId) {
     [userId]
   );
 
+  console.log("Aluno encontrado:", studentRows);
+
   return studentRows.length > 0
     ? studentRows[0].id
     : null;
+}
+
+/**
+ * Monta o perfil completo de um usuário (dados de `users` +
+ * dados específicos de `students`/`teachers`, conforme o role).
+ *
+ * Usado tanto por GET /api/profile/me quanto por
+ * PATCH /api/profile/me, para nunca duplicar essa lógica.
+ *
+ * Retorna null se o usuário não existir.
+ */
+async function getFullProfileByUserId(userId) {
+  const [userRows] = await db.promise().query(
+    `
+    SELECT
+      id,
+      name,
+      email,
+      gender,
+      role,
+      status,
+      avatar_key
+    FROM users
+    WHERE id = ?
+    LIMIT 1
+    `,
+    [userId]
+  );
+
+  if (userRows.length === 0) {
+    return null;
+  }
+
+  const user = userRows[0];
+
+  const profile = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    gender: user.gender,
+    role: user.role,
+    status: user.status,
+    avatarKey: user.avatar_key || null,
+
+    phone: null,
+    address: null,
+    specialty: null,
+    cpf: null,
+    registrationNumber: null,
+    birthDate: null,
+    institutionalStatus: null,
+  };
+
+  if (user.role === "student") {
+    const [studentRows] = await db.promise().query(
+      `
+      SELECT
+        phone,
+        address,
+        cpf,
+        registration_number,
+        birth_date,
+        status
+      FROM students
+      WHERE user_id = ?
+      LIMIT 1
+      `,
+      [userId]
+    );
+
+    if (studentRows.length > 0) {
+      const student = studentRows[0];
+
+      profile.phone = student.phone || null;
+      profile.address = student.address || null;
+      profile.cpf = student.cpf || null;
+
+      profile.registrationNumber =
+        student.registration_number || null;
+
+      profile.birthDate = student.birth_date || null;
+
+      profile.institutionalStatus = student.status || null;
+    }
+  }
+
+  if (user.role === "teacher") {
+    const [teacherRows] = await db.promise().query(
+      `
+      SELECT
+        phone,
+        specialty,
+        cpf,
+        registration_number,
+        status
+      FROM teachers
+      WHERE user_id = ?
+      LIMIT 1
+      `,
+      [userId]
+    );
+
+    if (teacherRows.length > 0) {
+      const teacher = teacherRows[0];
+
+      profile.phone = teacher.phone || null;
+      profile.specialty = teacher.specialty || null;
+      profile.cpf = teacher.cpf || null;
+
+      profile.registrationNumber =
+        teacher.registration_number || null;
+
+      profile.institutionalStatus = teacher.status || null;
+    }
+  }
+
+  return profile;
 }
 
 
@@ -59,72 +228,320 @@ async function getStudentIdByUserId(userId) {
    INFRAESTRUTURA
    ========================================================== */
 
-/**
- * GET /
- * Verifica se a API está funcionando.
- */
-app.get("/", (req, res) => {
-  return res.status(200).json({
-    message: "API CourseHub rodando!",
-  });
-});
+// ======================================================
+// PERFIL DO USUÁRIO AUTENTICADO
+// GET /api/profile/me
+// ======================================================
 
+app.get(
+  "/api/profile/me",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const profile = await getFullProfileByUserId(
+        req.auth.userId
+      );
 
-/* ==========================================================
-   AUTENTICAÇÃO
-   ========================================================== */
+      if (!profile) {
+        return res.status(404).json({
+          message: "Usuário não encontrado.",
+        });
+      }
 
-/**
- * POST /login
- * Autentica um usuário por e-mail e senha.
- */
-app.post("/login", async (req, res) => {
+      if (profile.status !== "active") {
+        return res.status(403).json({
+          message: "Conta inativa ou bloqueada.",
+        });
+      }
+
+      return res.status(200).json({
+        profile,
+      });
+    } catch (error) {
+      console.error("Erro ao carregar perfil:", error);
+
+      return res.status(500).json({
+        message: "Erro ao carregar perfil.",
+      });
+    }
+  }
+);
+
+// ======================================================
+// ATUALIZAÇÃO DO PERFIL DO USUÁRIO AUTENTICADO
+// PATCH /api/profile/me
+// ======================================================
+
+app.patch(
+  "/api/profile/me",
+  authenticateToken,
+  async (req, res) => {
+    let connection;
+
+    try {
+      const userId = req.auth.userId;
+      const role = req.auth.role;
+
+      const { name, email, gender, phone, address, specialty } =
+        req.body;
+
+      const normalizedName = name?.trim();
+      const normalizedEmail = email?.trim().toLowerCase();
+      const normalizedGender = gender?.trim() || null;
+
+      if (!normalizedName || !normalizedEmail) {
+        return res.status(400).json({
+          message: "Nome e e-mail são obrigatórios.",
+        });
+      }
+
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      if (!emailPattern.test(normalizedEmail)) {
+        return res.status(400).json({
+          message: "Informe um e-mail válido.",
+        });
+      }
+
+      const [emailOwnerRows] = await db.promise().query(
+        `
+        SELECT id
+        FROM users
+        WHERE email = ? AND id <> ?
+        LIMIT 1
+        `,
+        [normalizedEmail, userId]
+      );
+
+      if (emailOwnerRows.length > 0) {
+        return res.status(409).json({
+          message: "Este e-mail já está em uso por outra conta.",
+        });
+      }
+
+      connection = await db.promise().getConnection();
+      await connection.beginTransaction();
+
+      await connection.query(
+        `
+        UPDATE users
+        SET name = ?, email = ?, gender = ?, updated_at = NOW()
+        WHERE id = ?
+        `,
+        [normalizedName, normalizedEmail, normalizedGender, userId]
+      );
+
+      if (role === "student") {
+        await connection.query(
+          `
+          UPDATE students
+          SET
+            name = ?,
+            email = ?,
+            phone = ?,
+            address = ?,
+            updated_at = NOW()
+          WHERE user_id = ?
+          `,
+          [
+            normalizedName,
+            normalizedEmail,
+            phone?.trim() || null,
+            address?.trim() || null,
+            userId,
+          ]
+        );
+      }
+
+      if (role === "teacher") {
+        await connection.query(
+          `
+          UPDATE teachers
+          SET
+            name = ?,
+            email = ?,
+            phone = ?,
+            specialty = ?,
+            updated_at = NOW()
+          WHERE user_id = ?
+          `,
+          [
+            normalizedName,
+            normalizedEmail,
+            phone?.trim() || null,
+            specialty?.trim() || null,
+            userId,
+          ]
+        );
+      }
+
+      await connection.commit();
+
+      const profile = await getFullProfileByUserId(userId);
+
+      return res.status(200).json({
+        message: "Perfil atualizado com sucesso.",
+        profile,
+      });
+    } catch (error) {
+      if (connection) {
+        await connection.rollback();
+      }
+
+      console.error("Erro ao atualizar perfil:", error);
+
+      if (error.code === "ER_DUP_ENTRY") {
+        return res.status(409).json({
+          message: "Este e-mail já está em uso por outra conta.",
+        });
+      }
+
+      return res.status(500).json({
+        message: "Erro ao atualizar perfil.",
+      });
+    } finally {
+      if (connection) {
+        connection.release();
+      }
+    }
+  }
+);
+
+// ======================================================
+// ATUALIZAÇÃO DE SENHA DO USUÁRIO AUTENTICADO
+// PATCH /api/profile/me/password
+//
+// Ao trocar a senha, revoga todos os refresh tokens do
+// usuário — qualquer outra sessão aberta (outro navegador,
+// outro dispositivo) precisa fazer login de novo. É o
+// comportamento esperado quando alguém troca a senha por
+// segurança (ex.: suspeita de acesso indevido).
+// ======================================================
+
+app.patch(
+  "/api/profile/me/password",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const userId = req.auth.userId;
+      const { currentPassword, newPassword } = req.body;
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({
+          message:
+            "Senha atual e nova senha são obrigatórias.",
+        });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({
+          message:
+            "A nova senha deve possuir pelo menos 6 caracteres.",
+        });
+      }
+
+      const [userRows] = await db.promise().query(
+        `
+        SELECT password_hash
+        FROM users
+        WHERE id = ?
+        LIMIT 1
+        `,
+        [userId]
+      );
+
+      if (userRows.length === 0) {
+        return res.status(404).json({
+          message: "Usuário não encontrado.",
+        });
+      }
+
+      const currentPasswordMatches = await bcrypt.compare(
+        currentPassword,
+        userRows[0].password_hash
+      );
+
+      if (!currentPasswordMatches) {
+        return res.status(401).json({
+          message: "Senha atual incorreta.",
+        });
+      }
+
+      const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+      await db.promise().query(
+        `
+        UPDATE users
+        SET password_hash = ?, updated_at = NOW()
+        WHERE id = ?
+        `,
+        [newPasswordHash, userId]
+      );
+
+      await revokeAllUserRefreshTokens(userId);
+      clearAuthCookies(res);
+
+      return res.status(200).json({
+        message:
+          "Senha alterada com sucesso. Faça login novamente.",
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar senha:", error);
+
+      return res.status(500).json({
+        message: "Erro ao atualizar senha.",
+      });
+    }
+  }
+);
+
+/*LOGIN */
+
+app.post("/api/auth/login", loginRateLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    /*
-     * Valida os campos obrigatórios.
-     */
     if (!email || !password) {
       return res.status(400).json({
-        message: "Email e senha são obrigatórios.",
+        message: "E-mail e senha são obrigatórios.",
       });
     }
 
-    /*
-     * Busca o usuário pelo e-mail.
-     */
-    const [users] = await db.promise().query(
+    const normalizedEmail = email
+      .trim()
+      .toLowerCase();
+
+    const [userRows] = await db.promise().query(
       `
-        SELECT
-          id,
-          name,
-          email,
-          password_hash,
-          gender,
-          role,
-          status
-        FROM users
-        WHERE email = ?
-        LIMIT 1
+      SELECT
+        id,
+        name,
+        email,
+        password_hash,
+        role,
+        status,
+        avatar_key
+      FROM users
+      WHERE email = ?
+      LIMIT 1
       `,
-      [email]
+      [normalizedEmail]
     );
 
-    /*
-     * Não revela se foi o e-mail ou a senha que estava incorreto.
-     */
-    if (users.length === 0) {
+    if (userRows.length === 0) {
       return res.status(401).json({
-        message: "Email ou senha inválidos.",
+        message: "E-mail ou senha inválidos.",
       });
     }
 
-    const user = users[0];
+    const user = userRows[0];
 
-    /*
-     * Compara a senha informada com o hash armazenado.
-     */
+    if (user.status !== "active") {
+      return res.status(403).json({
+        message: "Conta inativa ou bloqueada.",
+      });
+    }
+
     const passwordMatches = await bcrypt.compare(
       password,
       user.password_hash
@@ -132,37 +549,320 @@ app.post("/login", async (req, res) => {
 
     if (!passwordMatches) {
       return res.status(401).json({
-        message: "Email ou senha inválidos.",
+        message: "E-mail ou senha inválidos.",
       });
     }
 
-    /*
-     * Impede o acesso de usuários inativos.
-     */
-    if (user.status !== "active") {
-      return res.status(403).json({
-        message: "Usuário inativo.",
-      });
-    }
+    const accessToken = generateAccessToken({
+      userId: user.id,
+      role: user.role,
+    });
 
-    /*
-     * Remove o hash da senha antes de devolver os dados ao frontend.
-     */
-    delete user.password_hash;
+    const refreshToken = await createRefreshToken(user.id);
+
+    setAccessTokenCookie(res, accessToken);
+    setRefreshTokenCookie(res, refreshToken);
 
     return res.status(200).json({
       message: "Login realizado com sucesso.",
-      user,
+      profile: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        avatarKey: user.avatar_key || null,
+      },
     });
   } catch (error) {
-    console.error("Erro no login:", error);
+    console.error("Erro ao realizar login:", error);
 
     return res.status(500).json({
-      message: "Erro interno no servidor.",
-      error: error.message,
+      message: "Erro ao realizar login.",
     });
   }
 });
+
+/* ======================================================
+   LOGOUT
+   POST /api/auth/logout
+   ====================================================== */
+app.post("/api/auth/logout", async (req, res) => {
+  try {
+    const refreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
+
+    if (refreshToken) {
+      await revokeRefreshTokenByRawValue(refreshToken);
+    }
+  } catch (error) {
+    console.error("Erro ao revogar refresh token:", error);
+    // Mesmo se a revogação falhar, o logout deve limpar os cookies do
+    // navegador — a sessão local do usuário não pode ficar presa a isso.
+  }
+
+  clearAuthCookies(res);
+
+  return res.status(200).json({
+    message: "Logout realizado com sucesso.",
+  });
+});
+
+/* ======================================================
+   REFRESH
+   POST /api/auth/refresh
+   Renova o access token usando o refresh token do cookie.
+   Rotaciona o refresh token a cada uso (defesa contra reuso
+   de um token roubado).
+   ====================================================== */
+app.post("/api/auth/refresh", async (req, res) => {
+  try {
+    const currentRefreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
+
+    if (!currentRefreshToken) {
+      return res.status(401).json({
+        message: "Sessão não encontrada.",
+      });
+    }
+
+    const tokenRow = await findValidRefreshToken(currentRefreshToken);
+
+    if (!tokenRow) {
+      clearAuthCookies(res);
+
+      return res.status(401).json({
+        message: "Sessão expirada. Faça login novamente.",
+      });
+    }
+
+    const [userRows] = await db.promise().query(
+      `
+      SELECT id, role, status
+      FROM users
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [tokenRow.user_id]
+    );
+
+    if (userRows.length === 0 || userRows[0].status !== "active") {
+      await revokeRefreshTokenByRawValue(currentRefreshToken);
+      clearAuthCookies(res);
+
+      return res.status(401).json({
+        message: "Sessão inválida.",
+      });
+    }
+
+    const user = userRows[0];
+
+    const newRefreshToken = await createRefreshToken(user.id);
+
+    await revokeRefreshTokenByRawValue(
+      currentRefreshToken,
+      newRefreshToken
+    );
+
+    const newAccessToken = generateAccessToken({
+      userId: user.id,
+      role: user.role,
+    });
+
+    setAccessTokenCookie(res, newAccessToken);
+    setRefreshTokenCookie(res, newRefreshToken);
+
+    return res.status(200).json({
+      message: "Sessão renovada.",
+    });
+  } catch (error) {
+    console.error("Erro ao renovar sessão:", error);
+
+    return res.status(500).json({
+      message: "Erro ao renovar sessão.",
+    });
+  }
+});
+
+
+
+
+
+
+
+/**
+ * PATCH /api/profile/me/password
+ *
+ * Atualiza a senha do usuário.
+ *
+ * Fluxo:
+ *
+ * 1. Buscar password_hash
+ * 2. Comparar senha atual
+ * 3. Gerar novo hash
+ * 4. Atualizar users.password_hash
+ */
+
+
+
+
+
+/* ======================================================
+   RECUPERAÇÃO DE SENHA — ETAPA 1
+   POST /api/forgot-password/check-email
+   Body: { email }
+
+   Gera um token de redefinição de curta duração e envia
+   por e-mail. Sempre responde com a mesma mensagem genérica,
+   exista ou não a conta — isso evita que alguém use esta
+   rota para descobrir quais e-mails têm cadastro no sistema
+   (enumeration attack).
+   ====================================================== */
+
+app.post(
+  "/api/forgot-password/check-email",
+  forgotPasswordRateLimiter,
+  async (req, res) => {
+    const genericResponse = {
+      message:
+        "Se este e-mail estiver cadastrado, enviamos um link de redefinição de senha.",
+    };
+
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({
+          message: "O e-mail é obrigatório.",
+        });
+      }
+
+      const normalizedEmail = email.trim().toLowerCase();
+
+      const [userRows] = await db.promise().query(
+        `
+        SELECT id, email, status
+        FROM users
+        WHERE email = ?
+        LIMIT 1
+        `,
+        [normalizedEmail]
+      );
+
+      if (userRows.length === 0 || userRows[0].status !== "active") {
+        return res.status(200).json(genericResponse);
+      }
+
+      const user = userRows[0];
+
+      const resetToken = await createPasswordResetToken(user.id);
+
+      const resetUrl = `${
+        process.env.FRONTEND_URL || "http://localhost:5173"
+      }/redefinir-senha?token=${resetToken}`;
+
+      await sendPasswordResetEmail({ to: user.email, resetUrl });
+
+      return res.status(200).json(genericResponse);
+    } catch (error) {
+      console.error("Erro ao processar recuperação de senha:", error);
+
+      // Mesmo em erro interno, não revela se o e-mail existe.
+      return res.status(200).json(genericResponse);
+    }
+  }
+);
+
+/* ======================================================
+   RECUPERAÇÃO DE SENHA — ETAPA 2
+   PATCH /api/forgot-password/reset
+   Body: { token, newPassword, confirmPassword }
+
+   Só troca a senha se o token recebido corresponder a um
+   token válido (existente, não usado, não expirado) — é a
+   prova de que quem está pedindo a troca teve acesso à
+   caixa de e-mail da conta.
+   ====================================================== */
+
+app.patch(
+  "/api/forgot-password/reset",
+  forgotPasswordRateLimiter,
+  async (req, res) => {
+    try {
+      const { token, newPassword, confirmPassword } = req.body;
+
+      if (!token || !newPassword || !confirmPassword) {
+        return res.status(400).json({
+          message:
+            "Token, nova senha e confirmação são obrigatórios.",
+        });
+      }
+
+      if (newPassword !== confirmPassword) {
+        return res.status(400).json({
+          message: "A confirmação da nova senha não confere.",
+        });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({
+          message:
+            "A nova senha deve possuir pelo menos 6 caracteres.",
+        });
+      }
+
+      const resetToken = await findValidPasswordResetToken(token);
+
+      if (!resetToken) {
+        return res.status(400).json({
+          message:
+            "Este link de redefinição é inválido ou expirou. Solicite um novo.",
+        });
+      }
+
+      const [userRows] = await db.promise().query(
+        `
+        SELECT id, status
+        FROM users
+        WHERE id = ?
+        LIMIT 1
+        `,
+        [resetToken.user_id]
+      );
+
+      if (userRows.length === 0 || userRows[0].status !== "active") {
+        return res.status(403).json({
+          message: "Não é possível redefinir a senha desta conta.",
+        });
+      }
+
+      const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+      await db.promise().query(
+        `
+        UPDATE users
+        SET password_hash = ?, updated_at = NOW()
+        WHERE id = ?
+        `,
+        [newPasswordHash, resetToken.user_id]
+      );
+
+      await markPasswordResetTokenUsed(resetToken.id);
+      await revokeAllUserRefreshTokens(resetToken.user_id);
+
+      return res.status(200).json({
+        message:
+          "Senha redefinida com sucesso. Você já pode entrar novamente.",
+      });
+    } catch (error) {
+      console.error("Erro ao redefinir senha:", error);
+
+      return res.status(500).json({
+        message: "Erro interno ao redefinir a senha.",
+      });
+    }
+  }
+);
+
+
 
 
 /* ==========================================================
@@ -173,7 +873,7 @@ app.post("/login", async (req, res) => {
  * GET /courses
  * Lista todos os cursos cadastrados.
  */
-app.get("/courses", (req, res) => {
+app.get("/api/courses", (req, res) => {
   const sql = `
     SELECT *
     FROM courses
@@ -198,102 +898,98 @@ app.get("/courses", (req, res) => {
  * GET /courses/:id
  * Busca os detalhes de um curso ativo pelo ID.
  */
-app.get("/courses/:id", (req, res) => {
-  const { id } = req.params;
+app.get("/api/courses/:id", async (req, res) => {
+  try {
+    const courseId = Number(req.params.id);
 
-  const sql = `
-    SELECT *
-    FROM courses
-    WHERE id = ?
-      AND status = 'active'
-    LIMIT 1
-  `;
-
-  db.query(sql, [id], (error, results) => {
-    if (error) {
-      console.error("Erro ao buscar curso:", error);
-
-      return res.status(500).json({
-        message: "Erro ao buscar curso.",
+    if (!Number.isInteger(courseId) || courseId <= 0) {
+      return res.status(400).json({
+        message: "ID do curso inválido.",
       });
     }
 
-    if (results.length === 0) {
+    const [rows] = await db.promise().query(
+      `
+        SELECT
+          id,
+          teacher_id,
+          name,
+          description,
+          expanded_description,
+          workload_hours,
+          price,
+          image_url,
+          nivel,
+          syllabus,
+          category
+        FROM courses
+        WHERE id = ?
+        LIMIT 1
+      `,
+      [courseId]
+    );
+
+    if (rows.length === 0) {
       return res.status(404).json({
         message: "Curso não encontrado.",
       });
     }
 
-    return res.status(200).json(results[0]);
-  });
+    return res.status(200).json(rows[0]);
+  } catch (error) {
+    console.error("Erro ao buscar curso:", error);
+
+    return res.status(500).json({
+      message: "Erro interno ao buscar o curso.",
+    });
+  }
 });
 
 
 /**
- * GET /courses/:id/contents
+ * GET api/courses/:id/contents
  * Lista a trilha de conteúdos e atividades de um curso.
  */
-app.get("/courses/:id/contents", (req, res) => {
-  const { id } = req.params;
+app.get("/api/courses/:id/contents", async (req, res) => {
+  try {
+    const { id } = req.params;
 
-  const sql = `
-    SELECT
-      id,
-      course_id,
-      title,
-      description,
-      type,
-      content_url,
-      content_text,
-      order_index,
-      is_required,
-      status,
-      due_date,
-      'content' AS source
-    FROM course_contents
-    WHERE course_id = ?
-      AND status = 'active'
+    const [contents] = await db.promise().query(
+      `
+      SELECT
+        id,
+        course_id,
+        title,
+        description,
+        type,
+        content_url,
+        content_text,
+        order_index,
+        is_required,
+        status,
+        due_date,
+        created_at,
+        updated_at
+      FROM course_contents
+      WHERE course_id = ?
+        AND status = 'active'
+      ORDER BY order_index ASC
+      `,
+      [id]
+    );
 
-    UNION ALL
+    return res.status(200).json(contents);
+  } catch (error) {
+    console.error(
+      "Erro ao buscar conteúdos do curso:",
+      error
+    );
 
-    SELECT
-      id,
-      course_id,
-      title,
-      description,
-      CASE
-        WHEN type = 'quiz' THEN 'assessment'
-        ELSE 'activity'
-      END AS type,
-      NULL AS content_url,
-      NULL AS content_text,
-      order_index,
-      is_required,
-      status,
-      due_date,
-      'activity' AS source
-    FROM activities
-    WHERE course_id = ?
-      AND status = 'active'
-
-    ORDER BY order_index ASC
-  `;
-
-  db.query(sql, [id, id], (error, results) => {
-    if (error) {
-      console.error(
-        "Erro ao buscar conteúdos do curso:",
-        error
-      );
-
-      return res.status(500).json({
-        message: "Erro ao buscar conteúdos do curso.",
-        error: error.message,
-      });
-    }
-
-    return res.status(200).json(results);
-  });
+    return res.status(500).json({
+      message: "Erro ao buscar conteúdos do curso.",
+      error: error.message,
+    });
+  }
 });
 
 
@@ -305,7 +1001,7 @@ app.get("/courses/:id/contents", (req, res) => {
  * GET /users
  * Lista os usuários sem retornar os hashes das senhas.
  */
-app.get("/users", (req, res) => {
+app.get("/api/users", (req, res) => {
   const sql = `
     SELECT
       id,
@@ -340,221 +1036,165 @@ app.get("/users", (req, res) => {
  *
  * Observação:
  * Esta é a rota pública de cadastro que já existia no projeto.
- * O cadastro administrativo permanece em POST /admin/students.
+  * O cadastro administrativo permanece em POST /api/admin/students.
  */
-app.post("/users", (req, res) => {
-  const {
-    name,
-    email,
-    password,
-    password_hash,
-    gender,
-    birth_date,
-    cpf,
-    phone,
-  } = req.body;
+app.post("/api/users", async (req, res) => {
+  let connection;
 
-  const finalPassword = password_hash || password;
-  const finalGender = gender || "Masculino";
+  try {
+    const {
+      name,
+      email,
+      password,
+      gender,
+      birth_date,
+      cpf,
+      phone,
+    } = req.body;
 
-  /*
-   * Valida os campos obrigatórios.
-   */
-  if (!name || !email || !finalPassword) {
-    return res.status(400).json({
-      message: "Nome, email e senha são obrigatórios.",
-    });
-  }
+    const normalizedName = name?.trim();
+    const normalizedEmail = email?.trim().toLowerCase();
+    const finalGender = gender || "Masculino";
 
-  /*
-   * Inicia a transação para que users e students
-   * sejam cadastrados juntos.
-   */
-  db.beginTransaction((transactionError) => {
-    if (transactionError) {
-      console.error(
-        "Erro ao iniciar transação:",
-        transactionError
-      );
-
-      return res.status(500).json({
-        message: "Erro ao iniciar transação.",
+    if (!normalizedName || !normalizedEmail || !password) {
+      return res.status(400).json({
+        message: "Nome, e-mail e senha são obrigatórios.",
       });
     }
 
-    const insertUserSql = `
-      INSERT INTO users
-      (
-        name,
-        email,
-        password_hash,
-        gender,
-        role,
-        status,
-        created_at,
-        updated_at
-      )
-      VALUES (?, ?, ?, ?, 'student', 'active', NOW(), NOW())
-    `;
+    if (password.length < 6) {
+      return res.status(400).json({
+        message: "A senha deve possuir pelo menos 6 caracteres.",
+      });
+    }
 
     /*
-     * Cria o registro principal do usuário.
+     * Gera o hash antes de abrir a transação.
      */
-    db.query(
-      insertUserSql,
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    /*
+     * Obtém uma conexão exclusiva do pool.
+     */
+    connection = await db.promise().getConnection();
+
+    await connection.beginTransaction();
+
+    /*
+     * Cria o usuário.
+     */
+    const [userResult] = await connection.query(
+      `
+        INSERT INTO users
+        (
+          name,
+          email,
+          password_hash,
+          gender,
+          role,
+          status,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, 'student', 'active', NOW(), NOW())
+      `,
       [
-        name,
-        email,
-        finalPassword,
+        normalizedName,
+        normalizedEmail,
+        passwordHash,
         finalGender,
-      ],
-      (userError, userResult) => {
-        if (userError) {
-          return db.rollback(() => {
-            if (userError.code === "ER_DUP_ENTRY") {
-              return res.status(409).json({
-                message: "Este e-mail já está cadastrado.",
-              });
-            }
-
-            console.error(
-              "Erro ao cadastrar usuário:",
-              userError
-            );
-
-            return res.status(500).json({
-              message: "Erro ao cadastrar usuário.",
-              error: userError,
-            });
-          });
-        }
-
-        const userId = userResult.insertId;
-
-        /*
-         * Usa valores temporários quando CPF ou matrícula
-         * ainda não foram definidos.
-         */
-        const temporaryCpf =
-          cpf || `PENDENTE-${userId}`;
-
-        const temporaryRegistration =
-          `TEMP-${userId}`;
-
-        const insertStudentSql = `
-          INSERT INTO students
-          (
-            user_id,
-            name,
-            email,
-            gender,
-            registration_number,
-            birth_date,
-            cpf,
-            phone
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-
-        /*
-         * Cria o perfil acadêmico do aluno.
-         */
-        db.query(
-          insertStudentSql,
-          [
-            userId,
-            name,
-            email,
-            finalGender,
-            temporaryRegistration,
-            birth_date || "2000-01-01",
-            temporaryCpf,
-            phone || "",
-          ],
-          (studentError, studentResult) => {
-            if (studentError) {
-              return db.rollback(() => {
-                console.error(
-                  "Erro ao cadastrar aluno:",
-                  studentError
-                );
-
-                return res.status(500).json({
-                  message: "Erro ao cadastrar aluno.",
-                  error: studentError,
-                });
-              });
-            }
-
-            const studentId = studentResult.insertId;
-
-            /*
-             * Gera a matrícula definitiva com base no ID do aluno.
-             */
-            const registrationNumber =
-              `STU2026${String(studentId).padStart(3, "0")}`;
-
-            const updateRegistrationSql = `
-              UPDATE students
-              SET registration_number = ?
-              WHERE id = ?
-            `;
-
-            /*
-             * Substitui a matrícula temporária pela definitiva.
-             */
-            db.query(
-              updateRegistrationSql,
-              [registrationNumber, studentId],
-              (registrationError) => {
-                if (registrationError) {
-                  return db.rollback(() => {
-                    console.error(
-                      "Erro ao gerar matrícula:",
-                      registrationError
-                    );
-
-                    return res.status(500).json({
-                      message:
-                        "Erro ao gerar matrícula do aluno.",
-                      error: registrationError,
-                    });
-                  });
-                }
-
-                /*
-                 * Confirma definitivamente as inserções.
-                 */
-                db.commit((commitError) => {
-                  if (commitError) {
-                    return db.rollback(() => {
-                      console.error(
-                        "Erro ao finalizar cadastro:",
-                        commitError
-                      );
-
-                      return res.status(500).json({
-                        message:
-                          "Erro ao finalizar cadastro.",
-                      });
-                    });
-                  }
-
-                  return res.status(201).json({
-                    message:
-                      "Aluno cadastrado com sucesso.",
-                    userId,
-                    studentId,
-                    registrationNumber,
-                  });
-                });
-              }
-            );
-          }
-        );
-      }
+      ]
     );
-  });
+
+    const userId = userResult.insertId;
+
+    const temporaryCpf =
+      cpf?.trim() || `PENDENTE-${userId}`;
+
+    const temporaryRegistration = `TEMP-${userId}`;
+
+    /*
+     * Cria o perfil de aluno.
+     */
+    const [studentResult] = await connection.query(
+      `
+        INSERT INTO students
+        (
+          user_id,
+          name,
+          email,
+          gender,
+          registration_number,
+          birth_date,
+          cpf,
+          phone
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        userId,
+        normalizedName,
+        normalizedEmail,
+        finalGender,
+        temporaryRegistration,
+        birth_date || "2000-01-01",
+        temporaryCpf,
+        phone?.trim() || "",
+      ]
+    );
+
+    const studentId = studentResult.insertId;
+
+    const registrationNumber =
+      `STU2026${String(studentId).padStart(3, "0")}`;
+
+    /*
+     * Substitui a matrícula temporária.
+     */
+    await connection.query(
+      `
+        UPDATE students
+        SET registration_number = ?
+        WHERE id = ?
+      `,
+      [registrationNumber, studentId]
+    );
+
+    await connection.commit();
+
+    return res.status(201).json({
+      message: "Aluno cadastrado com sucesso.",
+      userId,
+      studentId,
+      registrationNumber,
+    });
+  } catch (error) {
+    if (connection) {
+      await connection.rollback();
+    }
+
+    console.error("Erro ao cadastrar usuário:", error);
+
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({
+        message:
+          error.sqlMessage?.includes("email")
+            ? "Este e-mail já está cadastrado."
+            : "Já existe um cadastro com esses dados.",
+      });
+    }
+
+    return res.status(500).json({
+      message: "Erro ao cadastrar usuário.",
+      error: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+    });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
 });
 
 
@@ -574,68 +1214,54 @@ app.post("/users", (req, res) => {
    ========================================================== */
 
 /**
- * GET /students/by-user/:userId/courses
+ * GET /api/students/by-user/:userId/courses
  * Lista os cursos em que o aluno possui matrícula ativa.
  */
 app.get(
-  "/students/by-user/:userId/courses",
+  "/api/students/me/courses",
+  authenticateToken,
+  authorizeRoles("student"),
   async (req, res) => {
     try {
-      const { userId } = req.params;
-      const normalizedUserId = Number(userId);
+      const userId = req.auth.userId;
 
-      /*
-       * Valida o ID recebido pela URL.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
-
-      /*
-       * Converte users.id em students.id.
-       */
-      const studentId = await getStudentIdByUserId(
-        normalizedUserId
+      const [studentRows] = await db.promise().query(
+        `
+        SELECT id
+        FROM students
+        WHERE user_id = ?
+        LIMIT 1
+        `,
+        [userId]
       );
 
-      if (!studentId) {
+      if (studentRows.length === 0) {
         return res.status(404).json({
-          message: "Aluno não encontrado.",
+          message:
+            "Perfil de aluno não encontrado para este usuário.",
         });
       }
 
-      /*
-       * Busca apenas matrículas e cursos ativos.
-       */
+      const studentId = studentRows[0].id;
+
       const [courses] = await db.promise().query(
         `
-          SELECT
-            c.id,
-            c.name,
-            c.description,
-            c.nivel,
-            c.category,
-            c.workload_hours,
-            c.image_url,
-
-            e.status AS enrollment_status,
-            e.enrolled_at
-
-          FROM enrollments e
-
-          INNER JOIN courses c
-            ON c.id = e.course_id
-
-          WHERE e.student_id = ?
-            AND e.status = 'active'
-            AND c.status = 'active'
-
-          ORDER BY e.enrolled_at DESC
+        SELECT
+          c.id,
+          c.name,
+          c.description,
+          c.category,
+          c.nivel,
+          c.image_url,
+          c.workload_hours,
+          e.status AS enrollment_status,
+          e.created_at AS enrollment_date
+        FROM enrollments e
+        INNER JOIN courses c
+          ON c.id = e.course_id
+        WHERE e.student_id = ?
+          AND e.status = 'active'
+        ORDER BY e.created_at DESC
         `,
         [studentId]
       );
@@ -643,12 +1269,13 @@ app.get(
       return res.status(200).json(courses);
     } catch (error) {
       console.error(
-        "Erro ao buscar cursos do aluno:",
+        "Erro ao buscar cursos matriculados:",
         error
       );
 
       return res.status(500).json({
-        message: "Erro ao buscar cursos do aluno.",
+        message:
+          "Erro interno ao buscar cursos matriculados.",
         error: error.message,
       });
     }
@@ -676,11 +1303,12 @@ app.get(
  *   aguardando correção, corrigidas e média.
  */
 app.get(
-  "/students/by-user/:userId/activities",
+  "/api/students/by-user/activities",
+  authenticateToken,
   async (req, res) => {
     try {
-      const { userId } = req.params;
-      const normalizedUserId = Number(userId);
+      const normalizedUserId = Number(req.auth.userId);
+      
 
       /*
        * Valida o ID do usuário.
@@ -837,17 +1465,20 @@ app.get(
 
 
 /**
- * GET /students/by-user/:userId/activities/:activityId/full
+ * GET /api/students/by-user/:userId/activities/:activityId/full
  * Carrega uma atividade com suas questões e alternativas.
  */
 app.get(
-  "/students/by-user/:userId/activities/:activityId/full",
+  "/api/students/by-user/activities/:activityId/full",
+  authenticateToken,
   async (req, res) => {
     try {
-      const { userId, activityId } = req.params;
+      const { activityId } = req.params;
 
-      const normalizedUserId = Number(userId);
+      const normalizedUserId = Number(req.auth.userId);
       const normalizedActivityId = Number(activityId);
+
+      
 
       /*
        * Valida o ID do usuário.
@@ -856,8 +1487,8 @@ app.get(
         !Number.isInteger(normalizedUserId) ||
         normalizedUserId <= 0
       ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
+        return res.status(401).json({
+          message: "Usuário não autenticado.",
         });
       }
 
@@ -1090,19 +1721,20 @@ app.get(
    ========================================================== */
 
 /**
- * POST /students/by-user/:userId/activities/:activityId/submissions
+ * POST /api/students/by-user/:userId/activities/:activityId/submissions
  * Registra a entrega completa de uma atividade pelo aluno.
  */
 app.post(
-  "/students/by-user/:userId/activities/:activityId/submissions",
+  "/api/students/activities/:activityId/submissions",
+  authenticateToken,
   async (req, res) => {
     let connection;
 
     try {
-      const { userId, activityId } = req.params;
-      const { answers } = req.body;
+      const { activityId } = req.params;
+      const { answers, fullscreen_exit_count } = req.body;
 
-      const normalizedUserId = Number(userId);
+      const normalizedUserId = Number(req.auth.userId);
       const normalizedActivityId = Number(activityId);
 
       /*
@@ -1601,25 +2233,17 @@ app.post(
  * - calcula o progresso geral do curso.
  */
 app.get(
-  "/students/by-user/:userId/courses/:courseId/progress",
+  "/api/students/by-user/:userId/courses/:courseId/progress",
+  authenticateToken,
+  authorizeRoles("student"),
   async (req, res) => {
     try {
-      const { userId, courseId } = req.params;
+      const { courseId } = req.params;
 
-      const normalizedUserId = Number(userId);
+      // Identidade sempre vem do token (cookie), nunca da URL —
+      // impede um aluno de ver o progresso de outro trocando o :userId.
+      const normalizedUserId = req.auth.userId;
       const normalizedCourseId = Number(courseId);
-
-      /*
-       * Valida o users.id.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
 
       /*
        * Valida o ID do curso.
@@ -1900,12 +2524,14 @@ app.get(
  * }
  */
 app.put(
-  "/students/by-user/:userId/contents/:contentId/progress",
+  "/api/students/by-user/:userId/contents/:contentId/progress",
+  authenticateToken,
+  authorizeRoles("student"),
   async (req, res) => {
     let connection;
 
     try {
-      const { userId, contentId } = req.params;
+      const { contentId } = req.params;
 
       const {
         status,
@@ -1913,20 +2539,9 @@ app.put(
         last_position_seconds,
       } = req.body;
 
-      const normalizedUserId = Number(userId);
+      // Identidade sempre vem do token — nunca da URL.
+      const normalizedUserId = req.auth.userId;
       const normalizedContentId = Number(contentId);
-
-      /*
-       * Valida o users.id.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
 
       /*
        * Valida o ID do conteúdo.
@@ -2429,274 +3044,6 @@ app.put(
 );
 
 /*
- * ==========================================================
- * PROGRESSO DO ALUNO EM UM CURSO
- * ==========================================================
- *
- * Retorna o progresso completo do aluno em um curso específico.
- *
- * Funcionalidades:
- * - converte users.id em students.id;
- * - valida se o aluno possui matrícula ativa no curso;
- * - busca todos os conteúdos ativos do curso;
- * - recupera o progresso individual de cada conteúdo;
- * - considera conteúdos sem registro como "not_started";
- * - calcula automaticamente o resumo geral do curso;
- * - retorna dados prontos para alimentar:
- *   - CoursePlayer;
- *   - barra de progresso do curso;
- *   - gráfico de rosca de conteúdos;
- *   - StatCards;
- *   - futura página ProgressoAluno.
- *
- * Especificidades:
- * - utiliza LEFT JOIN para incluir conteúdos ainda não iniciados;
- * - não possui qualquer relação com atividades, avaliações ou notas;
- * - a porcentagem geral é calculada apenas sobre course_contents;
- * - a rota representa o progresso de um único curso.
- *
- * Próximas rotas relacionadas:
- * - GET /students/by-user/:userId/courses/:courseId/academic-progress
- *   → progresso acadêmico (atividades e avaliações).
- *
- * - GET /students/by-user/:userId/progress-overview
- *   → consolida conteúdos, progresso acadêmico e dashboards.
- */
-
-app.get(
-  "/students/by-user/:userId/courses/:courseId/progress",
-  async (req, res) => {
-    try {
-      const { userId, courseId } = req.params;
-
-      const normalizedUserId = Number(userId);
-      const normalizedCourseId = Number(courseId);
-
-      /*
-       * ==========================================
-       * Validação dos parâmetros.
-       * ==========================================
-       */
-
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
-
-      if (
-        !Number.isInteger(normalizedCourseId) ||
-        normalizedCourseId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do curso inválido.",
-        });
-      }
-
-      /*
-       * ==========================================
-       * Converte users.id -> students.id
-       * ==========================================
-       */
-
-      const studentId =
-        await getStudentIdByUserId(
-          normalizedUserId
-        );
-
-      if (!studentId) {
-        return res.status(404).json({
-          message: "Aluno não encontrado.",
-        });
-      }
-
-      /*
-       * ==========================================
-       * Verifica matrícula ativa.
-       * ==========================================
-       */
-
-      const [enrollment] =
-        await db.promise().query(
-          `
-          SELECT id
-          FROM enrollments
-          WHERE student_id = ?
-            AND course_id = ?
-            AND status = 'active'
-          LIMIT 1
-          `,
-          [
-            studentId,
-            normalizedCourseId,
-          ]
-        );
-
-      if (enrollment.length === 0) {
-        return res.status(403).json({
-          message:
-            "Aluno não possui matrícula ativa neste curso.",
-        });
-      }
-
-      /*
-       * ==========================================
-       * Busca todos os conteúdos do curso.
-       *
-       * LEFT JOIN porque um conteúdo ainda pode
-       * não possuir registro em
-       * student_content_progress.
-       * ==========================================
-       */
-
-      const [contents] =
-        await db.promise().query(
-          `
-          SELECT
-
-            cc.id,
-            cc.course_id,
-            cc.title,
-            cc.type,
-            cc.order_index,
-            cc.is_required,
-
-            scp.status AS progress_status,
-            scp.progress_percentage,
-            scp.last_position_seconds,
-            scp.started_at,
-            scp.completed_at,
-            scp.last_accessed_at
-
-          FROM course_contents cc
-
-          LEFT JOIN student_content_progress scp
-            ON scp.content_id = cc.id
-           AND scp.student_id = ?
-
-          WHERE cc.course_id = ?
-            AND cc.status = 'active'
-
-          ORDER BY
-            cc.order_index ASC,
-            cc.created_at ASC
-          `,
-          [
-            studentId,
-            normalizedCourseId,
-          ]
-        );
-
-      /*
-       * ==========================================
-       * Calcula resumo.
-       * ==========================================
-       */
-
-      const totalContents =
-        contents.length;
-
-      const completedContents =
-        contents.filter(
-          (content) =>
-            content.progress_status ===
-            "completed"
-        ).length;
-
-      const inProgressContents =
-        contents.filter(
-          (content) =>
-            content.progress_status ===
-            "in_progress"
-        ).length;
-
-      const notStartedContents =
-        totalContents -
-        completedContents -
-        inProgressContents;
-
-      const progressPercentage =
-        totalContents > 0
-          ? Number(
-              (
-                (completedContents /
-                  totalContents) *
-                100
-              ).toFixed(2)
-            )
-          : 0;
-
-      /*
-       * ==========================================
-       * Normaliza conteúdos sem registro.
-       * ==========================================
-       */
-
-      const normalizedContents =
-        contents.map((content) => ({
-          ...content,
-
-          progress_status:
-            content.progress_status ||
-            "not_started",
-
-          progress_percentage:
-            Number(
-              content.progress_percentage ??
-                0
-            ),
-        }));
-
-      /*
-       * ==========================================
-       * Resposta.
-       * ==========================================
-       */
-
-      return res.status(200).json({
-        summary: {
-          total_contents:
-            totalContents,
-
-          completed_contents:
-            completedContents,
-
-          in_progress_contents:
-            inProgressContents,
-
-          not_started_contents:
-            notStartedContents,
-
-          progress_percentage:
-            progressPercentage,
-        },
-
-        contents:
-          normalizedContents,
-      });
-    } catch (error) {
-      console.error(
-        "Erro ao buscar progresso do aluno:",
-        error
-      );
-
-      return res.status(500).json({
-        message:
-          "Erro ao buscar progresso do aluno.",
-
-        error: error.message,
-        code: error.code,
-        sqlMessage:
-          error.sqlMessage,
-      });
-    }
-  }
-);
-
-/*
  * ============================================================
  * ALUNO — PROGRESSO ACADÊMICO EM UM CURSO
  * ============================================================
@@ -2725,25 +3072,16 @@ app.get(
  * - o progresso de conteúdos pertence a student_content_progress.
  */
 app.get(
-  "/students/by-user/:userId/courses/:courseId/academic-progress",
+  "/api/students/by-user/:userId/courses/:courseId/academic-progress",
+  authenticateToken,
+  authorizeRoles("student"),
   async (req, res) => {
     try {
-      const { userId, courseId } = req.params;
+      const { courseId } = req.params;
 
-      const normalizedUserId = Number(userId);
+      // Identidade sempre vem do token — nunca da URL.
+      const normalizedUserId = req.auth.userId;
       const normalizedCourseId = Number(courseId);
-
-      /*
-       * Valida o users.id.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
 
       /*
        * Valida o ID do curso.
@@ -3315,23 +3653,13 @@ app.get(
  * - nenhuma porcentagem é confiada ao frontend.
  */
 app.get(
-  "/students/by-user/:userId/progress-overview",
+  "/api/students/by-user/:userId/progress-overview",
+  authenticateToken,
+  authorizeRoles("student"),
   async (req, res) => {
     try {
-      const { userId } = req.params;
-      const normalizedUserId = Number(userId);
-
-      /*
-       * Valida o users.id.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
+      // Identidade sempre vem do token — nunca da URL.
+      const normalizedUserId = req.auth.userId;
 
       /*
        * Converte users.id em students.id.
@@ -4342,6 +4670,285 @@ app.get(
   }
 );
 
+// ======================================================
+// ALUNO FINANCEIRO
+// ======================================================
+
+app.get(
+  "/api/student/finance",
+  authenticateToken,
+  authorizeRoles("student"),
+  async (req, res) => {
+    try {
+      const userId = req.auth.userId;
+
+      const studentId = await getStudentIdByUserId(userId);
+
+      if (!studentId) {
+        return res.status(404).json({
+          message: "Aluno não encontrado.",
+        });
+      }
+
+      // --------------------------------------------------
+      // FINANCIAL CONTRACTS
+      // --------------------------------------------------
+
+      const [contracts] = await db.promise().query(
+        `
+          SELECT
+            fc.id,
+            fc.enrollment_id AS enrollmentId,
+            fc.pricing_plan_id AS pricingPlanId,
+
+            e.student_id AS studentId,
+            e.course_id AS courseId,
+
+            c.name AS courseName,
+
+            fc.billing_type AS billingType,
+            fc.plan_name AS planName,
+            fc.total_amount AS totalAmount,
+
+            fc.monthly_payment_count AS monthlyPaymentCount,
+            fc.monthly_payment_amount AS monthlyPaymentAmount,
+            fc.max_card_installments AS maxCardInstallments,
+
+            fc.accepts_pix AS acceptsPix,
+            fc.accepts_boleto AS acceptsBoleto,
+            fc.accepts_credit_card AS acceptsCreditCard,
+
+            fc.status,
+            fc.start_date AS startDate,
+            fc.completed_at AS completedAt,
+            fc.cancelled_at AS cancelledAt,
+
+            fc.created_at AS createdAt,
+            fc.updated_at AS updatedAt
+
+          FROM financial_contracts fc
+
+          INNER JOIN enrollments e
+            ON e.id = fc.enrollment_id
+
+          INNER JOIN courses c
+            ON c.id = e.course_id
+
+          WHERE e.student_id = ?
+
+          ORDER BY
+            fc.created_at DESC,
+            fc.id DESC
+        `,
+        [studentId]
+      );
+
+      // --------------------------------------------------
+      // INVOICES
+      // --------------------------------------------------
+
+      const [invoices] = await db.promise().query(
+        `
+          SELECT
+            i.id,
+            i.financial_contract_id AS contractId,
+
+            e.student_id AS studentId,
+            e.course_id AS courseId,
+
+            c.name AS courseName,
+
+            i.invoice_type AS invoiceType,
+            i.installment_number AS installmentNumber,
+            i.installment_count AS totalInstallments,
+
+            i.description,
+            i.amount,
+            i.due_date AS dueDate,
+            i.status,
+
+            i.paid_at AS paidAt,
+            i.cancelled_at AS cancelledAt,
+
+            i.created_at AS createdAt,
+            i.updated_at AS updatedAt
+
+          FROM invoices i
+
+          INNER JOIN financial_contracts fc
+            ON fc.id = i.financial_contract_id
+
+          INNER JOIN enrollments e
+            ON e.id = fc.enrollment_id
+
+          INNER JOIN courses c
+            ON c.id = e.course_id
+
+          WHERE e.student_id = ?
+
+          ORDER BY
+            i.due_date ASC,
+            i.id ASC
+        `,
+        [studentId]
+      );
+
+      // --------------------------------------------------
+      // PAYMENTS
+      // --------------------------------------------------
+
+      const [payments] = await db.promise().query(
+        `
+          SELECT
+            p.id,
+            p.invoice_id AS invoiceId,
+
+            i.financial_contract_id AS contractId,
+
+            e.student_id AS studentId,
+            e.course_id AS courseId,
+
+            c.name AS courseName,
+
+            p.gateway,
+            p.gateway_payment_id AS gatewayPaymentId,
+            p.payment_method AS paymentMethod,
+
+            p.amount,
+            p.status,
+
+            p.card_installments AS cardInstallments,
+            p.card_brand AS cardBrand,
+            p.card_last_four AS cardLastFour,
+
+            p.pix_expires_at AS pixExpiresAt,
+            p.boleto_due_date AS boletoDueDate,
+
+            p.paid_at AS paidAt,
+            p.rejected_at AS rejectedAt,
+            p.cancelled_at AS cancelledAt,
+            p.refunded_at AS refundedAt,
+
+            p.created_at AS createdAt,
+            p.updated_at AS updatedAt
+
+          FROM payments p
+
+          INNER JOIN invoices i
+            ON i.id = p.invoice_id
+
+          INNER JOIN financial_contracts fc
+            ON fc.id = i.financial_contract_id
+
+          INNER JOIN enrollments e
+            ON e.id = fc.enrollment_id
+
+          INNER JOIN courses c
+            ON c.id = e.course_id
+
+          WHERE e.student_id = ?
+
+          ORDER BY
+            COALESCE(
+              p.paid_at,
+              p.rejected_at,
+              p.cancelled_at,
+              p.refunded_at,
+              p.created_at
+            ) DESC,
+            p.id DESC
+        `,
+        [studentId]
+      );
+
+      // --------------------------------------------------
+      // SUMMARY
+      // --------------------------------------------------
+
+      const summary = {
+        totalContracted: contracts.reduce(
+          (total, contract) =>
+            total + Number(contract.totalAmount || 0),
+          0
+        ),
+
+        totalPaid: invoices.reduce(
+          (total, invoice) => {
+            if (invoice.status !== "paid") {
+              return total;
+            }
+
+            return total + Number(invoice.amount || 0);
+          },
+          0
+        ),
+
+        totalPending: invoices.reduce(
+          (total, invoice) => {
+            if (
+              !["pending", "processing"].includes(
+                invoice.status
+              )
+            ) {
+              return total;
+            }
+
+            return total + Number(invoice.amount || 0);
+          },
+          0
+        ),
+
+        totalOverdue: invoices.reduce(
+          (total, invoice) => {
+            if (invoice.status !== "overdue") {
+              return total;
+            }
+
+            return total + Number(invoice.amount || 0);
+          },
+          0
+        ),
+      };
+
+      // As faturas já estão ordenadas por vencimento crescente.
+      const overdueInvoice =
+        invoices.find(
+          (invoice) => invoice.status === "overdue"
+        ) || null;
+
+      const nextInvoice =
+        invoices.find((invoice) =>
+          ["pending", "processing"].includes(
+            invoice.status
+          )
+        ) || null;
+
+      return res.status(200).json({
+        summary,
+        overdueInvoice,
+        nextInvoice,
+        contracts,
+        invoices,
+        payments,
+      });
+    } catch (error) {
+      console.error("Erro ao buscar dados financeiros do aluno:");
+      console.error("Mensagem:", error.message);
+      console.error("Código:", error.code);
+      console.error("SQL message:", error.sqlMessage);
+      console.error("SQL:", error.sql);
+
+      return res.status(500).json({
+        message: "Erro interno ao buscar os dados financeiros.",
+        error:
+          process.env.NODE_ENV === "development"
+            ? error.sqlMessage || error.message
+            : undefined,
+      });
+    }
+  }
+);
+
 
 
 
@@ -4351,137 +4958,6 @@ app.get(
    ========================================================== */
 
 
-/* ==========================================================
-   PROFESSOR — TAREFAS
-   ========================================================== */
-
-/**
- * GET /teacher/by-user/:userId/tasks
- * Lista tarefas vinculadas aos cursos do professor.
- *
- * Observação:
- * Esta rota ainda utiliza atividades armazenadas em
- * course_contents com os tipos activity e assessment.
- *
- * Quando a migração para a tabela activities estiver
- * concluída, esta rota poderá ser substituída pela rota
- * GET /teacher/by-user/:userId/activities.
- */
-app.get(
-  "/teacher/by-user/:userId/tasks",
-  async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const normalizedUserId = Number(userId);
-
-      /*
-       * Valida o ID do usuário.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
-
-      /*
-       * Busca atividades antigas registradas
-       * em course_contents.
-       */
-      const [tasks] = await db.promise().query(
-        `
-          SELECT
-            cc.id,
-            cc.course_id,
-            cc.title,
-            cc.description,
-            cc.type,
-            cc.content_url,
-            cc.content_text,
-            cc.order_index,
-            cc.is_required,
-            cc.status,
-            cc.due_date,
-            cc.created_at,
-            cc.updated_at,
-
-            c.name AS course_title,
-
-            COUNT(DISTINCT sub.id) AS total_submissions,
-
-            COALESCE(
-              SUM(
-                CASE
-                  WHEN sub.status = 'pending_review'
-                  THEN 1
-                  ELSE 0
-                END
-              ),
-              0
-            ) AS pending_reviews,
-
-            COALESCE(
-              SUM(
-                CASE
-                  WHEN sub.status = 'graded'
-                  THEN 1
-                  ELSE 0
-                END
-              ),
-              0
-            ) AS graded_submissions
-
-          FROM teachers t
-
-          INNER JOIN courses c
-            ON c.teacher_id = t.id
-
-          INNER JOIN course_contents cc
-            ON cc.course_id = c.id
-
-          LEFT JOIN submissions sub
-            ON sub.content_id = cc.id
-
-          WHERE t.user_id = ?
-            AND cc.type IN ('activity', 'assessment')
-
-          GROUP BY
-            cc.id,
-            cc.course_id,
-            cc.title,
-            cc.description,
-            cc.type,
-            cc.content_url,
-            cc.content_text,
-            cc.order_index,
-            cc.is_required,
-            cc.status,
-            cc.due_date,
-            cc.created_at,
-            cc.updated_at,
-            c.name
-
-          ORDER BY cc.created_at DESC
-        `,
-        [normalizedUserId]
-      );
-
-      return res.status(200).json(tasks);
-    } catch (error) {
-      console.error(
-        "Erro ao buscar tarefas do professor:",
-        error
-      );
-
-      return res.status(500).json({
-        message: "Erro ao buscar tarefas do professor.",
-        error: error.message,
-      });
-    }
-  }
-);
 
 
 /* ==========================================================
@@ -4489,27 +4965,17 @@ app.get(
    ========================================================== */
 
 /**
- * GET /teacher/by-user/:userId/courses
+ * GET /api/teacher/by-user/:userId/courses
  * Lista os cursos atribuídos ao professor.
  */
 app.get(
-  "/teacher/by-user/:userId/courses",
+  "/api/teacher/by-user/:userId/courses",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
-      const { userId } = req.params;
-      const normalizedUserId = Number(userId);
-
-      /*
-       * Valida o ID do usuário.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
+      // Identidade sempre vem do token — nunca da URL.
+      const normalizedUserId = req.auth.userId;
 
       /*
        * Busca os cursos do professor e calcula
@@ -4576,27 +5042,17 @@ app.get(
    ========================================================== */
 
 /**
- * GET /teacher/by-user/:userId/students
+ * GET /api/teacher/by-user/:userId/students
  * Lista os alunos matriculados nos cursos do professor.
  */
 app.get(
-  "/teacher/by-user/:userId/students",
+  "/api/teacher/by-user/:userId/students",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
-      const { userId } = req.params;
-      const normalizedUserId = Number(userId);
-
-      /*
-       * Valida o ID do usuário.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
+      // Identidade sempre vem do token — nunca da URL.
+      const normalizedUserId = req.auth.userId;
 
       /*
        * Retorna uma linha por matrícula.
@@ -4663,7 +5119,7 @@ app.get(
    ========================================================== */
 
 /**
- * GET /teacher/by-user/:userId/course-contents
+ * GET /api/teacher/by-user/:userId/course-contents
  * Lista os conteúdos dos cursos do professor.
  *
  * Inclui apenas:
@@ -4692,23 +5148,13 @@ app.get(
  * - não retorna atividades ou avaliações.
  */
 app.get(
-  "/teacher/by-user/:userId/course-contents",
+  "/api/teacher/by-user/:userId/course-contents",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
-      const { userId } = req.params;
-      const normalizedUserId = Number(userId);
-
-      /*
-       * Valida o ID do usuário.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
+      // Identidade sempre vem do token — nunca da URL.
+      const normalizedUserId = req.auth.userId;
 
       /*
        * Busca os conteúdos pertencentes aos cursos
@@ -4788,13 +5234,16 @@ app.get(
    ========================================================== */
 
 /**
- * POST /course-contents
+ * POST /api/course-contents
  * Cria um conteúdo em um curso do professor.
  */
-app.post("/course-contents", async (req, res) => {
+app.post(
+  "/api/course-contents",
+  authenticateToken,
+  authorizeRoles("teacher"),
+  async (req, res) => {
   try {
     const {
-      userId,
       course_id,
       title,
       description,
@@ -4807,20 +5256,9 @@ app.post("/course-contents", async (req, res) => {
       due_date,
     } = req.body;
 
-    const normalizedUserId = Number(userId);
+    // Identidade sempre vem do token — nunca do corpo da requisição.
+    const normalizedUserId = req.auth.userId;
     const normalizedCourseId = Number(course_id);
-
-    /*
-     * Valida o ID do professor.
-     */
-    if (
-      !Number.isInteger(normalizedUserId) ||
-      normalizedUserId <= 0
-    ) {
-      return res.status(400).json({
-        message: "O usuário do professor é obrigatório.",
-      });
-    }
 
     /*
      * Valida os campos principais.
@@ -4996,15 +5434,18 @@ app.post("/course-contents", async (req, res) => {
    ========================================================== */
 
 /**
- * PUT /course-contents/:id
+ * PUT /api/course-contents/:id
  * Atualiza um conteúdo pertencente ao professor.
  */
-app.put("/course-contents/:id", async (req, res) => {
+app.put(
+  "/api/course-contents/:id",
+  authenticateToken,
+  authorizeRoles("teacher"),
+  async (req, res) => {
   try {
     const { id } = req.params;
 
     const {
-      userId,
       course_id,
       title,
       description,
@@ -5018,7 +5459,8 @@ app.put("/course-contents/:id", async (req, res) => {
     } = req.body;
 
     const normalizedContentId = Number(id);
-    const normalizedUserId = Number(userId);
+    // Identidade sempre vem do token — nunca do corpo da requisição.
+    const normalizedUserId = req.auth.userId;
     const normalizedCourseId = Number(course_id);
 
     /*
@@ -5030,18 +5472,6 @@ app.put("/course-contents/:id", async (req, res) => {
     ) {
       return res.status(400).json({
         message: "ID do conteúdo inválido.",
-      });
-    }
-
-    /*
-     * Valida o ID do professor.
-     */
-    if (
-      !Number.isInteger(normalizedUserId) ||
-      normalizedUserId <= 0
-    ) {
-      return res.status(400).json({
-        message: "O usuário do professor é obrigatório.",
       });
     }
 
@@ -5243,18 +5673,20 @@ app.put("/course-contents/:id", async (req, res) => {
    ========================================================== */
 
 /**
- * DELETE /course-contents/:id
+ * DELETE /api/course-contents/:id
  * Arquiva um conteúdo sem removê-lo do banco de dados.
  */
 app.delete(
-  "/course-contents/:id",
+  "/api/course-contents/:id",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { userId } = req.body;
 
       const normalizedContentId = Number(id);
-      const normalizedUserId = Number(userId);
+      // Identidade sempre vem do token — nunca do corpo da requisição.
+      const normalizedUserId = req.auth.userId;
 
       /*
        * Valida o ID do conteúdo.
@@ -5265,18 +5697,6 @@ app.delete(
       ) {
         return res.status(400).json({
           message: "ID do conteúdo inválido.",
-        });
-      }
-
-      /*
-       * Valida o ID do professor.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "O usuário do professor é obrigatório.",
         });
       }
 
@@ -5398,7 +5818,7 @@ app.delete(
    ========================================================== */
 
 /**
- * POST /activities
+ * POST /api/activities
  * Cria uma atividade ou avaliação com suas questões.
  *
  * A operação utiliza uma transação para garantir que:
@@ -5408,12 +5828,15 @@ app.delete(
  *
  * sejam salvas juntas.
  */
-app.post("/activities", async (req, res) => {
+app.post(
+  "/api/activities",
+  authenticateToken,
+  authorizeRoles("teacher"),
+  async (req, res) => {
   let connection;
 
   try {
     const {
-      userId,
       course_id,
       activity_kind,
       title,
@@ -5425,20 +5848,9 @@ app.post("/activities", async (req, res) => {
       questions,
     } = req.body;
 
-    const normalizedUserId = Number(userId);
+    // Identidade sempre vem do token — nunca do corpo da requisição.
+    const normalizedUserId = req.auth.userId;
     const normalizedCourseId = Number(course_id);
-
-    /*
-     * Valida o ID do usuário do professor.
-     */
-    if (
-      !Number.isInteger(normalizedUserId) ||
-      normalizedUserId <= 0
-    ) {
-      return res.status(400).json({
-        message: "O usuário do professor é obrigatório.",
-      });
-    }
 
     /*
      * Valida o ID do curso.
@@ -5884,7 +6296,7 @@ app.post("/activities", async (req, res) => {
    ========================================================== */
 
 /**
- * GET /teacher/by-user/:userId/activities
+ * GET /api/teacher/by-user/:userId/activities
  * Lista as atividades e avaliações dos cursos do professor.
  *
  * Também retorna:
@@ -5893,23 +6305,13 @@ app.post("/activities", async (req, res) => {
  * - envios corrigidos.
  */
 app.get(
-  "/teacher/by-user/:userId/activities",
+  "/api/teacher/by-user/:userId/activities",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
-      const { userId } = req.params;
-      const normalizedUserId = Number(userId);
-
-      /*
-       * Valida o ID do usuário.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
+      // Identidade sempre vem do token — nunca da URL.
+      const normalizedUserId = req.auth.userId;
 
       /*
        * Busca as atividades pertencentes aos cursos
@@ -6026,25 +6428,16 @@ app.get(
  * - activity_kind = "exam".
  */
 app.get(
-  "/teacher/by-user/:userId/activities/:activityId/full",
+  "/api/teacher/by-user/:userId/activities/:activityId/full",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
-      const { userId, activityId } = req.params;
+      const { activityId } = req.params;
 
-      const normalizedUserId = Number(userId);
+      // Identidade sempre vem do token — nunca da URL.
+      const normalizedUserId = req.auth.userId;
       const normalizedActivityId = Number(activityId);
-
-      /*
-       * Valida o users.id do professor.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
 
       /*
        * Valida o ID da atividade.
@@ -6307,12 +6700,14 @@ app.get(
  * - activity_kind = "exam".
  */
 app.put(
-  "/teacher/by-user/:userId/activities/:activityId",
+  "/api/teacher/by-user/:userId/activities/:activityId",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     let connection;
 
     try {
-      const { userId, activityId } = req.params;
+      const { activityId } = req.params;
 
       const {
         course_id,
@@ -6328,21 +6723,10 @@ app.put(
         questions,
       } = req.body;
 
-      const normalizedUserId = Number(userId);
+      // Identidade sempre vem do token — nunca da URL.
+      const normalizedUserId = req.auth.userId;
       const normalizedActivityId = Number(activityId);
       const normalizedCourseId = Number(course_id);
-
-      /*
-       * Valida o users.id do professor.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
 
       /*
        * Valida o ID da atividade.
@@ -7198,19 +7582,23 @@ app.put(
    ========================================================== */
 
 /**
- * DELETE /activities/:id
+ * DELETE /api/activities/:id
  * Desativa uma atividade ou avaliação.
  *
  * Esta rota realiza soft delete:
  * o registro permanece no banco com status inactive.
  */
-app.delete("/activities/:id", async (req, res) => {
+app.delete(
+  "/api/activities/:id",
+  authenticateToken,
+  authorizeRoles("teacher"),
+  async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId } = req.body;
 
     const normalizedActivityId = Number(id);
-    const normalizedUserId = Number(userId);
+    // Identidade sempre vem do token — nunca do corpo da requisição.
+    const normalizedUserId = req.auth.userId;
 
     /*
      * Valida o ID da atividade.
@@ -7221,18 +7609,6 @@ app.delete("/activities/:id", async (req, res) => {
     ) {
       return res.status(400).json({
         message: "ID da atividade inválido.",
-      });
-    }
-
-    /*
-     * Valida o ID do professor.
-     */
-    if (
-      !Number.isInteger(normalizedUserId) ||
-      normalizedUserId <= 0
-    ) {
-      return res.status(400).json({
-        message: "O usuário do professor é obrigatório.",
       });
     }
 
@@ -7389,16 +7765,10 @@ async function getTeacherIdByUserId(userId) {
  * ============================================================
  */
 function validateTeacherClassParams(req, res) {
-  const userId = Number(req.params.userId);
+  // Identidade sempre vem do token (exige authenticateToken no
+  // middleware da rota) — nunca do :userId da URL.
+  const userId = req.auth.userId;
   const classId = Number(req.params.classId);
-
-  if (!Number.isInteger(userId) || userId <= 0) {
-    res.status(400).json({
-      message: "ID do usuário inválido.",
-    });
-
-    return null;
-  }
 
   if (!Number.isInteger(classId) || classId <= 0) {
     res.status(400).json({
@@ -7417,7 +7787,7 @@ function validateTeacherClassParams(req, res) {
 /*
  * ============================================================
  * PROFESSOR — LISTAR TURMAS ATRIBUÍDAS
- * GET /teacher/by-user/:userId/classes
+ * GET /api/teacher/by-user/:userId/classes
  * ============================================================
  *
  * Retorna uma linha por turma, incluindo:
@@ -7428,27 +7798,18 @@ function validateTeacherClassParams(req, res) {
  * - quantidade de atividades ativas.
  */
 app.get(
-  "/teacher/by-user/:userId/classes",
+  "/api/teacher/by-user/:userId/classes",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
-      const userId = Number(
-        req.params.userId
-      );
+      // Identidade sempre vem do token — nunca da URL.
+      const userId = req.auth.userId;
 
       const status =
         typeof req.query.status === "string"
           ? req.query.status.trim()
           : "";
-
-      if (
-        !Number.isInteger(userId) ||
-        userId <= 0
-      ) {
-        return res.status(400).json({
-          message:
-            "ID do usuário inválido.",
-        });
-      }
 
       const allowedStatuses = new Set([
         "",
@@ -7684,7 +8045,7 @@ app.get(
 /*
  * ============================================================
  * PROFESSOR — BUSCAR DASHBOARD DE UMA TURMA
- * GET /teacher/by-user/:userId/classes/:classId
+ * GET /api/teacher/by-user/:userId/classes/:classId
  * ============================================================
  *
  * Retorna:
@@ -7695,7 +8056,9 @@ app.get(
  * - quantidade de atividades.
  */
 app.get(
-  "/teacher/by-user/:userId/classes/:classId",
+  "/api/teacher/by-user/:userId/classes/:classId",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
       const params = validateTeacherClassParams(
@@ -7853,13 +8216,15 @@ app.get(
 /*
  * ============================================================
  * PROFESSOR — LISTAR ALUNOS DE UMA TURMA
- * GET /teacher/by-user/:userId/classes/:classId/students
+ * GET /api/teacher/by-user/:userId/classes/:classId/students
  * ============================================================
  *
  * Lista apenas matrículas relacionadas à turma selecionada.
  */
 app.get(
-  "/teacher/by-user/:userId/classes/:classId/students",
+  "/api/teacher/by-user/:userId/classes/:classId/students",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
       const params = validateTeacherClassParams(req, res);
@@ -7963,14 +8328,16 @@ app.get(
 /*
  * ============================================================
  * PROFESSOR — LISTAR CONTEÚDOS DO CURSO DA TURMA
- * GET /teacher/by-user/:userId/classes/:classId/contents
+ * GET /api/teacher/by-user/:userId/classes/:classId/contents
  * ============================================================
  *
  * A URL usa a turma como contexto.
  * Os materiais continuam relacionados ao curso da turma.
  */
 app.get(
-  "/teacher/by-user/:userId/classes/:classId/contents",
+  "/api/teacher/by-user/:userId/classes/:classId/contents",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
       const params = validateTeacherClassParams(req, res);
@@ -8104,7 +8471,7 @@ app.get(
 /*
  * ============================================================
  * PROFESSOR — LISTAR ATIVIDADES DO CURSO DA TURMA
- * GET /teacher/by-user/:userId/classes/:classId/activities
+ * GET /api/teacher/by-user/:userId/classes/:classId/activities
  * ============================================================
  *
  * Enquanto activities possuir course_id, as atividades são
@@ -8114,7 +8481,9 @@ app.get(
  * misturar alunos de turmas diferentes.
  */
 app.get(
-  "/teacher/by-user/:userId/classes/:classId/activities",
+  "/api/teacher/by-user/:userId/classes/:classId/activities",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
       const params = validateTeacherClassParams(req, res);
@@ -8384,16 +8753,10 @@ function normalizeTimeValue(value) {
 }
 
 function validateSessionId(req, res) {
-  const userId = Number(req.params.userId);
+  // Identidade sempre vem do token (exige authenticateToken no
+  // middleware da rota) — nunca do :userId da URL.
+  const userId = req.auth.userId;
   const sessionId = Number(req.params.sessionId);
-
-  if (!Number.isInteger(userId) || userId <= 0) {
-    res.status(400).json({
-      message: "ID do usuário inválido.",
-    });
-
-    return null;
-  }
 
   if (!Number.isInteger(sessionId) || sessionId <= 0) {
     res.status(400).json({
@@ -8528,14 +8891,16 @@ function mapClassSession(session) {
  * ============================================================
  *
  * GET
- * /teacher/by-user/:userId/classes/:classId/sessions
+ * /api/teacher/by-user/:userId/classes/:classId/sessions
  *
  * Filtros opcionais:
  * ?status=scheduled
  * ?sessionType=class
  */
 app.get(
-  "/teacher/by-user/:userId/classes/:classId/sessions",
+  "/api/teacher/by-user/:userId/classes/:classId/sessions",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
       const params = validateTeacherClassParams(
@@ -8838,10 +9203,12 @@ app.get(
  * ============================================================
  *
  * GET
- * /teacher/by-user/:userId/class-sessions/:sessionId
+ * /api/teacher/by-user/:userId/class-sessions/:sessionId
  */
 app.get(
-  "/teacher/by-user/:userId/class-sessions/:sessionId",
+  "/api/teacher/by-user/:userId/class-sessions/:sessionId",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
       const params = validateSessionId(req, res);
@@ -8904,10 +9271,12 @@ app.get(
  * ============================================================
  *
  * POST
- * /teacher/by-user/:userId/classes/:classId/sessions
+ * /api/teacher/by-user/:userId/classes/:classId/sessions
  */
 app.post(
-  "/teacher/by-user/:userId/classes/:classId/sessions",
+  "/api/teacher/by-user/:userId/classes/:classId/sessions",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
       const params = validateTeacherClassParams(
@@ -9113,10 +9482,12 @@ app.post(
  * ============================================================
  *
  * PUT
- * /teacher/by-user/:userId/class-sessions/:sessionId
+ * /api/teacher/by-user/:userId/class-sessions/:sessionId
  */
 app.put(
-  "/teacher/by-user/:userId/class-sessions/:sessionId",
+  "/api/teacher/by-user/:userId/class-sessions/:sessionId",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
       const params = validateSessionId(req, res);
@@ -9320,13 +9691,15 @@ app.put(
  * ============================================================
  *
  * DELETE
- * /teacher/by-user/:userId/class-sessions/:sessionId
+ * /api/teacher/by-user/:userId/class-sessions/:sessionId
  *
  * Não remove a sessão fisicamente.
  * Apenas altera o status para cancelled.
  */
 app.delete(
-  "/teacher/by-user/:userId/class-sessions/:sessionId",
+  "/api/teacher/by-user/:userId/class-sessions/:sessionId",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
       const params = validateSessionId(req, res);
@@ -9413,27 +9786,21 @@ app.delete(
  * ============================================================
  */
 app.get(
-  "/teacher/by-user/:userId/classes/:classId/attendance",
+  "/api/teacher/by-user/:userId/classes/:classId/attendance",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     const promiseDb = db.promise();
 
     try {
-      const userId = Number(req.params.userId);
+      // Identidade sempre vem do token — nunca da URL.
+      const userId = req.auth.userId;
       const classId = Number(req.params.classId);
 
       const attendanceDate =
         typeof req.query.date === "string"
           ? req.query.date.trim()
           : "";
-
-      if (
-        !Number.isInteger(userId) ||
-        userId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
 
       if (
         !Number.isInteger(classId) ||
@@ -9793,331 +10160,6 @@ async function getTeacherClassByUserId(
 }
 
 // ======================================================
-// PROFESSOR - LISTAR ENCONTROS DA TURMA
-//
-// Retorna todos os encontros ativos vinculados à turma,
-// após validar que ela pertence ao professor informado.
-// Também retorna os dados básicos da turma utilizados
-// pela tela de frequência.
-// ======================================================
-
-app.get(
-  "/teacher/by-user/:userId/classes/:classId/sessions",
-  async (req, res) => {
-    const userId = Number(req.params.userId);
-    const classId = Number(req.params.classId);
-
-    if (
-      !Number.isInteger(userId) ||
-      userId <= 0 ||
-      !Number.isInteger(classId) ||
-      classId <= 0
-    ) {
-      return res.status(400).json({
-        message:
-          "Professor ou turma inválidos.",
-      });
-    }
-
-    try {
-      const classData =
-        await getTeacherClassByUserId(
-          db.promise(),
-          userId,
-          classId
-        );
-
-      if (!classData) {
-        return res.status(404).json({
-          message:
-            "Turma não encontrada para este professor.",
-        });
-      }
-
-      const [sessions] =
-        await db.promise().execute(
-          `
-            SELECT
-              cs.id,
-              cs.class_id AS classId,
-              cs.session_number AS sessionNumber,
-              cs.title,
-              cs.description,
-              cs.session_date AS sessionDate,
-              cs.start_time AS startTime,
-              cs.end_time AS endTime,
-              cs.session_type AS sessionType,
-              cs.status,
-              cs.created_at AS createdAt,
-              cs.updated_at AS updatedAt
-            FROM class_sessions cs
-            WHERE cs.class_id = ?
-              AND cs.status <> 'archived'
-            ORDER BY
-              cs.session_number ASC,
-              cs.session_date ASC,
-              cs.start_time ASC
-          `,
-          [classId]
-        );
-
-      return res.json({
-        class: classData,
-        sessions,
-      });
-    } catch (error) {
-      console.error(
-        "Erro ao listar encontros:",
-        error
-      );
-
-      return res.status(500).json({
-        message:
-          "Não foi possível carregar os encontros da turma.",
-      });
-    }
-  }
-);
-
-// ======================================================
-// PROFESSOR - CADASTRAR ENCONTRO DA TURMA
-//
-// Cria um novo encontro para a turma informada,
-// validando se ela pertence ao professor responsável.
-// O encontro passa a ficar disponível para registro
-// de frequência e consultas posteriores.
-// ======================================================
-
-app.post(
-  "/teacher/by-user/:userId/classes/:classId/sessions",
-  async (req, res) => {
-    const userId = Number(req.params.userId);
-    const classId = Number(req.params.classId);
-
-    const {
-      sessionNumber,
-      title,
-      description = "",
-      sessionDate,
-      startTime = null,
-      endTime = null,
-      sessionType = "class",
-      status = "scheduled",
-    } = req.body;
-
-    const normalizedSessionNumber =
-      Number(sessionNumber);
-
-    const validSessionTypes = new Set([
-      "class",
-      "review",
-      "exam",
-      "presentation",
-      "workshop",
-      "lab",
-      "recovery",
-      "other",
-    ]);
-
-    const validStatuses = new Set([
-      "scheduled",
-      "completed",
-      "cancelled",
-    ]);
-
-    if (
-      !Number.isInteger(userId) ||
-      userId <= 0 ||
-      !Number.isInteger(classId) ||
-      classId <= 0
-    ) {
-      return res.status(400).json({
-        message:
-          "Professor ou turma inválidos.",
-      });
-    }
-
-    if (
-      !Number.isInteger(
-        normalizedSessionNumber
-      ) ||
-      normalizedSessionNumber <= 0
-    ) {
-      return res.status(400).json({
-        message:
-          "O número do encontro é obrigatório.",
-      });
-    }
-
-    if (
-      !title ||
-      !String(title).trim()
-    ) {
-      return res.status(400).json({
-        message:
-          "O título do encontro é obrigatório.",
-      });
-    }
-
-    if (!sessionDate) {
-      return res.status(400).json({
-        message:
-          "A data do encontro é obrigatória.",
-      });
-    }
-
-    if (
-      !validSessionTypes.has(sessionType)
-    ) {
-      return res.status(400).json({
-        message:
-          "Tipo de encontro inválido.",
-      });
-    }
-
-    if (!validStatuses.has(status)) {
-      return res.status(400).json({
-        message:
-          "Status do encontro inválido.",
-      });
-    }
-
-    if (
-      startTime &&
-      endTime &&
-      startTime >= endTime
-    ) {
-      return res.status(400).json({
-        message:
-          "O horário final deve ser posterior ao horário inicial.",
-      });
-    }
-
-    const connection =
-      await db.promise().getConnection();
-
-    try {
-      await connection.beginTransaction();
-
-      const classData =
-        await getTeacherClassByUserId(
-          connection,
-          userId,
-          classId
-        );
-
-      if (!classData) {
-        await connection.rollback();
-
-        return res.status(404).json({
-          message:
-            "Turma não encontrada para este professor.",
-        });
-      }
-
-      const [duplicateRows] =
-        await connection.execute(
-          `
-            SELECT id
-            FROM class_sessions
-            WHERE class_id = ?
-              AND session_number = ?
-              AND status <> 'archived'
-            LIMIT 1
-          `,
-          [
-            classId,
-            normalizedSessionNumber,
-          ]
-        );
-
-      if (duplicateRows.length > 0) {
-        await connection.rollback();
-
-        return res.status(409).json({
-          message:
-            "Já existe um encontro com esse número nesta turma.",
-        });
-      }
-
-      const [result] =
-        await connection.execute(
-          `
-            INSERT INTO class_sessions (
-              class_id,
-              session_number,
-              title,
-              description,
-              session_date,
-              start_time,
-              end_time,
-              session_type,
-              status
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `,
-          [
-            classId,
-            normalizedSessionNumber,
-            String(title).trim(),
-            String(description || "").trim(),
-            sessionDate,
-            startTime || null,
-            endTime || null,
-            sessionType,
-            status,
-          ]
-        );
-
-      const [createdRows] =
-        await connection.execute(
-          `
-            SELECT
-              cs.id,
-              cs.class_id AS classId,
-              cs.session_number AS sessionNumber,
-              cs.title,
-              cs.description,
-              cs.session_date AS sessionDate,
-              cs.start_time AS startTime,
-              cs.end_time AS endTime,
-              cs.session_type AS sessionType,
-              cs.status,
-              cs.created_at AS createdAt,
-              cs.updated_at AS updatedAt
-            FROM class_sessions cs
-            WHERE cs.id = ?
-            LIMIT 1
-          `,
-          [result.insertId]
-        );
-
-      await connection.commit();
-
-      return res.status(201).json({
-        message:
-          "Encontro cadastrado com sucesso.",
-        session: createdRows[0],
-      });
-    } catch (error) {
-      await connection.rollback();
-
-      console.error(
-        "Erro ao cadastrar encontro:",
-        error
-      );
-
-      return res.status(500).json({
-        message:
-          "Não foi possível cadastrar o encontro.",
-      });
-    } finally {
-      connection.release();
-    }
-  }
-);
-
-// ======================================================
 // PROFESSOR - EDITAR ENCONTRO DA TURMA
 //
 // Atualiza os dados de um encontro existente,
@@ -10127,9 +10169,12 @@ app.post(
 // ======================================================
 
 app.put(
-  "/teacher/by-user/:userId/classes/:classId/sessions/:sessionId",
+  "/api/teacher/by-user/:userId/classes/:classId/sessions/:sessionId",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
-    const userId = Number(req.params.userId);
+    // Identidade sempre vem do token — nunca da URL.
+    const userId = req.auth.userId;
     const classId = Number(req.params.classId);
     const sessionId = Number(
       req.params.sessionId
@@ -10373,17 +10418,18 @@ app.put(
 // ======================================================
 
 app.delete(
-  "/teacher/by-user/:userId/classes/:classId/sessions/:sessionId",
+  "/api/teacher/by-user/:userId/classes/:classId/sessions/:sessionId",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
-    const userId = Number(req.params.userId);
+    // Identidade sempre vem do token — nunca da URL.
+    const userId = req.auth.userId;
     const classId = Number(req.params.classId);
     const sessionId = Number(
       req.params.sessionId
     );
 
     if (
-      !Number.isInteger(userId) ||
-      userId <= 0 ||
       !Number.isInteger(classId) ||
       classId <= 0 ||
       !Number.isInteger(sessionId) ||
@@ -10461,17 +10507,18 @@ app.delete(
  * "present", permitindo que o professor realize a chamada.
  */
 app.get(
-  "/teacher/by-user/:userId/classes/:classId/sessions/:sessionId/attendance",
+  "/api/teacher/by-user/:userId/classes/:classId/sessions/:sessionId/attendance",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
-    const userId = Number(req.params.userId);
+    // Identidade sempre vem do token — nunca da URL.
+    const userId = req.auth.userId;
     const classId = Number(req.params.classId);
     const sessionId = Number(
       req.params.sessionId
     );
 
     if (
-      !Number.isInteger(userId) ||
-      userId <= 0 ||
       !Number.isInteger(classId) ||
       classId <= 0 ||
       !Number.isInteger(sessionId) ||
@@ -10601,12 +10648,12 @@ app.get(
  * ============================================================
  */
 app.post(
-  "/teacher/by-user/:userId/classes/:classId/sessions/:sessionId/attendance",
+  "/api/teacher/by-user/:userId/classes/:classId/sessions/:sessionId/attendance",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
-   
-    const userId = Number(
-      req.params.userId
-    );
+    // Identidade sempre vem do token — nunca da URL.
+    const userId = req.auth.userId;
 
     const classId = Number(
       req.params.classId
@@ -10617,16 +10664,6 @@ app.post(
     );
 
     const { records } = req.body;
-
-    if (
-      !Number.isInteger(userId) ||
-      userId <= 0
-    ) {
-      return res.status(400).json({
-        message:
-          "ID do usuário inválido.",
-      });
-    }
 
     if (
       !Number.isInteger(classId) ||
@@ -11062,32 +11099,23 @@ app.post(
    ========================================================== */
 
 /**
- * GET /teacher/by-user/:userId/activities/:activityId/submissions
+ * GET /api/teacher/by-user/:userId/activities/:activityId/submissions
  * Lista todas as entregas realizadas em uma atividade.
  *
  * Antes de retornar os envios, confirma que a atividade
  * pertence a um curso do professor.
  */
 app.get(
-  "/teacher/by-user/:userId/activities/:activityId/submissions",
+  "/api/teacher/by-user/:userId/activities/:activityId/submissions",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
-      const { userId, activityId } = req.params;
+      const { activityId } = req.params;
 
-      const normalizedUserId = Number(userId);
+      // Identidade sempre vem do token — nunca da URL.
+      const normalizedUserId = req.auth.userId;
       const normalizedActivityId = Number(activityId);
-
-      /*
-       * Valida o ID do usuário do professor.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
 
       /*
        * Valida o ID da atividade.
@@ -11244,7 +11272,7 @@ app.get(
    ========================================================== */
 
 /**
- * GET /teacher/by-user/:userId/submissions/:submissionId/full
+ * GET /api/teacher/by-user/:userId/submissions/:submissionId/full
  * Carrega uma entrega completa para correção.
  *
  * Retorna:
@@ -11257,26 +11285,17 @@ app.get(
  * - correções já realizadas.
  */
 app.get(
-  "/teacher/by-user/:userId/submissions/:submissionId/full",
+  "/api/teacher/by-user/:userId/submissions/:submissionId/full",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     try {
-      const { userId, submissionId } = req.params;
+      const { submissionId } = req.params;
 
-      const normalizedUserId = Number(userId);
+      // Identidade sempre vem do token — nunca da URL.
+      const normalizedUserId = req.auth.userId;
       const normalizedSubmissionId =
         Number(submissionId);
-
-      /*
-       * Valida o ID do usuário do professor.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
 
       /*
        * Valida o ID da entrega.
@@ -11436,7 +11455,7 @@ app.get(
    ========================================================== */
 
 /**
- * PUT /teacher/by-user/:userId/submissions/:submissionId/grade
+ * PUT /api/teacher/by-user/:userId/submissions/:submissionId/grade
  * Corrige uma entrega e registra sua nota oficial.
  *
  * O corpo esperado possui:
@@ -11453,30 +11472,20 @@ app.get(
  * }
  */
 app.put(
-  "/teacher/by-user/:userId/submissions/:submissionId/grade",
+  "/api/teacher/by-user/:userId/submissions/:submissionId/grade",
+  authenticateToken,
+  authorizeRoles("teacher"),
   async (req, res) => {
     let connection;
 
     try {
-      const { userId, submissionId } = req.params;
+      const { submissionId } = req.params;
       const { answers, feedback } = req.body;
 
-      const normalizedUserId = Number(userId);
+      // Identidade sempre vem do token — nunca da URL.
+      const normalizedUserId = req.auth.userId;
       const normalizedSubmissionId =
         Number(submissionId);
-
-      /*
-       * Valida o ID do professor.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message:
-            "ID do usuário do professor inválido.",
-        });
-      }
 
       /*
        * Valida o ID da entrega.
@@ -12038,27 +12047,17 @@ app.put(
    ========================================================== */
 
 /**
- * GET /students/by-user/:userId/grades
+ * GET /api/students/by-user/:userId/grades
  * Lista todas as notas oficiais do aluno.
  */
 app.get(
-  "/students/by-user/:userId/grades",
+  "/api/students/by-user/:userId/grades",
+  authenticateToken,
+  authorizeRoles("student"),
   async (req, res) => {
     try {
-      const { userId } = req.params;
-      const normalizedUserId = Number(userId);
-
-      /*
-       * Valida o ID do usuário.
-       */
-      if (
-        !Number.isInteger(normalizedUserId) ||
-        normalizedUserId <= 0
-      ) {
-        return res.status(400).json({
-          message: "ID do usuário inválido.",
-        });
-      }
+      // Identidade sempre vem do token — nunca da URL.
+      const normalizedUserId = req.auth.userId;
 
       /*
        * Encontra students.id usando users.id.
@@ -12177,84 +12176,113 @@ app.get(
    ========================================================== */
 
 /**
- * GET /admin/students
+ * GET /api/admin/students
  * Lista todos os alunos cadastrados.
  *
  * Também retorna:
  * - quantidade de matrículas;
  * - nomes dos cursos associados ao aluno.
  */
-app.get("/admin/students", async (req, res) => {
-  try {
-    /*
-     * Busca os alunos e agrega suas matrículas.
-     *
-     * LEFT JOIN mantém na resposta alunos que ainda
-     * não possuem nenhuma matrícula.
-     */
-    const [students] = await db.promise().query(
-      `
-        SELECT
-          s.id,
-          s.user_id,
-          s.name,
-          s.email,
-          s.gender,
-          s.registration_number,
-          s.status,
+app.get(
+  "/api/admin/students",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      /*
+       * students contém os dados acadêmicos.
+       * users contém os dados pessoais e de autenticação.
+       *
+       * LEFT JOIN em enrollments mantém alunos sem matrícula.
+       */
+      const [students] = await db.promise().query(
+        `
+          SELECT
+            s.id,
+            s.user_id,
+            s.registration_number,
+            s.birth_date,
+            s.cpf,
+            s.phone,
+            s.address,
+            s.status,
 
-          COUNT(DISTINCT e.id) AS total_enrollments,
+            u.name,
+            u.email,
+            u.gender,
+            u.status AS user_status,
 
-          GROUP_CONCAT(
-            DISTINCT c.name
-            ORDER BY c.name ASC
-            SEPARATOR ', '
-          ) AS courses
+            COUNT(DISTINCT e.id) AS total_enrollments,
 
-        FROM students s
+            GROUP_CONCAT(
+              DISTINCT c.name
+              ORDER BY c.name ASC
+              SEPARATOR ', '
+            ) AS courses
 
-        LEFT JOIN enrollments e
-          ON e.student_id = s.id
+          FROM students s
 
-        LEFT JOIN courses c
-          ON c.id = e.course_id
+          INNER JOIN users u
+            ON u.id = s.user_id
 
-        GROUP BY
-          s.id,
-          s.user_id,
-          s.name,
-          s.email,
-          s.gender,
-          s.registration_number,
-          s.status
+          LEFT JOIN enrollments e
+            ON e.student_id = s.id
 
-        ORDER BY s.name ASC
-      `
-    );
+          LEFT JOIN courses c
+            ON c.id = e.course_id
 
-    return res.status(200).json(students);
-  } catch (error) {
-    console.error(
-      "Erro ao buscar alunos administrativos:",
-      error
-    );
+          GROUP BY
+            s.id,
+            s.user_id,
+            s.registration_number,
+            s.birth_date,
+            s.cpf,
+            s.phone,
+            s.address,
+            s.status,
 
-    return res.status(500).json({
-      message: "Erro ao buscar alunos.",
-      error: error.message,
-    });
+            u.name,
+            u.email,
+            u.gender,
+            u.status
+
+          ORDER BY u.name ASC
+        `
+      );
+
+      return res.status(200).json(
+        students.map((student) => ({
+          ...student,
+          total_enrollments: Number(
+            student.total_enrollments || 0
+          ),
+        }))
+      );
+    } catch (error) {
+      console.error(
+        "Erro ao buscar alunos administrativos:",
+        error
+      );
+
+      return res.status(500).json({
+        message: "Erro ao buscar alunos.",
+        error: error.message,
+        sqlMessage: error.sqlMessage,
+        code: error.code,
+      });
+    }
   }
-});
+);
 
 
 /**
- * GET /admin/students/:id
+ * GET /api/admin/students/:id
  * Busca os dados completos de um aluno pelo ID.
  *
  * Os dados acadêmicos vêm de students e os dados
  * de autenticação vêm de users.
  */
-app.get("/admin/students/:id", async (req, res) => {
+app.get("/api/admin/students/:id", authenticateToken, authorizeRoles("admin"), async (req, res) => {
   try {
     const { id } = req.params;
     const normalizedStudentId = Number(id);
@@ -12341,7 +12369,7 @@ app.get("/admin/students/:id", async (req, res) => {
    ========================================================== */
 
 /**
- * GET /admin/teachers
+ * GET /api/admin/teachers
  * Lista todos os professores cadastrados.
  *
  * Também retorna:
@@ -12352,71 +12380,92 @@ app.get("/admin/students/:id", async (req, res) => {
  * Esta rota pode ser usada tanto na tabela administrativa
  * quanto na seleção de professores dos formulários.
  */
-app.get("/admin/teachers", async (req, res) => {
-  try {
-    /*
-     * Mantém todos os professores na resposta,
-     * incluindo os inativos.
-     *
-     * O frontend pode filtrar pelo campo status quando
-     * precisar exibir apenas professores ativos.
-     */
-    const [teachers] = await db.promise().query(
-      `
-        SELECT
-          t.id,
-          t.user_id,
-          t.name,
-          t.email,
-          t.gender,
-          t.registration_number,
-          t.cpf,
-          t.phone,
-          t.status,
-          t.specialty,
+app.get(
+  "/api/admin/teachers",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      /*
+       * teachers contém os dados profissionais.
+       * users contém os dados pessoais e de autenticação.
+       *
+       * LEFT JOIN em courses mantém professores
+       * que ainda não possuem cursos vinculados.
+       */
+      const [teachers] = await db.promise().query(
+        `
+          SELECT
+            t.id,
+            t.user_id,
+            t.registration_number,
+            t.cpf,
+            t.phone,
+            t.status,
+            t.specialty,
 
-          GROUP_CONCAT(
-            DISTINCT c.name
-            ORDER BY c.name ASC
-            SEPARATOR ', '
-          ) AS course_names,
+            u.name,
+            u.email,
+            u.gender,
+            u.status AS user_status,
 
-          COUNT(DISTINCT c.id) AS total_courses
+            GROUP_CONCAT(
+              DISTINCT c.name
+              ORDER BY c.name ASC
+              SEPARATOR ', '
+            ) AS course_names,
 
-        FROM teachers t
+            COUNT(DISTINCT c.id) AS total_courses
 
-        LEFT JOIN courses c
-          ON c.teacher_id = t.id
+          FROM teachers t
 
-        GROUP BY
-          t.id,
-          t.user_id,
-          t.name,
-          t.email,
-          t.gender,
-          t.registration_number,
-          t.cpf,
-          t.phone,
-          t.status,
-          t.specialty
+          INNER JOIN users u
+            ON u.id = t.user_id
 
-        ORDER BY t.name ASC
-      `
-    );
+          LEFT JOIN courses c
+            ON c.teacher_id = t.id
 
-    return res.status(200).json(teachers);
-  } catch (error) {
-    console.error(
-      "Erro ao buscar professores administrativos:",
-      error
-    );
+          GROUP BY
+            t.id,
+            t.user_id,
+            t.registration_number,
+            t.cpf,
+            t.phone,
+            t.status,
+            t.specialty,
 
-    return res.status(500).json({
-      message: "Erro ao buscar professores.",
-      error: error.message,
-    });
+            u.name,
+            u.email,
+            u.gender,
+            u.status
+
+          ORDER BY u.name ASC
+        `
+      );
+
+      return res.status(200).json(
+        teachers.map((teacher) => ({
+          ...teacher,
+          total_courses: Number(
+            teacher.total_courses || 0
+          ),
+        }))
+      );
+    } catch (error) {
+      console.error(
+        "Erro ao buscar professores administrativos:",
+        error
+      );
+
+      return res.status(500).json({
+        message: "Erro ao buscar professores.",
+        error: error.message,
+        sqlMessage: error.sqlMessage,
+        code: error.code,
+      });
+    }
   }
-});
+);
 
 
 /* ==========================================================
@@ -12424,7 +12473,7 @@ app.get("/admin/teachers", async (req, res) => {
    ========================================================== */
 
 /**
- * GET /admin/courses
+ * GET /api/admin/courses
  * Lista todos os cursos cadastrados.
  *
  * Também retorna:
@@ -12432,7 +12481,7 @@ app.get("/admin/teachers", async (req, res) => {
  * - quantidade de alunos;
  * - quantidade de conteúdos.
  */
-app.get("/admin/courses", async (req, res) => {
+app.get("/api/admin/courses", authenticateToken, authorizeRoles("admin"), async (req, res) => {
   try {
     /*
      * Busca os cursos com métricas resumidas.
@@ -12502,10 +12551,10 @@ app.get("/admin/courses", async (req, res) => {
 
 
 /**
- * GET /admin/courses/:id
+ * GET /api/admin/courses/:id
  * Busca os dados completos de um curso pelo ID.
  */
-app.get("/admin/courses/:id", async (req, res) => {
+app.get("/api/admin/courses/:id", authenticateToken, authorizeRoles("admin"), async (req, res) => {
   try {
     const { id } = req.params;
     const normalizedCourseId = Number(id);
@@ -12594,14 +12643,14 @@ app.get("/admin/courses/:id", async (req, res) => {
    ========================================================== */
 
 /**
- * POST /admin/students
+ * POST /api/admin/students
  * Cadastra um novo aluno.
  *
  * A operação cria:
  * - um usuário para autenticação;
  * - um perfil acadêmico na tabela students.
  */
-app.post("/admin/students", async (req, res) => {
+app.post("/api/admin/students", authenticateToken, authorizeRoles("admin"), async (req, res) => {
   let connection;
 
   try {
@@ -12836,14 +12885,14 @@ app.post("/admin/students", async (req, res) => {
    ========================================================== */
 
 /**
- * POST /admin/teachers
+ * POST /api/admin/teachers
  * Cadastra um novo professor.
  *
  * A operação cria:
  * - um usuário para autenticação;
  * - um perfil profissional na tabela teachers.
  */
-app.post("/admin/teachers", async (req, res) => {
+app.post("/api/admin/teachers", authenticateToken, authorizeRoles("admin"), async (req, res) => {
   let connection;
 
   try {
@@ -13048,10 +13097,10 @@ app.post("/admin/teachers", async (req, res) => {
    ========================================================== */
 
 /**
- * POST /admin/courses
+ * POST /api/admin/courses
  * Cadastra um novo curso.
  */
-app.post("/admin/courses", async (req, res) => {
+app.post("/api/admin/courses", authenticateToken, authorizeRoles("admin"), async (req, res) => {
   try {
     const {
       name,
@@ -13272,13 +13321,13 @@ app.post("/admin/courses", async (req, res) => {
    ========================================================== */
 
 /**
- * PUT /admin/students/:id
+ * PUT /api/admin/students/:id
  * Atualiza os dados acadêmicos e de autenticação de um aluno.
  *
  * Quando uma nova senha é informada, ela também é atualizada
  * na tabela users utilizando bcrypt.
  */
-app.put("/admin/students/:id", async (req, res) => {
+app.put("/api/admin/students/:id", authenticateToken, authorizeRoles("admin"), async (req, res) => {
   let connection;
 
   try {
@@ -13563,14 +13612,14 @@ app.put("/admin/students/:id", async (req, res) => {
    ========================================================== */
 
 /**
- * PUT /admin/teachers/:id
+ * PUT /api/admin/teachers/:id
  * Atualiza os dados profissionais e de autenticação
  * de um professor.
  *
  * A senha só é atualizada quando uma nova senha
  * é informada.
  */
-app.put("/admin/teachers/:id", async (req, res) => {
+app.put("/api/admin/teachers/:id", authenticateToken, authorizeRoles("admin"), async (req, res) => {
   let connection;
 
   try {
@@ -13837,10 +13886,10 @@ app.put("/admin/teachers/:id", async (req, res) => {
    ========================================================== */
 
 /**
- * PUT /admin/courses/:id
+ * PUT /api/admin/courses/:id
  * Atualiza os dados de um curso.
  */
-app.put("/admin/courses/:id", async (req, res) => {
+app.put("/api/admin/courses/:id", authenticateToken, authorizeRoles("admin"), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -14100,14 +14149,14 @@ app.put("/admin/courses/:id", async (req, res) => {
    ========================================================== */
 
 /**
- * DELETE /admin/students/:id
+ * DELETE /api/admin/students/:id
  * Desativa um aluno sem removê-lo fisicamente do banco.
  *
  * A operação:
  * - altera students.status para cancelled;
  * - altera users.status para inactive.
  */
-app.delete("/admin/students/:id", async (req, res) => {
+app.delete("/api/admin/students/:id", authenticateToken, authorizeRoles("admin"), async (req, res) => {
   let connection;
 
   try {
@@ -14266,14 +14315,14 @@ app.delete("/admin/students/:id", async (req, res) => {
    ========================================================== */
 
 /**
- * DELETE /admin/teachers/:id
+ * DELETE /api/admin/teachers/:id
  * Desativa um professor sem removê-lo fisicamente do banco.
  *
  * A operação:
  * - altera teachers.status para inactive;
  * - altera users.status para inactive.
  */
-app.delete("/admin/teachers/:id", async (req, res) => {
+app.delete("/api/admin/teachers/:id", authenticateToken, authorizeRoles("admin"), async (req, res) => {
   let connection;
 
   try {
@@ -14432,12 +14481,12 @@ app.delete("/admin/teachers/:id", async (req, res) => {
    ========================================================== */
 
 /**
- * DELETE /admin/courses/:id
+ * DELETE /api/admin/courses/:id
  * Arquiva um curso sem removê-lo fisicamente do banco.
  *
  * Esta operação altera courses.status para archived.
  */
-app.delete("/admin/courses/:id", async (req, res) => {
+app.delete("/api/admin/courses/:id", authenticateToken, authorizeRoles("admin"), async (req, res) => {
   try {
     const { id } = req.params;
     const normalizedCourseId = Number(id);

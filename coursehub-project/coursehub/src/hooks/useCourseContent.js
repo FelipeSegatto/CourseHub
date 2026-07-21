@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "../services/APIService";
 
 export default function useCourseContents(id) {
     const [contentsAPI, setContentAPI] = useState([]);
-    
+
     useEffect(() => {
       async function fetchContents() {
         try {
-          const resposta = await fetch(`http://localhost:3001/courses/${id}/contents`);
-          const dados = await resposta.json();
-    
+          const dados = await apiFetch(`/api/courses/${id}/contents`);
+
           setContentsAPI(Array.isArray(dados) ? dados : []);
         } catch (error) {
           console.error("Erro ao buscar cursos:", error);

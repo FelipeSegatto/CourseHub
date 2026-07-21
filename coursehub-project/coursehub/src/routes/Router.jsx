@@ -4,14 +4,20 @@ import PublicLayout from "../layouts/PublicLayout";
 import AdminLayout from "../layouts/AdminLayout";
 import MainLayout from "../layouts/MainLayout";
 import TeacherLayout from "../layouts/TeacherLayout";
+import AuthLayout from "../layouts/AuthLayout";
 
-import LoginPage from "../pages/public/LoginPage";
-import SignUpPage from "../pages/public/SignUpPage";
+import LoginPage from "../pages/auth/LoginPage";
+import SignUpPage from "../pages/auth/SignUpPage";
+import ProfileSecurity from "../pages/profile/ProfileSecurity";
+import ForgotPassword from "../pages/auth/ForgotPassword";
+import ResetPassword from "../pages/auth/ResetPassword";
+
 import HomePage from "../pages/public/HomePage";
+import DashboardPage from "../pages/public/DashboardPage";
 import ProfilePage from "../pages/public/ProfilePage";
+import AboutPage from "../pages/public/AboutPage";
 import CoursesPage from "../pages/public/CoursesPage";
 import CoursePage from "../pages/public/CoursePage";
-import Dashboard from "../pages/public/DashboardPage";
 
 import HomeAluno from "../pages/aluno/HomeAluno";
 import DashboardAluno from "../pages/aluno/DashboardAluno";
@@ -22,7 +28,7 @@ import NotificacoesAluno from "../pages/aluno/NotificacoesAluno";
 import AvaliacoesAluno from "../pages/aluno/AvaliacoesAluno";
 import NotasAluno from "../pages/aluno/NotasAluno";
 import ProgressoAluno from "../pages/aluno/ProgressoAluno";
-import ProfileAluno from "../pages/aluno/ProfileAluno";
+import FinanceiroAluno from "../pages/aluno/FinanceiroAluno";
 import StudentActivityRunner from "../pages/aluno/StudentActivityRunner";
 
 import HomeAdmin from "../pages/admin/HomeAdmin";
@@ -31,7 +37,6 @@ import CourseAdmin from "../pages/admin/CourseAdmin";
 import StudentsAdmin from "../pages/admin/StudentsAdmin";
 import TeachersAdmin from "../pages/admin/TeachersAdmin";
 import EmissaoAdmin from "../pages/admin/EmissaoAdmin";
-import ProfileAdmin from "../pages/admin/ProfileAdmin";
 
 import HomeProfessor from "../pages/professor/HomeProfessor";
 import DashboardProfessor from "../pages/professor/DashboardProfessor";
@@ -45,11 +50,13 @@ import ActivitySubmissionsProfessor from "../pages/professor/ActivitySubmissionP
 import SubmissionReviewProfessor from "../pages/professor/SubmissionReviewProfessor";
 import AttendanceProfessor from "../pages/professor/AttendanceProfessor";
 import GradesProfessor from "../pages/professor/GradesProfessor";
-import ProfileProfessor from "../pages/professor/ProfileProfessor";
+
+
 
 import ProtectedRoute from "../auth/ProtectedRoute";
 import PublicOnlyRoute from "../auth/PublicOnlyRoute";
 import RoleRoute from "./RoleRoute";
+import UserProfile from "../pages/profile/UserProfile";
 
 function NotFoundPage() {
   return (
@@ -78,21 +85,48 @@ export const router = createBrowserRouter([
         index: true,
         element: <HomePage />,
       },
+
+      // ============================
+      // CURSOS
+      // ============================
+
       {
-        path: "course",
+        path: "courses",
         element: <CoursesPage />,
       },
       {
-        path: "course/:id",
+        path: "courses/:id",
         element: <CoursePage />,
       },
+
+      // ============================
+      // INSTITUCIONAL
+      // ============================
+
       {
-        path: "dashboard",
-        element: <Dashboard />,
+        path: "about",
+        element: <AboutPage />,
+      },
+
+       // ============================
+      // PRÉVIA PÚBLICA DO DASHBOARD DO ALUNO
+      // ============================
+      {
+        path:"portal",
+        element: <DashboardPage />,
+      },
+
+      // ============================
+      // RECUPERAÇÃO DE SENHA
+      // ============================
+
+      {
+        path: "esqueci-minha-senha",
+        element: <ForgotPassword />,
       },
       {
-        path: "profile",
-        element: <ProfilePage />,
+        path: "redefinir-senha",
+        element: <ResetPassword />,
       },
     ],
   },
@@ -112,6 +146,7 @@ export const router = createBrowserRouter([
         path: "/register",
         element: <SignUpPage />,
       },
+    
     ],
   },
 
@@ -150,6 +185,10 @@ export const router = createBrowserRouter([
               {
                 path: "meus-cursos",
                 element: <CourseAluno />,
+              },
+              {
+                path: "financeiro",
+                element: <FinanceiroAluno />,
               },
               {
                 path: "notificacoes",
@@ -194,9 +233,13 @@ export const router = createBrowserRouter([
                 element: <ProgressoAluno />,
               },
               {
-                path: "perfil-aluno",
-                element: <ProfileAluno />,
+                path: "perfil",
+                element: <UserProfile />,
               },
+                {
+                  path: "perfil/seguranca",
+                  element: <ProfileSecurity />,
+                },
             ],
           },
         ],
@@ -250,7 +293,11 @@ export const router = createBrowserRouter([
               },
               {
                 path: "perfil",
-                element: <ProfileAdmin />,
+                element: <UserProfile />,
+              },
+              {
+                path: "perfil/seguranca",
+                element: <ProfileSecurity />,
               },
             ],
           },
@@ -376,8 +423,12 @@ export const router = createBrowserRouter([
                 element: <GradesProfessor />,
               },
               {
-                path: "perfil-professor",
-                element: <ProfileProfessor />,
+                path: "perfil",
+                element: <UserProfile />,
+              },
+               {
+                path: "perfil/seguranca",
+                element: <ProfileSecurity />,
               },
             ],
           },
@@ -385,6 +436,8 @@ export const router = createBrowserRouter([
       },
     ],
   },
+
+  
 
   // =========================================================
   // ROTA GLOBAL 404

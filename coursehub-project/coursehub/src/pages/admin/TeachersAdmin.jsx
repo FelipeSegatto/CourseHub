@@ -24,10 +24,9 @@ export default function TeachersAdmin() {
   const [loadingDelete, setLoadingDelete] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState("active");
-  const userStatusOptions = [
+  const teacherStatusOptions = [
   { value: "active", label: "Ativos" },
   { value: "inactive", label: "Inativos" },
-  { value: "blocked", label: "Bloqueados" },
 ];
 
   async function fetchTeachers() {
@@ -35,7 +34,7 @@ export default function TeachersAdmin() {
       setLoading(true);
       setError("");
 
-      const data = await apiFetch("/admin/teachers");
+      const data = await apiFetch("/api/admin/teachers");
       setTeachers(Array.isArray(data) ? data : []);
     } catch (error) {
       setError(error.message || "Erro ao buscar professores.");
@@ -71,7 +70,7 @@ export default function TeachersAdmin() {
     try {
       setLoadingDelete(true);
 
-      await apiFetch(`/admin/teachers/${selectedTeacher.id}`, {
+      await apiFetch(`/api/admin/teachers/${selectedTeacher.id}`, {
         method: "DELETE",
       });
 
@@ -164,7 +163,7 @@ export default function TeachersAdmin() {
           <AdminStatusFilter
             value={statusFilter}
             onChange={setStatusFilter}
-            options={userStatusOptions}
+            options={teacherStatusOptions}
           />
         }
         searchValue={busca}
