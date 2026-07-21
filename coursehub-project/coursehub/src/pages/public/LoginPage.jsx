@@ -87,6 +87,8 @@ export default function LoginPage() {
           {loading ? "Entrando..." : "Entrar"}
         </button>
 
+       
+
         <p className="mt-6 text-sm text-gray-600 text-center">
           Não tem conta?{" "}
           <button
@@ -95,8 +97,18 @@ export default function LoginPage() {
             className="text-blue-600 font-semibold hover:underline"
           >
             Criar conta
+          </button> </p>
+        
+          <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => navigate("/esqueci-minha-senha")}
+            className="text-sm font-semibold text-blue-600 transition hover:text-blue-700 hover:cursor-pointer"
+          >
+            Esqueci minha senha
           </button>
-        </p>
+          </div>
+        
       </form>
     </main>
   );

@@ -119,7 +119,7 @@ export default function NavbarProfessor() {
           items={myClasses}>
 
           </NavbarDropdown>
-          
+
           <NavbarDropdown
             title="Ensino"
             titleTo="/professor/dashboard-professor"
@@ -177,7 +177,7 @@ export default function NavbarProfessor() {
           </button>
 
           <Link
-            to="/professor/perfil-professor"
+            to="/professor/perfil"
             className="
               flex h-10 items-center gap-2
               rounded-full bg-slate-950 px-5
