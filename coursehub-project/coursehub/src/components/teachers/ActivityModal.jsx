@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../../services/APIService";
 
 function formatDateForInput(date) {
   if (!date) return "";
@@ -121,16 +122,16 @@ export default function ActivityModal({
         setLoadingActivity(true);
         setError("");
 
-        const response = await fetch(
-          `http://localhost:3001/teacher/by-user/${userId}/activities/${activity.id}/full`
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
+        let data;
+        try {
+          data = await apiFetch(
+            `/api/teacher/by-user/${userId}/activities/${activity.id}/full`
+          );
+        } catch (loadActivityError) {
           throw new Error(
-            data.message ||
-              "Não foi possível carregar a atividade."
+            loadActivityError.data?.message ||
+              "Não foi possível carregar a atividade.",
+            { cause: loadActivityError }
           );
         }
 
@@ -588,8 +589,8 @@ export default function ActivityModal({
       };
 
       const endpoint = isEditMode
-        ? `http://localhost:3001/teacher/by-user/${userId}/activities/${activity.id}`
-        : "http://localhost:3001/activities";
+        ? `/api/teacher/by-user/${userId}/activities/${activity.id}`
+        : "/api/activities";
 
       const method = isEditMode
         ? "PUT"
@@ -597,24 +598,21 @@ export default function ActivityModal({
 
       setSubmitting(true);
 
-      const response = await fetch(endpoint, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
+      let data;
+      try {
+        data = await apiFetch(endpoint, {
+          method,
+          body: JSON.stringify(payload),
+        });
+      } catch (saveActivityError) {
         throw new Error(
-          data.message ||
-            data.sqlMessage ||
-            data.error ||
+          saveActivityError.data?.message ||
+            saveActivityError.data?.sqlMessage ||
+            saveActivityError.data?.error ||
             (isEditMode
               ? "Não foi possível atualizar a atividade."
-              : "Não foi possível criar a atividade.")
+              : "Não foi possível criar a atividade."),
+          { cause: saveActivityError }
         );
       }
 

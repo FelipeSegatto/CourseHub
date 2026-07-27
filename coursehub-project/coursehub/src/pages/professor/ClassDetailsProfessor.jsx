@@ -257,7 +257,7 @@ export default function ClassDetailsProfessor() {
       setError("");
 
       const data = await apiFetch(
-        `/teacher/by-user/${usuarioLogado.id}/classes/${classId}/sessions`
+        `/api/teacher/by-user/${usuarioLogado.id}/classes/${classId}/sessions`
       );
 
       setClassData(data?.class || null);
@@ -354,7 +354,7 @@ export default function ClassDetailsProfessor() {
       setError("");
 
       const data = await apiFetch(
-        `/teacher/by-user/${usuarioLogado.id}/class-sessions/${session.id}`,
+        `/api/teacher/by-user/${usuarioLogado.id}/class-sessions/${session.id}`,
         {
           method: "DELETE",
         }

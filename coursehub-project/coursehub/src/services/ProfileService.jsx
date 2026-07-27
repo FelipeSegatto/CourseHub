@@ -1,30 +1,18 @@
 import { apiFetch } from "./APIService";
 
-export function getUserProfile(userId) {
-  if (!userId) {
-    throw new Error("O ID do usuário é obrigatório.");
-  }
-
-  return apiFetch(`/api/profile/${userId}`);
+export function getUserProfile() {
+  return apiFetch("/api/profile/me");
 }
 
-export function updateUserProfile(userId, profileData) {
-  if (!userId) {
-    throw new Error("O ID do usuário é obrigatório.");
-  }
-
-  return apiFetch(`/api/profile/${userId}`, {
+export function updateUserProfile(profileData) {
+  return apiFetch("/api/profile/me", {
     method: "PATCH",
     body: JSON.stringify(profileData),
   });
 }
 
-export function updateUserPassword(userId, passwordData) {
-  if (!userId) {
-    throw new Error("O ID do usuário é obrigatório.");
-  }
-
-  return apiFetch(`/api/profile/${userId}/password`, {
+export function updateUserPassword(passwordData) {
+  return apiFetch("/api/profile/me/password", {
     method: "PATCH",
     body: JSON.stringify(passwordData),
   });

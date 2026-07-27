@@ -7,7 +7,7 @@ export default function UserService() {
     useEffect(() => {
       async function fetchUsers() {
         try {
-          const resposta = await fetch("http://localhost:3001/users");
+          const resposta = await fetch("http://localhost:3001/api/users");
           const dados = await resposta.json();
     
           setUsersAPI(Array.isArray(dados) ? dados : []);

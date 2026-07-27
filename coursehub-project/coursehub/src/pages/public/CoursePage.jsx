@@ -1,41 +1,82 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import CourseService from "../../services/CourseService";
+
+const API_URL = "http://localhost:3001";
 
 export default function CoursePage() {
   const { id } = useParams();
 
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
+    let componenteMontado = true;
+
     async function fetchCurso() {
       try {
+        setLoading(true);
+        setError("");
+
         console.log("ID recebido pela URL:", id);
 
-        const url = `http://localhost:3001/courses/${id}`;
-        console.log("Buscando curso em:", url);
+        const response = await fetch(
+          `${API_URL}/api/courses/${id}`
+        );
 
-        const resposta = await fetch(url);
-        console.log("Status da resposta:", resposta.status);
+        console.log("Status da resposta:", response.status);
 
-        const dados = await resposta.json();
-        console.log("Dados recebidos:", dados);
+        const responseText = await response.text();
 
-        if (!resposta.ok) {
-          throw new Error(dados.message || "Curso não encontrado");
+        let data = {};
+
+        if (responseText) {
+          try {
+            data = JSON.parse(responseText);
+          } catch {
+            throw new Error(
+              "O servidor retornou uma resposta que não é JSON."
+            );
+          }
         }
 
-        setCourse(dados);
+        if (!response.ok) {
+          throw new Error(
+            data.message ||
+              `Erro ao buscar curso. Status: ${response.status}`
+          );
+        }
+
+        if (componenteMontado) {
+          setCourse(data);
+        }
       } catch (error) {
         console.error("Erro ao buscar curso:", error);
-        setCourse(null);
+
+        if (componenteMontado) {
+          setCourse(null);
+          setError(
+            error.message ||
+              "Não foi possível carregar o curso."
+          );
+        }
       } finally {
-        setLoading(false);
+        if (componenteMontado) {
+          setLoading(false);
+        }
       }
     }
 
-    fetchCurso();
+    if (id) {
+      fetchCurso();
+    } else {
+      setError("ID do curso não informado.");
+      setLoading(false);
+    }
+
+    return () => {
+      componenteMontado = false;
+    };
   }, [id]);
 
   if (loading) {
@@ -48,16 +89,20 @@ export default function CoursePage() {
     );
   }
 
-  if (!course) {
+  if (error || !course) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-12">
         <h1 className="text-3xl font-bold text-gray-900">
           Curso não encontrado
         </h1>
 
+        <p className="mt-3 text-red-600">
+          {error || "Não foi possível localizar este curso."}
+        </p>
+
         <Link
           to="/course"
-          className="mt-6 inline-block rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 transition"
+          className="mt-6 inline-block rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700"
         >
           Voltar para cursos
         </Link>
@@ -67,10 +112,15 @@ export default function CoursePage() {
 
   const syllabus =
     typeof course.syllabus === "string"
-      ? course.syllabus.split(";")
-      : Array.isArray(course.syllabus)
       ? course.syllabus
-      : [];
+          .split(";")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : Array.isArray(course.syllabus)
+        ? course.syllabus
+        : [];
+
+  const price = Number(course.price || 0);
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
@@ -105,23 +155,29 @@ export default function CoursePage() {
         )}
 
         {course.teacher_name && (
-            <span className="rounded-xl bg-green-100 px-4 py-2 text-green-700">
-              Professor: {course.teacher_name}
-            </span>
+          <span className="rounded-xl bg-green-100 px-4 py-2 text-green-700">
+            Professor: {course.teacher_name}
+          </span>
         )}
       </div>
 
       <img
-        src={`${course.image_url}`}
+        src={
+          course.image_url ||
+          "/images/default-course.webp"
+        }
         alt={course.name}
-        className="mt-4 h-48 w-full rounded-lg object-cover"
-        onError={(e) => {
-          e.target.src = "/images/default-course.webp";
+        className="mt-8 h-80 w-full rounded-2xl object-cover"
+        onError={(event) => {
+          event.currentTarget.src =
+            "/images/default-course.webp";
         }}
-         />
+      />
 
       <p className="mt-8 text-lg leading-8 text-gray-600">
-        {course.expanded_description || course.description}
+        {course.expanded_description ||
+          course.description ||
+          "Este curso ainda não possui uma descrição detalhada."}
       </p>
 
       {syllabus.length > 0 && (
@@ -132,20 +188,30 @@ export default function CoursePage() {
 
           <ul className="mt-4 list-disc space-y-2 pl-6 text-gray-700">
             {syllabus.map((item, index) => (
-              <li key={index}>{item.trim()}</li>
+              <li key={`${item}-${index}`}>
+                {item}
+              </li>
             ))}
           </ul>
         </section>
       )}
 
       <div className="mt-10 rounded-2xl border border-gray-200 bg-gray-50 p-6">
-        <p className="text-sm text-gray-500">Investimento</p>
+        <p className="text-sm text-gray-500">
+          Investimento
+        </p>
 
         <strong className="mt-2 block text-3xl text-gray-900">
-          R$ {Number(course.price).toFixed(2)}
+          {price.toLocaleString("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+          })}
         </strong>
 
-        <button className="mt-6 rounded-2xl bg-blue-600 px-6 py-4 text-lg font-semibold text-white hover:bg-blue-700 transition">
+        <button
+          type="button"
+          className="mt-6 rounded-2xl bg-blue-600 px-6 py-4 text-lg font-semibold text-white transition hover:bg-blue-700"
+        >
           Comprar curso
         </button>
       </div>

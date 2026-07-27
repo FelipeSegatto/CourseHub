@@ -1,12 +1,15 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
-import EnrollmentService from "../../services/EnrollmentService";
+import useEnrollment from "../../services/EnrollmentService";
 
 export default function CourseAluno() {
-  const { usuarioLogado, loading } = useAuth();
+  const { usuarioLogado } = useAuth();
 
-  const studentId = usuarioLogado?.id;
-  const cursosMatriculados = EnrollmentService(studentId);
+  const {
+  matriculas,
+  loading,
+  error,
+} = useEnrollment();
 
   if (loading) {
     return <p className="p-6">Carregando...</p>;
@@ -20,7 +23,9 @@ export default function CourseAluno() {
     <main className="bg-gray-50 px-6 py-12">
       <div className="mx-auto max-w-6xl">
         <section className="mb-10">
-          <p className="text-sm font-semibold text-blue-600">Área do aluno</p>
+          <p className="text-sm font-semibold text-blue-600">
+            Área do aluno
+          </p>
 
           <h1 className="mt-2 text-4xl font-bold text-gray-900">
             Meus cursos
@@ -31,7 +36,7 @@ export default function CourseAluno() {
           </p>
         </section>
 
-        {cursosMatriculados.length === 0 && (
+        {matriculas.length === 0 && (
           <section className="rounded-2xl bg-white p-6 shadow">
             <p className="text-gray-600">
               Você ainda não está matriculado em nenhum curso.
@@ -40,7 +45,7 @@ export default function CourseAluno() {
         )}
 
         <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {cursosMatriculados.map((course) => {
+          {matriculas.map((course) => {
             const progress = 0;
 
             return (
@@ -58,20 +63,30 @@ export default function CourseAluno() {
                   </h2>
 
                   <p className="mt-3 text-sm text-gray-600">
-                    {course.description || "Sem descrição cadastrada."}
+                    {course.description ||
+                      "Sem descrição cadastrada."}
                   </p>
                 </div>
 
                 <div className="mt-6">
                   <div className="mb-3 flex items-center justify-between text-sm text-gray-500">
-                    <span>{course.nivel || "Nível não informado"}</span>
-                    <span>{course.enrollment_status || "active"}</span>
+                    <span>
+                      {course.nivel ||
+                        "Nível não informado"}
+                    </span>
+
+                    <span>
+                      {course.enrollment_status ||
+                        "active"}
+                    </span>
                   </div>
 
                   <div className="h-3 rounded-full bg-gray-200">
                     <div
                       className="h-3 rounded-full bg-blue-600"
-                      style={{ width: `${progress}%` }}
+                      style={{
+                        width: `${progress}%`,
+                      }}
                     />
                   </div>
 

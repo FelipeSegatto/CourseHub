@@ -11,7 +11,7 @@ import { useAuth } from "../../auth/AuthContext";
 import {
   getUserProfile,
   updateUserProfile,
-} from "../../services/profileService";
+} from "../../services/ProfileService";
 
 export default function UserProfile() {
   const navigate = useNavigate();
@@ -63,9 +63,7 @@ export default function UserProfile() {
         setIsLoading(true);
         setPageError("");
 
-        const response = await getUserProfile(
-          usuarioLogado.id
-        );
+        const response = await getUserProfile();
 
         if (!componentIsMounted) {
           return;
@@ -216,10 +214,7 @@ export default function UserProfile() {
       setProfileMessage("");
       setProfileError("");
 
-      const response = await updateUserProfile(
-        usuarioLogado.id,
-        formData
-      );
+      const response = await updateUserProfile(formData);
 
       /*
         O backend retorna:

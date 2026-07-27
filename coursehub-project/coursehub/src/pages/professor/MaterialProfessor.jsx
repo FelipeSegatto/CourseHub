@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
+import { apiFetch } from "../../services/APIService";
 
 import TeacherManagementPage from "../../components/teachers/TeacherManagementPage";
 import ContentModal from "../../components/teachers/ContentModal";
@@ -78,121 +79,65 @@ export default function MaterialProfessor() {
    * Busca os conteúdos dos cursos do professor.
    */
   async function loadContents() {
-    if (!usuarioLogado?.id) return;
+  if (!usuarioLogado?.id) return;
 
-    const endpoint =
-      `http://localhost:3001/teacher/by-user/${usuarioLogado.id}/course-contents`;
+  const endpoint =
+    `/api/teacher/by-user/${usuarioLogado.id}/course-contents`;
 
-    console.log(
-      "Buscando conteúdos do professor:",
-      endpoint
-    );
+  console.log(
+    "Buscando conteúdos do professor:",
+    endpoint
+  );
 
-    const response = await fetch(endpoint);
+  const data = await apiFetch(endpoint);
 
-    let data = null;
+  console.log(
+    "Resposta da busca de conteúdos:",
+    data
+  );
 
-    try {
-      data = await response.json();
-    } catch (parseError) {
-      console.error(
-        "A API de conteúdos não retornou JSON válido:",
-        {
-          status: response.status,
-          statusText: response.statusText,
-          parseError,
-        }
-      );
-    }
+  const contentList = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.contents)
+      ? data.contents
+      : Array.isArray(data?.data)
+        ? data.data
+        : [];
 
-    console.log(
-      "Resposta da busca de conteúdos:",
-      {
-        ok: response.ok,
-        status: response.status,
-        data,
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        data?.sqlMessage ||
-          data?.error ||
-          data?.message ||
-          "Erro ao buscar materiais."
-      );
-    }
-
-    const contentList = Array.isArray(data)
-      ? data
-      : Array.isArray(data?.contents)
-        ? data.contents
-        : Array.isArray(data?.data)
-          ? data.data
-          : [];
-
-    setAllContents(contentList);
-  }
+  setAllContents(contentList);
+}
 
   /*
    * Busca os cursos do professor.
    */
   async function loadCourses() {
-    if (!usuarioLogado?.id) return;
+  if (!usuarioLogado?.id) return;
 
-    const endpoint =
-      `http://localhost:3001/teacher/by-user/${usuarioLogado.id}/courses`;
+  const endpoint =
+    `/api/teacher/by-user/${usuarioLogado.id}/courses`;
 
-    console.log(
-      "Buscando cursos do professor:",
-      endpoint
-    );
+  console.log(
+    "Buscando cursos do professor:",
+    endpoint
+  );
 
-    const response = await fetch(endpoint);
+  const data = await apiFetch(endpoint);
 
-    let data = null;
+  console.log(
+    "Resposta da busca de cursos:",
+    data
+  );
 
-    try {
-      data = await response.json();
-    } catch (parseError) {
-      console.error(
-        "A API de cursos não retornou JSON válido:",
-        {
-          status: response.status,
-          statusText: response.statusText,
-          parseError,
-        }
-      );
-    }
+  const courseList = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.courses)
+      ? data.courses
+      : Array.isArray(data?.data)
+        ? data.data
+        : [];
 
-    console.log(
-      "Resposta da busca de cursos:",
-      {
-        ok: response.ok,
-        status: response.status,
-        data,
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        data?.sqlMessage ||
-          data?.error ||
-          data?.message ||
-          "Erro ao buscar cursos do professor."
-      );
-    }
-
-    const courseList = Array.isArray(data)
-      ? data
-      : Array.isArray(data?.courses)
-        ? data.courses
-        : Array.isArray(data?.data)
-          ? data.data
-          : [];
-
-    setCourses(courseList);
-  }
+  setCourses(courseList);
+}
 
   /*
    * Carrega cursos e conteúdos ao abrir a página.
@@ -386,11 +331,7 @@ export default function MaterialProfessor() {
     }
 
     const endpoint =
-      `http://localhost:3001/course-contents/${item.id}`;
-
-    const payload = {
-      userId: usuarioLogado.id,
-    };
+  `/api/course-contents/${item.id}`;
 
     try {
       setLoadingDelete(true);
@@ -402,51 +343,18 @@ export default function MaterialProfessor() {
           endpoint,
           method: "DELETE",
           item,
-          payload,
+        
         }
       );
 
-      const response = await fetch(endpoint, {
+      const data = await apiFetch(endpoint, {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
       });
-
-      let data = null;
-
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        console.error(
-          "A API não retornou JSON válido no DELETE:",
-          {
-            status: response.status,
-            statusText: response.statusText,
-            parseError,
-          }
-        );
-      }
 
       console.log(
         "Resposta do DELETE:",
-        {
-          ok: response.ok,
-          status: response.status,
-          statusText: response.statusText,
-          data,
-        }
+        data
       );
-
-      if (!response.ok) {
-        throw new Error(
-          data?.sqlMessage ||
-            data?.error ||
-            data?.message ||
-            `Erro ${response.status} ao excluir conteúdo.`
-        );
-      }
 
       const updatedStatus =
         data?.content?.status ||

@@ -3,7 +3,7 @@ import { ArrowLeft, LockKeyhole } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../auth/AuthContext";
-import { updateUserPassword } from "../../services/profileService";
+import { updateUserPassword } from "../../services/ProfileService";
 
 
 
@@ -40,7 +40,7 @@ function PasswordField({
 
  function ProfileSecurity() {
   const navigate = useNavigate();
-  const { usuarioLogado } = useAuth();
+  const { usuarioLogado, logout } = useAuth();
 
   function handleBack() {
     const profileRoutes = {
@@ -90,18 +90,31 @@ function PasswordField({
     try {
       setIsSaving(true);
 
-      await updateUserPassword(usuarioLogado.id, {
+      await updateUserPassword({
         currentPassword: formData.currentPassword,
         newPassword: formData.newPassword,
       });
 
-      setMessage("Senha alterada com sucesso.");
+      setMessage(
+        "Senha alterada com sucesso. Faça login novamente."
+      );
 
       setFormData({
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
       });
+
+      /*
+        O backend encerra todas as sessões ao trocar a senha
+        (por segurança). O cookie local já foi invalidado,
+        então limpamos o estado de autenticação e redirecionamos
+        para o login.
+      */
+      setTimeout(async () => {
+        await logout();
+        navigate("/login", { replace: true });
+      }, 1500);
     } catch (error) {
       console.error("Erro ao alterar senha:", error);
 

@@ -46,7 +46,7 @@ export default function SignUpPage() {
     try {
       setLoading(true);
 
-      await apiFetch("/users", {
+      await apiFetch("/api/users", {
         method: "POST",
         body: JSON.stringify({
           name: form.name,

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
+import { apiFetch } from "../../services/APIService";
 
 import LessonPlayer from "../../components/LessonPlayer";
 
@@ -77,34 +78,32 @@ export default function DashboardConteudo() {
         /*
          * Busca os dados gerais do curso.
          */
-        const courseResponse = await fetch(
-          `http://localhost:3001/courses/${courseId}`
-        );
-
-        const courseData =
-          await courseResponse.json();
-
-        if (!courseResponse.ok) {
+        let courseData;
+        try {
+          courseData = await apiFetch(
+            `/api/courses/${courseId}`
+          );
+        } catch (courseRequestError) {
           throw new Error(
-            courseData.message ||
-              "Curso não encontrado."
+            courseRequestError.data?.message ||
+              "Curso não encontrado.",
+            { cause: courseRequestError }
           );
         }
 
         /*
          * Busca os conteúdos do curso.
          */
-        const contentsResponse = await fetch(
-          `http://localhost:3001/courses/${courseId}/contents`
-        );
-
-        const contentsData =
-          await contentsResponse.json();
-
-        if (!contentsResponse.ok) {
+        let contentsData;
+        try {
+          contentsData = await apiFetch(
+            `/api/courses/${courseId}/contents`
+          );
+        } catch (contentsRequestError) {
           throw new Error(
-            contentsData.message ||
-              "Erro ao buscar conteúdos."
+            contentsRequestError.data?.message ||
+              "Erro ao buscar conteúdos.",
+            { cause: contentsRequestError }
           );
         }
 
@@ -141,17 +140,16 @@ export default function DashboardConteudo() {
          */
         if (usuarioLogado?.id) {
           try {
-            const progressResponse = await fetch(
-              `http://localhost:3001/students/by-user/${usuarioLogado.id}/courses/${courseId}/progress`
-            );
-
-            const progressData =
-              await progressResponse.json();
-
-            if (!progressResponse.ok) {
+            let progressData;
+            try {
+              progressData = await apiFetch(
+                `/api/students/by-user/${usuarioLogado.id}/courses/${courseId}/progress`
+              );
+            } catch (progressFetchError) {
               throw new Error(
-                progressData.message ||
-                  "Erro ao buscar progresso."
+                progressFetchError.data?.message ||
+                  "Erro ao buscar progresso.",
+                { cause: progressFetchError }
               );
             }
 
@@ -394,24 +392,20 @@ export default function DashboardConteudo() {
         }
       );
 
-      const response = await fetch(
-        `http://localhost:3001/students/by-user/${usuarioLogado.id}/contents/${normalizedContentId}/progress`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
+      let data;
+      try {
+        data = await apiFetch(
+          `/api/students/by-user/${usuarioLogado.id}/contents/${normalizedContentId}/progress`,
+          {
+            method: "PUT",
+            body: JSON.stringify(payload),
+          }
+        );
+      } catch (progressPutError) {
         throw new Error(
-          data.message ||
-            "Erro ao atualizar progresso."
+          progressPutError.data?.message ||
+            "Erro ao atualizar progresso.",
+          { cause: progressPutError }
         );
       }
 

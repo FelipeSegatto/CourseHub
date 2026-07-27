@@ -50,6 +50,7 @@ import ProfileProfessor from "../pages/professor/ProfileProfessor";
 import UserProfile from "../pages/profile/UserProfile";
 import ProfileSecurity from "../pages/profile/ProfileSecurity";
 import ForgotPassword from "../pages/public/ForgotPassword";
+import ResetPassword from "../pages/public/ResetPassword";
 
 import ProtectedRoute from "../auth/ProtectedRoute";
 import PublicOnlyRoute from "../auth/PublicOnlyRoute";
@@ -101,6 +102,10 @@ export const router = createBrowserRouter([
       {
         path: "/esqueci-minha-senha",
         element: <ForgotPassword />
+      },
+      {
+        path: "/redefinir-senha",
+        element: <ResetPassword />
       }
     ],
   },

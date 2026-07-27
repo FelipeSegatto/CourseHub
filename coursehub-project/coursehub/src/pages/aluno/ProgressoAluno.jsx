@@ -804,7 +804,7 @@ export default function ProgressoAluno() {
         setError("");
 
         const data = await apiFetch(
-          `/students/by-user/${usuarioLogado.id}/progress-overview`
+          `/api/students/by-user/${usuarioLogado.id}/progress-overview`
         );
 
         setOverview(data || null);

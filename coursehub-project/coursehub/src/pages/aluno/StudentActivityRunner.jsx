@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
 
 export default function StudentActivityRunner() {
   const { activityId } = useParams();
-  const { usuarioLogado } = useAuth();
+
 
   const [activity, setActivity] = useState(null);
   const [answers, setAnswers] = useState({});
@@ -45,31 +44,41 @@ export default function StudentActivityRunner() {
     : "/aluno/atividades";
 
   useEffect(() => {
-    if (!usuarioLogado?.id || !activityId) return;
+  if (!activityId) {
+    setError("ID da atividade não informado.");
+    setLoading(false);
+    return;
+  }
 
-    async function fetchActivity() {
-      try {
-        setLoading(true);
-        setError("");
+  async function fetchActivity() {
+    try {
+      setLoading(true);
+      setError("");
 
-        const data = await apiFetch(
-          `/students/by-user/${usuarioLogado.id}/activities/${activityId}/full`
-        );
+      const data = await apiFetch(
+        `/api/students/by-user/activities/${activityId}/full`
+      );
 
-        setActivity(data);
-      } catch (error) {
-        console.error("Erro ao carregar atividade:", error);
+      setActivity(data);
+    } catch (error) {
+      console.error(
+        "Erro ao carregar atividade:",
+        error
+      );
 
-        setError(
-          error.message || "Erro ao carregar atividade."
-        );
-      } finally {
-        setLoading(false);
-      }
+      setActivity(null);
+
+      setError(
+        error.message ||
+          "Erro ao carregar atividade."
+      );
+    } finally {
+      setLoading(false);
     }
+  }
 
-    fetchActivity();
-  }, [activityId, usuarioLogado?.id]);
+  fetchActivity();
+}, [activityId]);
 
   useEffect(() => {
     function handleFullscreenChange() {
@@ -332,10 +341,7 @@ export default function StudentActivityRunner() {
         );
         }
 
-      if (!usuarioLogado?.id) {
-        throw new Error("Aluno não identificado.");
-      }
-
+      
       if (!activityId) {
         throw new Error("Atividade não identificada.");
       }
@@ -359,7 +365,7 @@ export default function StudentActivityRunner() {
       const normalizedAnswers = validateAnswers();
 
       const data = await apiFetch(
-        `/students/by-user/${usuarioLogado.id}/activities/${activityId}/submissions`,
+  `/api/students/activities/${activityId}/submissions`,
         {
           method: "POST",
           body: JSON.stringify({

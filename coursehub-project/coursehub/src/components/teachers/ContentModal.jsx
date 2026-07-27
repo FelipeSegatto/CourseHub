@@ -208,8 +208,8 @@ function ContentModal({
     };
 
     const endpoint = isEditMode
-      ? `/course-contents/${content.id}`
-      : "/course-contents";
+      ? `/api/course-contents/${content.id}`
+      : "/api/course-contents";
 
     const method = isEditMode
       ? "PUT"

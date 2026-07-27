@@ -1,14 +1,18 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
-import EnrollmentService from "../../services/EnrollmentService";
+import useEnrollment from "../../services/EnrollmentService";
 import HeroGreetingsText from "../../components/HeroGreetingsText";
 
 export default function DashboardAluno() {
-  const { usuarioLogado, loading } = useAuth();
+  const { usuarioLogado } = useAuth();
 
    const studentId = usuarioLogado?.id;
    
-   const cursosMatriculados = EnrollmentService(studentId);
+   const {
+      matriculas,
+      loading,
+      error,
+    } = useEnrollment();
 
   if (loading) {
     return <p>Carregando...</p>;
@@ -18,8 +22,8 @@ export default function DashboardAluno() {
     return <p>Usuário não encontrado.</p>;
   }
 
-  const totalCourses = cursosMatriculados.length;
-  const currentCourse = cursosMatriculados[0];
+  const totalCourses = matriculas.length;
+  const currentCourse = matriculas[0];
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
@@ -73,7 +77,7 @@ export default function DashboardAluno() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
-            {cursosMatriculados.map((course) => {
+            {matriculas.map((course) => {
               const progress = 0;
 
               return (

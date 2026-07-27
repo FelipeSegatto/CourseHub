@@ -24,18 +24,18 @@ export default function StudentsAdmin() {
   const [loadingDelete, setLoadingDelete] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState("active");
-  const userStatusOptions = [
-  { value: "active", label: "Ativos" },
-  { value: "inactive", label: "Inativos" },
-  { value: "blocked", label: "Bloqueados" },
-];
+  const studentStatusOptions = [
+    { value: "active", label: "Ativos" },
+    { value: "inactive", label: "Inativos" },
+    { value: "cancelled", label: "Cancelados" },
+  ];
 
   async function fetchStudents() {
     try {
       setLoading(true);
       setError("");
 
-      const data = await apiFetch("/admin/students");
+      const data = await apiFetch("/api/admin/students");
       setStudents(Array.isArray(data) ? data : []);
     } catch (error) {
       setError(error.message || "Erro ao buscar alunos.");
@@ -71,7 +71,7 @@ export default function StudentsAdmin() {
     try {
       setLoadingDelete(true);
 
-      await apiFetch(`/admin/students/${selectedStudent.id}`, {
+      await apiFetch(`/api/admin/students/${selectedStudent.id}`, {
         method: "DELETE",
       });
 
@@ -161,7 +161,7 @@ const filteredStudents = useMemo(() => {
           <AdminStatusFilter
             value={statusFilter}
             onChange={setStatusFilter}
-            options={userStatusOptions}
+            options={studentStatusOptions}
           />
         }
         searchValue={busca}

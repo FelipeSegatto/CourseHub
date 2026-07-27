@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import CardCourses from "../../components/CardCourses";
-import CourseService from "../../services/CourseService";
+import { apiFetch } from "../../services/APIService";
 import HeroGreetingsText from "../../components/HeroGreetingsText";
 
 
@@ -8,19 +8,28 @@ export default function HomeAdmin() {
   const [cursos, setCursos] = useState([]);
 
   useEffect(() => {
-    async function fetchCursos() {
-      try {
-        const resposta = await fetch("http://localhost:3001/courses");
-        const dados = await resposta.json();
-        setCursos(Array.isArray(dados) ? dados : []);
-      } catch (error) {
-        console.error("Erro ao buscar cursos:", error);
-        setCursos([]);
-      }
-    }
+  async function fetchCursos() {
+    try {
+      const dados = await apiFetch("/api/courses");
 
-    fetchCursos();
-  }, []);
+      setCursos(
+        Array.isArray(dados)
+          ? dados
+          : Array.isArray(dados?.courses)
+            ? dados.courses
+            : Array.isArray(dados?.data)
+              ? dados.data
+              : []
+      );
+    } catch (error) {
+      console.error("Erro ao buscar cursos:", error);
+      setCursos([]);
+    }
+  }
+
+  fetchCursos();
+}, []);
+
   return (
     <section className="px-6 py-12">
       <div className="mx-auto max-w-6xl">

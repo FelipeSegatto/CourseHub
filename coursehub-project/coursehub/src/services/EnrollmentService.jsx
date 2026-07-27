@@ -1,29 +1,71 @@
-import { useState, useEffect } from "react";
-import { apiFetch } from "../services/APIService";
+import { useEffect, useState } from "react";
+import { apiFetch } from "./APIService";
 
-export default function useEnrollment(userId) {
+export default function useEnrollment() {
   const [matriculas, setMatriculas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    async function fetchMatricula() {
+    let componenteMontado = true;
+
+    async function fetchMatriculas() {
       try {
+        setLoading(true);
+        setError(null);
+
         const dados = await apiFetch(
-          `/students/by-user/${userId}/courses`
+          "/api/students/me/courses"
         );
 
-        console.log("Dados da matrícula:", dados);
+        console.log("Cursos matriculados:", dados);
 
-        setMatriculas(Array.isArray(dados) ? dados : []);
+        if (!componenteMontado) {
+          return;
+        }
+
+        if (Array.isArray(dados)) {
+          setMatriculas(dados);
+        } else if (Array.isArray(dados.courses)) {
+          setMatriculas(dados.courses);
+        } else if (Array.isArray(dados.cursos)) {
+          setMatriculas(dados.cursos);
+        } else {
+          setMatriculas([]);
+        }
       } catch (error) {
-        console.error("Erro ao buscar cursos matriculados:", error);
+        console.error(
+          "Erro ao buscar cursos matriculados:",
+          error
+        );
+
+        if (!componenteMontado) {
+          return;
+        }
+
+        setError(
+          error.message ||
+            "Não foi possível carregar seus cursos."
+        );
+
         setMatriculas([]);
+      } finally {
+        if (componenteMontado) {
+          setLoading(false);
+        }
       }
     }
 
-    if (userId) {
-      fetchMatricula();
-    }
-  }, [userId]);
+    fetchMatriculas();
 
-  return matriculas;
+    return () => {
+      componenteMontado = false;
+    };
+  }, []);
+
+  return {
+    matriculas,
+    loading,
+    error,
+  };
 }
