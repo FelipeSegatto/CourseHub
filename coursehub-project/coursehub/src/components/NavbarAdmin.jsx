@@ -1,6 +1,7 @@
 import { Link, NavLink } from "react-router-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import CourseHubLogo from "./logo/Logo";
 import LogoutButton from "./LogoutButton";
 import NavbarDropdown from "./NavbarDropdown";
 
@@ -83,13 +84,10 @@ const teacherItems = [
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur mb-6">
         <div className="mx-auto grid max-w-6xl grid-cols-3 items-center px-4 py-4">
             <Link to="/admin" className="flex items-center gap-2 justify-self-start">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white font-bold">
-                C
-            </div>
+            
 
             <div>
-                <p className="text-lg font-bold text-gray-900">CourseHub</p>
-                <p className="text-xs text-gray-500">Learn. Build. Grow.</p>
+                 <CourseHubLogo />
             </div>
             </Link>
             

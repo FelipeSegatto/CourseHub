@@ -1,4 +1,5 @@
 import { Link, NavLink } from "react-router-dom";
+import CourseHubLogo from "./logo/Logo";
 
 export default function Navbar() {
   const linkClass = ({ isActive }) =>
@@ -10,16 +11,12 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-8">
         <Link to="/" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-sm font-sansfont-bold text-white">
-            C
-          </div>
+          
 
           <div className="leading-tight">
-            <p className="text-2xl font-semibold font-sans tracking-tight text-gray-950">
-              CourseHub
-            </p>
-            <p className="text-xs text-gray-500 font-sans">Learn. Build. Grow.</p>
+            <CourseHubLogo /> 
           </div>
+
         </Link>
 
         <nav className="hidden items-center gap-10 md:flex">

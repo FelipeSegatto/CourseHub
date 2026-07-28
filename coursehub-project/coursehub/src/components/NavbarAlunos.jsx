@@ -1,5 +1,6 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import CourseHubLogo from "./logo/Logo";
 import NavbarDropdown from "./NavbarDropdown";
 
 export default function NavbarAlunos() {
@@ -52,7 +53,7 @@ export default function NavbarAlunos() {
       <div
         className="
           mx-auto grid max-w-7xl
-          grid-cols-[auto_1fr_auto]
+          grid-cols-[auto_1fr_auto] justify-start text-center
           items-center gap-8
           px-6 py-4
         "
@@ -61,25 +62,11 @@ export default function NavbarAlunos() {
           to="/aluno/dashboard-aluno"
           className="flex items-center gap-3 justify-self-start"
         >
-          <div
-            className="
-              flex h-10 w-10 items-center justify-center
-              rounded-xl bg-blue-600
-              font-bold text-white
-              shadow-sm shadow-blue-600/20
-            "
-          >
-            C
-          </div>
+         
 
           <div>
-            <p className="text-lg font-bold leading-tight text-gray-900">
-              CourseHub
-            </p>
-
-            <p className="text-xs text-gray-500">
-              Learn. Build. Grow.
-            </p>
+          <CourseHubLogo />
+           <p className="text-xs text-gray-500 font-sans">Learn. Build. Grow.</p>
           </div>
         </Link>
 

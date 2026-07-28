@@ -1,5 +1,6 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import CourseHubLogo from "./logo/Logo";
 import NavbarDropdown from "./NavbarDropdown";
 
 export default function NavbarProfessor() {
@@ -68,7 +69,7 @@ export default function NavbarProfessor() {
         className="
           mx-auto grid max-w-7xl
           grid-cols-[auto_1fr_auto]
-          items-center gap-8
+          items-center text-center gap-8
           px-6 py-4
         "
       >
@@ -76,21 +77,10 @@ export default function NavbarProfessor() {
           to="/professor/dashboard-professor"
           className="flex items-center gap-3 justify-self-start"
         >
-          <div
-            className="
-              flex h-10 w-10 items-center justify-center
-              rounded-xl bg-blue-600
-              font-bold text-white
-              shadow-sm shadow-blue-600/20
-            "
-          >
-            C
-          </div>
+          
 
-          <div>
-            <p className="text-lg font-bold leading-tight text-gray-900">
-              CourseHub
-            </p>
+          <div>            
+              <CourseHubLogo />                       
 
             <p className="text-xs text-gray-500">
               Learn. Build. Grow.
