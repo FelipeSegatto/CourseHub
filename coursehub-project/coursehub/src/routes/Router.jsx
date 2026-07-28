@@ -22,6 +22,7 @@ import NotificacoesAluno from "../pages/aluno/NotificacoesAluno";
 import AvaliacoesAluno from "../pages/aluno/AvaliacoesAluno";
 import NotasAluno from "../pages/aluno/NotasAluno";
 import ProgressoAluno from "../pages/aluno/ProgressoAluno";
+import FinanceiroAluno from "../pages/aluno/FinanceiroAluno";
 import ProfileAluno from "../pages/aluno/ProfileAluno";
 import StudentActivityRunner from "../pages/aluno/StudentActivityRunner";
 
@@ -164,6 +165,10 @@ export const router = createBrowserRouter([
               {
                 path: "meus-cursos",
                 element: <CourseAluno />,
+              },
+              {
+                path: "financeiro",
+                element: <FinanceiroAluno />,
               },
               {
                 path: "notificacoes",
