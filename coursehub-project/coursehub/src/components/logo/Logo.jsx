@@ -19,24 +19,24 @@ export default function CourseHubLogo({
       <g transform="translate(8 12)">
         <path
           d="M30 4L58 18L30 32L2 18L30 4Z"
-          fill="#0F2747"
+          fill="#0F172A"
         />
 
         <path
           d="M12 23V39C12 39 19 47 30 47C41 47 48 39 48 39V23L30 32L12 23Z"
-          fill="#0F2747"
+          fill="#0F172A"
         />
 
         <path
           d="M17 28V36C20.5 39.5 25 41 30 41C35 41 39.5 39.5 43 36V28"
-          stroke="#F4B400"
+          stroke="#3B82F6"
           strokeWidth="3"
           strokeLinecap="round"
         />
 
         <path
           d="M58 18V36"
-          stroke="#0F2747"
+          stroke="#0F172A"
           strokeWidth="3"
           strokeLinecap="round"
         />
@@ -45,7 +45,7 @@ export default function CourseHubLogo({
           cx="58"
           cy="40"
           r="4"
-          fill="#F4B400"
+          fill="#3B82F6"
         />
       </g>
 
@@ -57,12 +57,8 @@ export default function CourseHubLogo({
         fontWeight="700"
         letterSpacing="-1.8"
       >
-        <tspan fill="#0F2747">
-          Course
-        </tspan>
-
-        <tspan fill="#F4B400">
-          Hub
+        <tspan fill="#0F172A">
+          CourseHub
         </tspan>
       </text>
     </svg>
