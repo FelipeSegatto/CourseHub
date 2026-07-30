@@ -1,0 +1,25 @@
+
+# Dependências
+**/node_modules/
+
+# Variáveis de ambiente
+**/.env
+**/.env.*
+!.env.example
+
+# Builds
+**/dist/
+**/build/
+
+# Logs
+*.log
+logs/
+
+# Vídeos pesados
+**/public/videos/
+*.mov
+
+# Editor e sistema
+.vscode/
+.DS_Store
+Thumbs.db

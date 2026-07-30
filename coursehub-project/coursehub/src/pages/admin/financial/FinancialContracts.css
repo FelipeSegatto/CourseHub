@@ -1,0 +1,438 @@
+.financial-contracts-page {
+  width: 100%;
+  padding: 32px;
+}
+
+.financial-contracts-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.financial-contracts-header h1 {
+  margin: 4px 0 8px;
+  font-size: clamp(1.75rem, 3vw, 2.4rem);
+  line-height: 1.1;
+}
+
+.financial-contracts-header p {
+  max-width: 680px;
+  margin: 0;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.financial-contracts-eyebrow {
+  color: #2563eb;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.financial-contracts-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.financial-contracts-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.financial-contracts-summary__item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.financial-contracts-summary__item span {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.financial-contracts-summary__item strong {
+  color: #0f172a;
+  font-size: 1.5rem;
+}
+
+.financial-contracts-panel {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  background: #ffffff;
+}
+
+.financial-contracts-filters {
+  display: grid;
+  grid-template-columns:
+    minmax(240px, 2fr)
+    minmax(160px, 1fr)
+    minmax(190px, 1fr)
+    120px
+    auto;
+  align-items: end;
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.financial-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.financial-field label {
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.financial-field input,
+.financial-field select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.financial-field input:focus,
+.financial-field select:focus {
+  border-color: #2563eb;
+  box-shadow:
+    0 0 0 3px
+    rgba(37, 99, 235, 0.12);
+}
+
+.financial-clear-filters {
+  min-height: 42px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.financial-button {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.financial-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.financial-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.financial-button--primary {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.financial-button--secondary {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+}
+
+.financial-feedback {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 20px;
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.financial-feedback--error {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.financial-feedback strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.financial-feedback p {
+  margin: 0;
+}
+
+.financial-feedback button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.financial-contracts-loading,
+.financial-contracts-empty {
+  display: flex;
+  min-height: 320px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.financial-contracts-loading p,
+.financial-contracts-empty p {
+  max-width: 440px;
+  margin: 8px 0 20px;
+  color: #64748b;
+}
+
+.financial-contracts-empty h2 {
+  margin: 16px 0 0;
+  color: #0f172a;
+}
+
+.financial-contracts-empty__icon {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border-radius: 18px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.financial-spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid #dbeafe;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation:
+    financial-spin 0.8s linear infinite;
+}
+
+@keyframes financial-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.financial-table-wrapper {
+  overflow-x: auto;
+}
+
+.financial-contracts-table {
+  width: 100%;
+  min-width: 1280px;
+  border-collapse: collapse;
+}
+
+.financial-contracts-table th,
+.financial-contracts-table td {
+  padding: 15px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.financial-contracts-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.financial-contracts-table td {
+  color: #334155;
+  font-size: 0.88rem;
+}
+
+.financial-contracts-table tbody tr {
+  transition: background 0.2s ease;
+}
+
+.financial-contracts-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.financial-contracts-table__row--overdue {
+  box-shadow:
+    inset 3px 0 0 #ef4444;
+}
+
+.financial-contract-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.financial-plan-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.financial-plan-cell strong {
+  color: #0f172a;
+}
+
+.financial-plan-cell span {
+  color: #94a3b8;
+  font-size: 0.76rem;
+}
+
+.financial-value-cell {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.financial-value-cell--positive {
+  color: #15803d !important;
+  font-weight: 700;
+}
+
+.financial-value-cell--negative {
+  color: #b91c1c !important;
+  font-weight: 700;
+}
+
+.financial-details-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #334155;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.financial-contracts-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px;
+}
+
+.financial-contracts-pagination p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.84rem;
+}
+
+.financial-contracts-pagination__controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.financial-contracts-pagination__controls span {
+  color: #475569;
+  font-size: 0.84rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .financial-contracts-filters {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .financial-field--search {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .financial-contracts-page {
+    padding: 20px 14px;
+  }
+
+  .financial-contracts-header {
+    flex-direction: column;
+  }
+
+  .financial-contracts-header__actions,
+  .financial-contracts-header__actions
+    .financial-button {
+    width: 100%;
+  }
+
+  .financial-contracts-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .financial-contracts-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .financial-field--search {
+    grid-column: auto;
+  }
+
+  .financial-contracts-pagination {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .financial-contracts-pagination__controls {
+    justify-content: space-between;
+  }
+}

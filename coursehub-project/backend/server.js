@@ -2,6 +2,10 @@
    COURSEHUB API
    Configuração inicial, autenticação e rotas gerais
    ========================================================== */
+
+const adminFinancialRoutes = require("./routes/adminFinancialRoutes");
+
+
 require("dotenv").config();
 
 if (
@@ -17,17 +21,19 @@ const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const generateAccessToken = require("./utils/generateToken");
 
+const generateAccessToken = require("./utils/generateToken");
 const db = require("./db");
-const authenticateToken = require("./middleware/authenticateToken");
-const authorizeRoles = require("./middleware/authorizeRoles");
+
+const authenticateToken = require("./middlewares/authenticateToken");
+const authorizeRoles = require("./middlewares/authorizeRoles");
+
 const cookieParser = require("cookie-parser");
 
 const {
   loginRateLimiter,
   forgotPasswordRateLimiter,
-} = require("./middleware/rateLimiters");
+} = require("./middlewares/rateLimiters");
 
 const {
   setAccessTokenCookie,
@@ -51,6 +57,8 @@ const { sendPasswordResetEmail } = require("./utils/mailer");
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+
+
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN || "http://localhost:5173",
@@ -60,6 +68,8 @@ app.use(
 
 app.use(express.json());
 app.use(cookieParser());
+
+
 
 
 
@@ -12624,6 +12634,13 @@ app.get("/api/admin/courses/:id", authenticateToken, authorizeRoles("admin"), as
     });
   }
 });
+
+   /* ==========================================================
+   ADMINISTRAÇÃO — ROTAS FINANCEIRO
+   Alterações e registros em pagamentos, cobranças e datas de 
+   de vencimento.
+   ========================================================== */
+app.use("/api/admin/financial", adminFinancialRoutes);
 
 
 /* ==========================================================

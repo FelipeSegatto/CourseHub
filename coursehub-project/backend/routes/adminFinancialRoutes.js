@@ -1,0 +1,494 @@
+const express = require("express");
+const db = require("../db");
+const authenticateToken = require("../middlewares/authenticateToken");
+const authorizeRoles = require("../middlewares/authorizeRoles");
+
+const {
+  changeInvoiceDueDate,
+} = require("../services/financial/invoiceService");
+
+const {
+  registerManualPayment,
+} = require("../services/financial/paymentService");
+
+const {
+  changeInvoiceAmount,
+} = require("../services/financial/invoiceAmountService");
+
+const {
+  cancelInvoice,
+} = require("../services/financial/invoiceCancellationService");
+
+const {
+  refundPayment,
+} = require("../services/financial/paymentRefundService");
+
+const {
+  getInvoiceDetails,
+  getFinancialContractEvents,
+} = require("../services/financial/financialQueryService");
+
+const {
+  listFinancialContracts,
+  getFinancialContractDetails,
+  listFinancialInvoices,
+  getFinancialDashboardSummary,
+} = require(
+  "../services/financial/adminFinancialReadService"
+);
+
+const router = express.Router();
+
+router.patch(
+  "/invoices/:invoiceId/due-date",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const userId = req.auth.userId;
+      const invoiceId = Number(req.params.invoiceId);
+      const { dueDate, reason } = req.body;
+
+        if (!dueDate) {
+        return res.status(400).json({
+            message: "A nova data de vencimento é obrigatória.",
+        });
+        }
+
+        const result = await changeInvoiceDueDate(db, {
+        invoiceId,
+        dueDate,
+        reason,
+        actorUserId: userId,
+        });
+
+      return res.status(200).json({
+        message: "Data de vencimento alterada com sucesso.",
+        data: result,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao alterar data de vencimento:",
+        error
+      );
+
+      return res.status(error.statusCode || 500).json({
+        message:
+          error.message ||
+          "Erro ao alterar data de vencimento.",
+      });
+    }
+  }
+);
+
+console.log("adminFinancialRoutes carregado");
+// Registra manualmente o pagamento integral de uma fatura,
+// atualiza seus status e registra o histórico financeiro.
+router.post(
+  "/invoices/:invoiceId/manual-payment",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+
+    console.log("POST manual-payment chamado");
+    try {
+      const userId = req.auth.userId;
+
+      const invoiceId = Number(req.params.invoiceId);
+
+      const {
+        amount,
+        paymentMethod,
+        paymentDate,
+        reason,
+      } = req.body;
+
+      const result =
+        await registerManualPayment(db, {
+          invoiceId,
+          amount,
+          paymentMethod,
+          paymentDate,
+          reason,
+          actorUserId: userId,
+        });
+
+      return res.status(201).json({
+        message:
+          "Pagamento registrado com sucesso.",
+        data: result,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao registrar pagamento:",
+        error
+      );
+
+      return res.status(
+        error.statusCode || 500
+      ).json({
+        message:
+          error.message ||
+          "Erro ao registrar pagamento.",
+      });
+    }
+  }
+);
+
+// Altera o valor de uma fatura aberta e registra
+// a alteração no histórico financeiro.
+console.log("Rota de alteração de valor carregada");
+router.patch(
+  "/invoices/:invoiceId/amount",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const userId = req.auth.userId;
+      const invoiceId = Number(
+        req.params.invoiceId
+      );
+
+      const {
+        newAmount,
+        reason,
+      } = req.body;
+
+      const result = await changeInvoiceAmount(db, {
+        invoiceId,
+        newAmount,
+        reason,
+        actorUserId: userId,
+      });
+
+      return res.status(200).json({
+        message:
+          "Valor da fatura alterado com sucesso.",
+        invoice: result,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao alterar o valor da fatura:",
+        error
+      );
+
+      return res
+        .status(error.statusCode || 500)
+        .json({
+          message:
+            error.message ||
+            "Erro interno ao alterar o valor da fatura.",
+        });
+    }
+  }
+);
+
+// Cancela uma fatura aberta, remove ações de cobrança
+// pendentes e registra o evento financeiro.
+router.post(
+  "/invoices/:invoiceId/cancel",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const userId = req.auth.userId;
+      const invoiceId = Number(
+        req.params.invoiceId
+      );
+
+      const {
+        reason,
+      } = req.body;
+
+      const result = await cancelInvoice(db, {
+        invoiceId,
+        reason,
+        actorUserId: userId,
+      });
+
+      return res.status(200).json({
+        message:
+          "Fatura cancelada com sucesso.",
+        invoice: result,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao cancelar a fatura:",
+        error
+      );
+
+      return res
+        .status(error.statusCode || 500)
+        .json({
+          message:
+            error.message ||
+            "Erro interno ao cancelar a fatura.",
+        });
+    }
+  }
+);
+
+// Registra o reembolso integral de um pagamento aprovado,
+// atualiza a fatura e registra o histórico financeiro.
+router.post(
+  "/payments/:paymentId/refund",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const userId = req.auth.userId;
+      const paymentId = Number(
+        req.params.paymentId
+      );
+
+      const { reason } = req.body;
+
+      const result = await refundPayment(db, {
+        paymentId,
+        reason,
+        actorUserId: userId,
+      });
+
+      return res.status(200).json({
+        message:
+          "Pagamento reembolsado com sucesso.",
+        data: result,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao reembolsar pagamento:",
+        error
+      );
+
+      return res
+        .status(error.statusCode || 500)
+        .json({
+          message:
+            error.message ||
+            "Erro interno ao reembolsar o pagamento.",
+        });
+    }
+  }
+);
+
+// Retorna os detalhes completos de uma fatura,
+// incluindo contrato, pagamentos, cobranças e eventos.
+router.get(
+  "/invoices/:invoiceId",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const invoiceId = Number(
+        req.params.invoiceId
+      );
+
+      const result = await getInvoiceDetails(
+        db,
+        invoiceId
+      );
+
+      return res.status(200).json({
+        data: result,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao consultar os detalhes da fatura:",
+        error
+      );
+
+      return res
+        .status(error.statusCode || 500)
+        .json({
+          message:
+            error.message ||
+            "Erro interno ao consultar os detalhes da fatura.",
+        });
+    }
+  }
+);
+
+router.get(
+  "/contracts/:contractId/events",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const contractId = Number(
+        req.params.contractId
+      );
+
+      const result =
+        await getFinancialContractEvents(
+          db,
+          contractId
+        );
+
+      return res.status(200).json({
+        data: result,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao consultar eventos do contrato:",
+        error
+      );
+
+      return res
+        .status(error.statusCode || 500)
+        .json({
+          message:
+            error.message ||
+            "Não foi possível consultar os eventos do contrato financeiro.",
+        });
+    }
+  }
+);
+
+router.get(
+  "/contracts",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result =
+        await listFinancialContracts(
+          db,
+          {
+            page: req.query.page,
+            limit: req.query.limit,
+            status: req.query.status,
+            billingType:
+              req.query.billingType,
+            enrollmentId:
+              req.query.enrollmentId,
+            search: req.query.search,
+          }
+        );
+
+      return res.status(200).json({
+        data: result,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao listar contratos financeiros:",
+        error
+      );
+
+      return res
+        .status(error.statusCode || 500)
+        .json({
+          message:
+            error.message ||
+            "Erro interno ao listar contratos financeiros.",
+        });
+    }
+  }
+);
+
+router.get(
+  "/contracts/:contractId",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const contractId = Number(
+        req.params.contractId
+      );
+
+      const result =
+        await getFinancialContractDetails(
+          db,
+          contractId
+        );
+
+      return res.status(200).json({
+        data: result,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao consultar contrato financeiro:",
+        error
+      );
+
+      return res
+        .status(error.statusCode || 500)
+        .json({
+          message:
+            error.message ||
+            "Erro interno ao consultar o contrato financeiro.",
+        });
+    }
+  }
+);
+
+router.get(
+  "/invoices",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result =
+        await listFinancialInvoices(
+          db,
+          {
+            page: req.query.page,
+            limit: req.query.limit,
+            status: req.query.status,
+            contractId:
+              req.query.contractId,
+            dueFrom: req.query.dueFrom,
+            dueTo: req.query.dueTo,
+            search: req.query.search,
+          }
+        );
+
+      return res.status(200).json({
+        data: result,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao listar faturas:",
+        error
+      );
+
+      return res
+        .status(error.statusCode || 500)
+        .json({
+          message:
+            error.message ||
+            "Erro interno ao listar faturas.",
+        });
+    }
+  }
+);
+
+router.get(
+  "/dashboard/summary",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result =
+        await getFinancialDashboardSummary(db);
+
+      return res.status(200).json({
+        data: result,
+      });
+    } catch (error) {
+      console.error(
+        "[GET /dashboard/summary] erro:",
+        error
+      );
+
+      return res
+        .status(error.statusCode || 500)
+        .json({
+          message:
+            error.message ||
+            "Erro interno ao carregar dashboard financeiro.",
+        });
+    }
+  }
+);
+
+module.exports = router;

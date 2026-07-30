@@ -52,8 +52,8 @@ export default function NavbarAlunos() {
     >
       <div
         className="
-          mx-auto grid max-w-7xl
-          grid-cols-[auto_1fr_auto] justify-start text-center
+          mx-auto grid w-full max-w-7xl
+          grid-cols-[auto_minmax(0,1fr)_auto]
           items-center gap-8
           px-6 py-4
         "
