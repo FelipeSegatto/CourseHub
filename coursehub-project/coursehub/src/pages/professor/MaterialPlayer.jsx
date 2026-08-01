@@ -1,13 +1,29 @@
 import { useEffect, useState } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
+import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
 import LessonPlayer from "../../components/LessonPlayer";
 
-export default function DashboardMaterial() {
-  const { id } = useParams();
-  const Navigate = useNavigate();
+const categories = [
+  { type: "video", label: "Vídeo aulas" },
+  { type: "pdf", label: "PDFs / Apostilas" },
+  { type: "text", label: "Conteúdo em texto" },
+  { type: "live_class", label: "Aulas ao vivo" },
+];
 
-  const [course, setCourse] = useState(null);
+const contentTypeLabels = {
+  video: "Vídeo aula",
+  pdf: "PDF / Apostila",
+  text: "Conteúdo em texto",
+  live_class: "Aula ao vivo",
+};
+
+export default function DashboardMaterial() {
+  const { classId } = useParams();
+  const Navigate = useNavigate();
+  const { usuarioLogado } = useAuth();
+
+  const [classInfo, setClassInfo] = useState(null);
   const [allContents, setAllContents] = useState([]);
   const [selectedContent, setSelectedContent] = useState(null);
   const [selectedType, setSelectedType] = useState("video");
@@ -15,43 +31,32 @@ export default function DashboardMaterial() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const categories = [
-    { type: "video", label: "Vídeo aulas" },
-    { type: "pdf", label: "PDFs / Apostilas" },
-    { type: "atividade", label: "Atividades" },
-    { type: "avaliacao", label: "Avaliações" },
-  ];
-
-  
-
   useEffect(() => {
-    async function fetchCourseData() {
+    if (!usuarioLogado?.id) return;
+
+    async function fetchClassContents() {
       try {
         setLoading(true);
         setError("");
 
-        let courseData;
+        let data;
         try {
-          courseData = await apiFetch(`/api/courses/${id}`);
-        } catch (courseRequestError) {
-          throw new Error(courseRequestError.data?.message || "Curso não encontrado.", {
-            cause: courseRequestError,
-          });
-        }
-
-        setCourse(courseData);
-
-        let contentsData;
-        try {
-          contentsData = await apiFetch(
-            `/api/courses/${id}/contents`
+          data = await apiFetch(
+            `/api/teacher/by-user/${usuarioLogado.id}/classes/${classId}/contents`
           );
         } catch (contentsRequestError) {
-          throw new Error(contentsRequestError.data?.message || "Erro ao buscar conteúdos.", {
-            cause: contentsRequestError,
-          });
+          throw new Error(
+            contentsRequestError.data?.message ||
+              "Turma não encontrada ou não vinculada ao professor.",
+            { cause: contentsRequestError }
+          );
         }
 
+        const contentsData = Array.isArray(data?.contents)
+          ? data.contents
+          : [];
+
+        setClassInfo(data?.class || null);
         setAllContents(contentsData);
 
         const firstVideo = contentsData.find((content) => content.type === "video");
@@ -63,9 +68,9 @@ export default function DashboardMaterial() {
           setSelectedType(firstContent.type);
         }
       } catch (error) {
-        console.error("Erro ao buscar dados do curso:", error);
+        console.error("Erro ao buscar conteúdos da turma:", error);
 
-        setCourse(null);
+        setClassInfo(null);
         setAllContents([]);
         setSelectedContent(null);
         setError(error.message);
@@ -74,8 +79,8 @@ export default function DashboardMaterial() {
       }
     }
 
-    fetchCourseData();
-  }, [id]);
+    fetchClassContents();
+  }, [classId, usuarioLogado?.id]);
 
   const filteredContents = allContents.filter(
     (content) => content.type === selectedType
@@ -115,24 +120,24 @@ export default function DashboardMaterial() {
     return (
       <main className="mx-auto max-w-5xl px-6 py-12">
         <h1 className="text-3xl font-bold text-gray-900">
-          Carregando curso...
+          Carregando materiais...
         </h1>
       </main>
     );
   }
 
-  if (!course) {
+  if (!classInfo) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-12">
         <h1 className="text-3xl font-bold text-gray-900">
-          Curso não encontrado
+          Turma não encontrada
         </h1>
 
         {error && <p className="mt-4 text-red-600">{error}</p>}
 
         <button
             onClick={() => Navigate(-1)}
-          
+
           className="mt-6 inline-block rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 transition"
         >
           Voltar para a página anterior
@@ -149,9 +154,15 @@ export default function DashboardMaterial() {
       >
         ← Voltar para a página anterior
       </button>
-         
 
-      <h1 className="mt-6 text-5xl font-bold text-gray-900">{course.name}</h1>
+
+      <h1 className="mt-6 text-5xl font-bold text-gray-900">
+        {classInfo.courseTitle}
+      </h1>
+
+      <p className="mt-2 text-lg text-gray-500">
+        Turma: {classInfo.name}
+      </p>
 
       <section className="mt-10 flex gap-8">
         <div className="flex-[1.5] rounded-2xl border border-gray-200 p-6">
@@ -192,7 +203,7 @@ export default function DashboardMaterial() {
 
         <aside className="flex-1 rounded-2xl border border-gray-200 p-6">
           <h2 className="text-xl font-bold text-gray-900">
-            Conteúdo do curso
+            Conteúdo da turma
           </h2>
 
           <nav className="mt-5 grid grid-cols-2 gap-3">
@@ -231,10 +242,7 @@ export default function DashboardMaterial() {
                 <span className="block font-semibold">{content.title}</span>
 
                 <span className="mt-1 block text-xs text-gray-500">
-                  {content.type === "video" && "Vídeo aula"}
-                  {content.type === "pdf" && "PDF / Apostila"}
-                  {content.type === "activity" && "Atividade"}
-                  {content.type === "assessment" && "Avaliação"}
+                  {contentTypeLabels[content.type] || content.type}
                 </span>
               </button>
             ))}

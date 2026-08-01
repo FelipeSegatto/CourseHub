@@ -56,6 +56,7 @@ export default function ActivityModal({
   mode = "create",
   activity = null,
   courses = [],
+  classes = [],
   activityKind = "activity",
   userId,
   handleCloseModal,
@@ -66,6 +67,7 @@ export default function ActivityModal({
 
   const [formData, setFormData] = useState({
     course_id: "",
+    class_id: "",
     activity_kind: activityKind,
     title: "",
     description: "",
@@ -74,6 +76,21 @@ export default function ActivityModal({
     max_score: 10,
     status: "active",
   });
+
+  /*
+   * Turmas do curso atualmente selecionado. A relação é feita
+   * sempre por ID — nunca por courseTitle/courseName.
+   */
+  const availableClasses = formData.course_id
+    ? classes.filter((classItem) => {
+        const classCourseId =
+          classItem.courseId ?? classItem.course_id;
+
+        return (
+          Number(classCourseId) === Number(formData.course_id)
+        );
+      })
+    : [];
 
   const [questions, setQuestions] = useState([]);
 
@@ -137,8 +154,16 @@ export default function ActivityModal({
 
         if (ignoreRequest) return;
 
+        const editingClassId =
+          data.classId ?? data.class_id ?? null;
+
         setFormData({
           course_id: String(data.course_id || ""),
+          class_id:
+            editingClassId !== null &&
+            editingClassId !== undefined
+              ? String(editingClassId)
+              : "",
           activity_kind:
             data.activity_kind || activityKind,
           title: data.title || "",
@@ -230,6 +255,12 @@ export default function ActivityModal({
     setFormData((previousFormData) => ({
       ...previousFormData,
       [name]: value,
+
+      /*
+       * Trocar de curso invalida a turma escolhida — nunca
+       * mantém uma turma de outro curso selecionada.
+       */
+      ...(name === "course_id" ? { class_id: "" } : {}),
     }));
   }
 
@@ -526,12 +557,19 @@ export default function ActivityModal({
 
       validateForm();
 
+      const normalizedClassId =
+        formData.class_id === ""
+          ? null
+          : Number(formData.class_id);
+
       const payload = {
         userId: Number(userId),
 
         course_id: Number(
           formData.course_id
         ),
+
+        class_id: normalizedClassId,
 
         activity_kind:
           formData.activity_kind,
@@ -805,6 +843,39 @@ export default function ActivityModal({
                   este professor.
                 </p>
               )}
+            </div>
+
+            <div>
+              <label className={labelClass}>
+                Turma
+
+                <select
+                  name="class_id"
+                  value={formData.class_id}
+                  onChange={handleChange}
+                  disabled={!formData.course_id}
+                  className={inputClass}
+                >
+                  <option value="">
+                    Todas as turmas do curso
+                  </option>
+
+                  {availableClasses.map((classItem) => (
+                    <option
+                      key={classItem.id}
+                      value={classItem.id}
+                    >
+                      {classItem.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <p className="mt-2 text-xs text-gray-500">
+                {formData.course_id
+                  ? "Deixe em todas as turmas para compartilhar a atividade com o curso inteiro."
+                  : "Selecione um curso para escolher uma turma."}
+              </p>
             </div>
 
             <div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
+import { apiFetch } from "../../services/APIService";
 
 import StudentManagementPage from "./StudentManagementPage";
 import StudentTable from "./StudentTable";
@@ -89,21 +90,9 @@ export default function StudentActivitiesList({
       setLoading(true);
       setError("");
 
-      const response = await fetch(
-        "http://localhost:3001/api/students/by-user/activities",
-        {
-          method: "GET",
-          credentials: "include",
-        }
+      const data = await apiFetch(
+        "/api/students/by-user/activities"
       );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Erro ao carregar atividades."
-        );
-      }
 
       setActivities(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -112,9 +101,14 @@ export default function StudentActivitiesList({
         error
       );
 
+      /*
+       * Nunca mantém atividades antigas na tela após uma
+       * resposta inválida (ex.: 403/404).
+       */
       setActivities([]);
       setError(
-        error.message ||
+        error.data?.message ||
+          error.message ||
           "Não foi possível carregar as atividades."
       );
     } finally {

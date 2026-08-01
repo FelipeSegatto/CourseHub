@@ -435,7 +435,7 @@ export const router = createBrowserRouter([
                 element: <MaterialProfessor />,
               },
               {
-                path: "atividades/courses/:id",
+                path: "turmas/:classId/materiais",
                 element: <MaterialPlayer />,
               },
 
