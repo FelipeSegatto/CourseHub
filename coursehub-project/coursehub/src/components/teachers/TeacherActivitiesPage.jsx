@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
@@ -67,6 +67,7 @@ export default function TeacherActivitiesPage({
   const { usuarioLogado } = useAuth();
 
   const [courses, setCourses] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [allActivities, setAllActivities] = useState([]);
 
   const [selectedActivity, setSelectedActivity] = useState(null);
@@ -130,6 +131,39 @@ export default function TeacherActivitiesPage({
     );
   }
 
+  /*
+   * Busca as turmas do professor. A busca de turmas falhando
+   * não bloqueia a listagem de atividades — o professor ainda
+   * pode ver e criar atividades gerais normalmente.
+   */
+  async function loadClasses() {
+    if (!usuarioLogado?.id) return;
+
+    const endpoint =
+      `/api/teacher/by-user/${usuarioLogado.id}/classes`;
+
+    try {
+      const data = await apiFetch(endpoint);
+
+      const classList = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.classes)
+          ? data.classes
+          : Array.isArray(data?.data)
+            ? data.data
+            : [];
+
+      setClasses(classList);
+    } catch (classesError) {
+      console.error(
+        "Erro ao buscar turmas do professor:",
+        classesError
+      );
+
+      setClasses([]);
+    }
+  }
+
   useEffect(() => {
     if (!usuarioLogado?.id) return;
 
@@ -138,7 +172,11 @@ export default function TeacherActivitiesPage({
         setLoading(true);
         setError("");
 
-        await Promise.all([loadActivities(), loadCourses()]);
+        await Promise.all([
+          loadActivities(),
+          loadCourses(),
+          loadClasses(),
+        ]);
       } catch (error) {
         console.error("Erro ao carregar página:", error);
         setError(error.message);
@@ -156,6 +194,32 @@ export default function TeacherActivitiesPage({
     );
   }, [allActivities, activityKind]);
 
+  /*
+   * Resolve o nome de exibição da turma de uma atividade.
+   * Nunca mostra o ID cru — se class_name/className não vier da
+   * API, tenta resolver pelo array de turmas carregado; se ainda
+   * assim não achar, cai para um rótulo genérico.
+   */
+  const resolveActivityClassName = useCallback(
+    (activity) => {
+      const classId = activity.classId ?? activity.class_id ?? null;
+
+      if (!classId) return null;
+
+      const nameFromActivity =
+        activity.className || activity.class_name;
+
+      if (nameFromActivity) return nameFromActivity;
+
+      const matchedClass = classes.find(
+        (classItem) => Number(classItem.id) === Number(classId)
+      );
+
+      return matchedClass?.name || "Turma específica";
+    },
+    [classes]
+  );
+
   const filteredActivities = useMemo(() => {
     const term = busca.trim().toLowerCase();
 
@@ -169,20 +233,30 @@ export default function TeacherActivitiesPage({
       const type = activity.type?.toLowerCase() || "";
       const status = activity.status?.toLowerCase() || "";
 
+      const className = (
+        resolveActivityClassName(activity) || "todas as turmas"
+      ).toLowerCase();
+
       const matchesSearch =
         !term ||
         title.includes(term) ||
         description.includes(term) ||
         courseName.includes(term) ||
         type.includes(term) ||
-        status.includes(term);
+        status.includes(term) ||
+        className.includes(term);
 
       const matchesStatus =
         !statusFilter || activity.status === statusFilter;
 
       return matchesSearch && matchesStatus;
     });
-  }, [activitiesByKind, busca, statusFilter]);
+  }, [
+    activitiesByKind,
+    busca,
+    statusFilter,
+    resolveActivityClassName,
+  ]);
 
   const stats = useMemo(() => {
     return [
@@ -330,6 +404,7 @@ export default function TeacherActivitiesPage({
       label: activityKind === "exam" ? "Avaliação" : "Atividade",
     },
     { key: "course", label: "Curso" },
+    { key: "class", label: "Turma" },
     { key: "type", label: "Tipo" },
     { key: "due_date", label: "Prazo" },
     { key: "max_score", label: "Nota máxima" },
@@ -403,6 +478,11 @@ export default function TeacherActivitiesPage({
                 </td>
 
                 <td className="py-5 text-gray-600">
+                  {resolveActivityClassName(activity) ||
+                    "Todas as turmas"}
+                </td>
+
+                <td className="py-5 text-gray-600">
                   {typeLabels[activity.type] || activity.type || "-"}
                 </td>
 
@@ -459,6 +539,7 @@ export default function TeacherActivitiesPage({
             mode={modalMode}
             activity={selectedActivity}
             courses={courses}
+            classes={classes}
             activityKind={activityKind}
             userId={usuarioLogado.id}
             handleCloseModal={handleCloseModal}

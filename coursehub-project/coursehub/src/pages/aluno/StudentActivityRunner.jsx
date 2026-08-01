@@ -762,6 +762,15 @@ export default function StudentActivityRunner() {
               Curso: {activity.course_title}
             </span>
 
+            {(activity.classId ?? activity.class_id) && (
+              <span className="rounded-full bg-purple-100 px-3 py-1 font-semibold text-purple-700">
+                Turma:{" "}
+                {activity.className ||
+                  activity.class_name ||
+                  "turma específica"}
+              </span>
+            )}
+
             <span className="rounded-full bg-green-100 px-3 py-1 font-semibold text-green-700">
               Nota máxima: {activity.max_score}
             </span>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
 
@@ -43,6 +44,7 @@ export default function MaterialProfessor() {
   const { usuarioLogado } = useAuth();
 
   const [courses, setCourses] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [allContents, setAllContents] = useState([]);
 
   const [selectedContent, setSelectedContent] =
@@ -140,7 +142,46 @@ export default function MaterialProfessor() {
 }
 
   /*
-   * Carrega cursos e conteúdos ao abrir a página.
+   * Busca as turmas do professor, usadas para
+   * linkar cada conteúdo à sua turma no botão "Ver".
+   */
+  async function loadClasses() {
+  if (!usuarioLogado?.id) return;
+
+  const endpoint =
+    `/api/teacher/by-user/${usuarioLogado.id}/classes`;
+
+  const data = await apiFetch(endpoint);
+
+  const classList = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.classes)
+      ? data.classes
+      : Array.isArray(data?.data)
+        ? data.data
+        : [];
+
+  setClasses(classList);
+}
+
+  /*
+   * Retorna a primeira turma do professor associada
+   * ao curso do conteúdo, ou null se não houver turma.
+   */
+  function findClassForCourse(courseId) {
+    if (!courseId) return null;
+
+    return (
+      classes.find(
+        (classItem) =>
+          Number(classItem.courseId ?? classItem.course_id) ===
+          Number(courseId)
+      ) || null
+    );
+  }
+
+  /*
+   * Carrega cursos, turmas e conteúdos ao abrir a página.
    */
   useEffect(() => {
     if (!usuarioLogado?.id) return;
@@ -153,6 +194,7 @@ export default function MaterialProfessor() {
         await Promise.all([
           loadContents(),
           loadCourses(),
+          loadClasses(),
         ]);
       } catch (error) {
         console.error(
@@ -509,6 +551,10 @@ export default function MaterialProfessor() {
       label: "Curso",
     },
     {
+      key: "class",
+      label: "Turma",
+    },
+    {
       key: "category",
       label: "Tipo",
     },
@@ -584,6 +630,14 @@ export default function MaterialProfessor() {
                 </td>
 
                 <td className="py-5 text-gray-600">
+                  {content.classId ?? content.class_id
+                    ? content.className ||
+                      content.class_name ||
+                      `Turma #${content.classId ?? content.class_id}`
+                    : "Todas as turmas"}
+                </td>
+
+                <td className="py-5 text-gray-600">
                   {contentTypeLabels[
                     content.type
                   ] ||
@@ -599,12 +653,57 @@ export default function MaterialProfessor() {
 
                 <td className="py-5">
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-200"
-                    >
-                      Ver
-                    </button>
+                    {(() => {
+                      const specificClassId =
+                        content.classId ?? content.class_id ?? null;
+
+                      /*
+                       * Conteúdo específico: navega exatamente para a
+                       * turma dona do conteúdo — nunca para outra.
+                       */
+                      if (specificClassId) {
+                        return (
+                          <Link
+                            to={`/professor/turmas/${specificClassId}/materiais`}
+                            className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-200"
+                          >
+                            Ver
+                          </Link>
+                        );
+                      }
+
+                      /*
+                       * Conteúdo geral: não pertence a uma turma
+                       * específica, então é uma escolha de contexto
+                       * abrir na primeira turma disponível do curso.
+                       */
+                      const fallbackClass = findClassForCourse(
+                        content.course_id
+                      );
+
+                      if (!fallbackClass) {
+                        return (
+                          <button
+                            type="button"
+                            disabled
+                            title="Nenhuma turma cadastrada para este curso."
+                            className="cursor-not-allowed rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-400"
+                          >
+                            Ver
+                          </button>
+                        );
+                      }
+
+                      return (
+                        <Link
+                          to={`/professor/turmas/${fallbackClass.id}/materiais`}
+                          title="Conteúdo geral do curso. Abrir na primeira turma disponível."
+                          className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-200"
+                        >
+                          Ver
+                        </Link>
+                      );
+                    })()}
 
                     <button
                       type="button"
@@ -638,6 +737,7 @@ export default function MaterialProfessor() {
           variant="content"
           mode={modalMode}
           courses={courses}
+          classes={classes}
           content={selectedContent}
           userId={usuarioLogado.id}
           handleCloseModal={handleCloseModal}
