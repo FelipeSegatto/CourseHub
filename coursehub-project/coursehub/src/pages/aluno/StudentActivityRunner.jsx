@@ -30,9 +30,6 @@ export default function StudentActivityRunner() {
   const canResubmit =
     activity?.submission_status === "returned";
 
-  const hasSubmission =
-    Boolean(activity?.submission_id);
-
   const entityLabel = isExam ? "avaliação" : "atividade";
 
   const pluralEntityLabel = isExam
@@ -219,13 +216,15 @@ export default function StudentActivityRunner() {
 
             if (alreadySubmitted) {
         throw new Error(
-            "Esta avaliação já foi enviada."
+            "Esta avaliação já foi enviada.",
+            { cause: error }
         );
         }
 
         if (activity?.is_overdue) {
         throw new Error(
-            "O prazo desta avaliação já foi encerrado."
+            "O prazo desta avaliação já foi encerrado.",
+            { cause: error }
         );
         }
     }
@@ -761,6 +760,15 @@ export default function StudentActivityRunner() {
             <span className="rounded-full bg-blue-100 px-3 py-1 font-semibold text-blue-700">
               Curso: {activity.course_title}
             </span>
+
+            {(activity.classId ?? activity.class_id) && (
+              <span className="rounded-full bg-purple-100 px-3 py-1 font-semibold text-purple-700">
+                Turma:{" "}
+                {activity.className ||
+                  activity.class_name ||
+                  "turma específica"}
+              </span>
+            )}
 
             <span className="rounded-full bg-green-100 px-3 py-1 font-semibold text-green-700">
               Nota máxima: {activity.max_score}

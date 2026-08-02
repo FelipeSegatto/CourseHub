@@ -64,21 +64,15 @@ function StatusBadge({
       },
 
     not_started: {
-      label: "Não iniciado",
+      text: "Não iniciado",
       className:
         "bg-gray-100 text-gray-700",
       },
 
     in_progress: {
-      label: "Em andamento",
+      text: "Em andamento",
       className:
         "bg-blue-100 text-blue-700",
-      },
-
-    completed: {
-      label: "Concluído",
-      className:
-        "bg-green-100 text-green-700",
       },
     };
 

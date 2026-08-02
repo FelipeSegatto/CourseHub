@@ -92,12 +92,16 @@ export default function DashboardConteudo() {
         }
 
         /*
-         * Busca os conteúdos do curso.
+         * Busca os conteúdos visíveis para o aluno: gerais do
+         * curso + exclusivos da turma da sua matrícula ativa.
+         *
+         * Usa a rota autenticada em vez da pública para nunca
+         * expor conteúdo de outra turma.
          */
         let contentsData;
         try {
           contentsData = await apiFetch(
-            `/api/courses/${courseId}/contents`
+            `/api/students/courses/${courseId}/contents`
           );
         } catch (contentsRequestError) {
           throw new Error(
@@ -110,9 +114,9 @@ export default function DashboardConteudo() {
         if (ignoreRequest) return;
 
         const contentList = Array.isArray(
-          contentsData
+          contentsData?.contents
         )
-          ? contentsData
+          ? contentsData.contents
           : [];
 
         setCourse(courseData);

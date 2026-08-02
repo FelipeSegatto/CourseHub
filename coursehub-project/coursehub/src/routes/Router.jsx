@@ -4,7 +4,6 @@ import PublicLayout from "../layouts/PublicLayout";
 import AdminLayout from "../layouts/AdminLayout";
 import MainLayout from "../layouts/MainLayout";
 import TeacherLayout from "../layouts/TeacherLayout";
-import AuthLayout from "../layouts/AuthLayout";
 
 import LoginPage from "../pages/auth/LoginPage";
 import SignUpPage from "../pages/auth/SignUpPage";
@@ -14,7 +13,6 @@ import ResetPassword from "../pages/auth/ResetPassword";
 
 import HomePage from "../pages/public/HomePage";
 import DashboardPage from "../pages/public/DashboardPage";
-import ProfilePage from "../pages/public/ProfilePage";
 import AboutPage from "../pages/public/AboutPage";
 import CoursesPage from "../pages/public/CoursesPage";
 import CoursePage from "../pages/public/CoursePage";
@@ -30,6 +28,7 @@ import NotasAluno from "../pages/aluno/NotasAluno";
 import ProgressoAluno from "../pages/aluno/ProgressoAluno";
 import FinanceiroAluno from "../pages/aluno/FinanceiroAluno";
 import StudentActivityRunner from "../pages/aluno/StudentActivityRunner";
+import CalendarioAluno from "../pages/aluno/CalendarioAluno";
 
 import HomeAdmin from "../pages/admin/HomeAdmin";
 import DashboardAdmin from "../pages/admin/DashboardAdmin";
@@ -42,6 +41,7 @@ import FinancialContractsDetails from "../pages/admin/financial/FinancialContrac
 import FinancialInvoices from "../pages/admin/financial/FinancialInvoices";
 import FinancialInvoicesDetails from "../pages/admin/financial/FinancialInvoicesDetails";
 import FinancialDashboard from "../pages/admin/financial/FinancialDashboard";
+import CalendarioAdmin from "../pages/admin/CalendarioAdmin";
 
 import HomeProfessor from "../pages/professor/HomeProfessor";
 import DashboardProfessor from "../pages/professor/DashboardProfessor";
@@ -55,6 +55,7 @@ import ActivitySubmissionsProfessor from "../pages/professor/ActivitySubmissionP
 import SubmissionReviewProfessor from "../pages/professor/SubmissionReviewProfessor";
 import AttendanceProfessor from "../pages/professor/AttendanceProfessor";
 import GradesProfessor from "../pages/professor/GradesProfessor";
+import CalendarioProfessor from "../pages/professor/CalendarioProfessor";
 
 
 
@@ -238,6 +239,10 @@ export const router = createBrowserRouter([
                 element: <ProgressoAluno />,
               },
               {
+                path: "calendario",
+                element: <CalendarioAluno />,
+              },
+              {
                 path: "perfil",
                 element: <UserProfile />,
               },
@@ -315,6 +320,10 @@ export const router = createBrowserRouter([
               {
                 path: "emissao",
                 element: <EmissaoAdmin />,
+              },
+              {
+                path: "calendario",
+                element: <CalendarioAdmin />,
               },
               {
                 path: "perfil",
@@ -435,7 +444,7 @@ export const router = createBrowserRouter([
                 element: <MaterialProfessor />,
               },
               {
-                path: "atividades/courses/:id",
+                path: "turmas/:classId/materiais",
                 element: <MaterialPlayer />,
               },
 
@@ -446,6 +455,10 @@ export const router = createBrowserRouter([
               {
                 path: "notas",
                 element: <GradesProfessor />,
+              },
+              {
+                path: "calendario",
+                element: <CalendarioProfessor />,
               },
               {
                 path: "perfil",
@@ -462,7 +475,7 @@ export const router = createBrowserRouter([
     ],
   },
 
-  
+
 
   // =========================================================
   // ROTA GLOBAL 404

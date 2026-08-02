@@ -1,5 +1,5 @@
 const bcrypt = require("bcryptjs");
-const db = require("./db");
+const db = require("../../../backend/db");
 
 async function migratePasswords() {
   const [users] = await db.promise().query(

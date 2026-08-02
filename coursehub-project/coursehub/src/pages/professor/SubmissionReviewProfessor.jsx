@@ -439,6 +439,15 @@ export default function SubmissionReviewProfessor() {
               <p className="mt-2 text-gray-600">
                 Curso: {submission.course_name}
               </p>
+
+              {(submission.classId ?? submission.class_id) && (
+                <p className="mt-1 text-sm font-semibold text-purple-700">
+                  Turma:{" "}
+                  {submission.className ||
+                    submission.class_name ||
+                    "turma específica"}
+                </p>
+              )}
             </div>
 
             <StatusBadge

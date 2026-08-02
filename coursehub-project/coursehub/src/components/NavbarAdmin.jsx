@@ -21,6 +21,10 @@ export default function NavbarAdmin() {
       label: "Emissão",
       to: "/admin/emissao",
     },
+    {
+      label: "Calendário",
+      to: "/admin/calendario",
+    },
   ];
 
   const courseItems = [

@@ -8,7 +8,6 @@ export default function CourseAluno() {
   const {
   matriculas,
   loading,
-  error,
 } = useEnrollment();
 
   if (loading) {

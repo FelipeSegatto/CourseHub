@@ -252,6 +252,7 @@ export default function ActivitySubmissionProfessor() {
   const columns = [
     { key: "student", label: "Aluno" },
     { key: "registration", label: "Matrícula" },
+    { key: "class", label: "Turma" },
     { key: "submittedAt", label: "Enviado em" },
     { key: "status", label: "Status" },
     { key: "score", label: "Nota" },
@@ -279,7 +280,9 @@ export default function ActivitySubmissionProfessor() {
         }
         description={
           activity
-            ? `Acompanhe e corrija os envios da ${entityLabel} no curso ${activity.course_name}.`
+            ? (activity.classId ?? activity.class_id)
+              ? `Acompanhe e corrija os envios da ${entityLabel} no curso ${activity.course_name}, exclusiva da turma ${activity.className || activity.class_name || ""}.`
+              : `Acompanhe e corrija os envios da ${entityLabel} no curso ${activity.course_name}.`
             : "Acompanhe os envios dos alunos e realize as correções."
         }
         createButtonText=""
@@ -373,6 +376,12 @@ export default function ActivitySubmissionProfessor() {
 
                   <td className="py-5 text-gray-600">
                     {submission.registration_number ||
+                      "-"}
+                  </td>
+
+                  <td className="py-5 text-gray-600">
+                    {submission.className ||
+                      submission.class_name ||
                       "-"}
                   </td>
 

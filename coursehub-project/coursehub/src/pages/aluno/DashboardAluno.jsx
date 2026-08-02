@@ -6,12 +6,9 @@ import HeroGreetingsText from "../../components/HeroGreetingsText";
 export default function DashboardAluno() {
   const { usuarioLogado } = useAuth();
 
-   const studentId = usuarioLogado?.id;
-   
    const {
       matriculas,
       loading,
-      error,
     } = useEnrollment();
 
   if (loading) {

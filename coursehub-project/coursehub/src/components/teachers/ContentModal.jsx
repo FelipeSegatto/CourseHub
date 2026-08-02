@@ -5,6 +5,7 @@ function ContentModal({
   mode = "create",
   variant = "content",
   courses = [],
+  classes = [],
   courseId = null,
   content = null,
   userId,
@@ -19,6 +20,7 @@ function ContentModal({
 
   const [formData, setFormData] = useState({
     course_id: courseId ? String(courseId) : "",
+    class_id: "",
     title: "",
     description: "",
     type: "video",
@@ -28,6 +30,19 @@ function ContentModal({
     is_required: true,
     status: "active",
   });
+
+  /*
+   * Turmas do curso atualmente selecionado no formulário.
+   * A turma só pode ser escolhida depois que um curso é
+   * selecionado, e a lista se recalcula ao trocar de curso.
+   */
+  const classesForSelectedCourse = formData.course_id
+    ? classes.filter(
+        (classItem) =>
+          String(classItem.courseId ?? classItem.course_id) ===
+          String(formData.course_id)
+      )
+    : [];
 
   const modalTitle = isEditMode
     ? isContentVariant
@@ -66,11 +81,18 @@ function ContentModal({
       content
     );
 
+    const editingClassId =
+      content.classId ?? content.class_id ?? null;
+
     setFormData({
       course_id:
         content.course_id !== null &&
         content.course_id !== undefined
           ? String(content.course_id)
+          : "",
+      class_id:
+        editingClassId !== null && editingClassId !== undefined
+          ? String(editingClassId)
           : "",
       title: content.title || "",
       description: content.description || "",
@@ -119,6 +141,12 @@ function ContentModal({
         type === "checkbox"
           ? checked
           : value,
+
+      /*
+       * Trocar de curso invalida a turma escolhida — as turmas
+       * disponíveis são recalculadas para o novo curso.
+       */
+      ...(name === "course_id" ? { class_id: "" } : {}),
     }));
   }
 
@@ -190,6 +218,9 @@ function ContentModal({
     const payload = {
       userId: Number(userId),
       course_id: Number(formData.course_id),
+      class_id: formData.class_id
+        ? Number(formData.class_id)
+        : null,
       title: formData.title.trim(),
       description:
         formData.description.trim() || null,
@@ -330,6 +361,37 @@ function ContentModal({
             {courses.length === 0 && (
               <p className="mt-2 text-xs font-medium text-red-600">
                 Nenhum curso foi encontrado para este professor.
+              </p>
+            )}
+          </label>
+
+          <label className={labelClass}>
+            Turma
+
+            <select
+              name="class_id"
+              value={formData.class_id}
+              onChange={handleChange}
+              disabled={!formData.course_id}
+              className={inputClass}
+            >
+              <option value="">
+                Todas as turmas do curso
+              </option>
+
+              {classesForSelectedCourse.map((classItem) => (
+                <option
+                  key={classItem.id}
+                  value={classItem.id}
+                >
+                  {classItem.name}
+                </option>
+              ))}
+            </select>
+
+            {!formData.course_id && (
+              <p className="mt-2 text-xs text-gray-500">
+                Selecione um curso para escolher uma turma.
               </p>
             )}
           </label>

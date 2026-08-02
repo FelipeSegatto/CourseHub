@@ -7,7 +7,6 @@ import {
 import { formatCurrency } from "./financeUtils";
 
 export default function FinanceStatusBanner({
-  contract,
   invoices = [],
 }) {
   const overdueInvoices = invoices.filter(

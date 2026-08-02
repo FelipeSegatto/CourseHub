@@ -135,8 +135,15 @@ export default function NotasAluno() {
           error
         );
 
+        /*
+         * Nunca mantém notas antigas na tela após uma
+         * resposta inválida (ex.: 403/404).
+         */
+        setGrades([]);
+
         setError(
-          error.message ||
+          error.data?.message ||
+            error.message ||
             "Não foi possível carregar suas notas."
         );
       } finally {

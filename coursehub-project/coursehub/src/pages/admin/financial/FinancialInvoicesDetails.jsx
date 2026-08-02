@@ -128,7 +128,6 @@ function SummaryCard({
 
 export default function FinancialInvoicesDetails() {
  const { cobrancaId } = useParams();
- const invoiceId = cobrancaId;
  const navigate = useNavigate();
 
 
