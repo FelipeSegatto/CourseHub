@@ -73,19 +73,6 @@ const sessionStatusFilterOptions = [
 ];
 
 
-function formatDate(dateValue) {
-  if (!dateValue) return "Data não informada";
-
-  const datePart = String(dateValue).split("T")[0];
-  const [year, month, day] = datePart.split("-");
-
-  if (!year || !month || !day) {
-    return "Data não informada";
-  }
-
-  return `${day}/${month}/${year}`;
-}
-
 function formatLongDate(dateValue) {
   if (!dateValue) return "Data não informada";
 
@@ -669,7 +656,6 @@ function SummaryCard({ title, value }) {
 
 function SessionCard({
   session,
-  classId,
   onEdit,
   onCancel,
   cancelling,

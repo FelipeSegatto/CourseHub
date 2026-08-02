@@ -30,9 +30,6 @@ export default function StudentActivityRunner() {
   const canResubmit =
     activity?.submission_status === "returned";
 
-  const hasSubmission =
-    Boolean(activity?.submission_id);
-
   const entityLabel = isExam ? "avaliação" : "atividade";
 
   const pluralEntityLabel = isExam
@@ -219,13 +216,15 @@ export default function StudentActivityRunner() {
 
             if (alreadySubmitted) {
         throw new Error(
-            "Esta avaliação já foi enviada."
+            "Esta avaliação já foi enviada.",
+            { cause: error }
         );
         }
 
         if (activity?.is_overdue) {
         throw new Error(
-            "O prazo desta avaliação já foi encerrado."
+            "O prazo desta avaliação já foi encerrado.",
+            { cause: error }
         );
         }
     }

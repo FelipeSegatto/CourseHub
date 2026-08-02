@@ -24,21 +24,6 @@ import StudentManagementPage from "../../components/students/StudentManagementPa
 import StatusBadge from "../../components/ui/StatusBadge";
 
 /*
- * Tipos de conteúdo que participam do progresso.
- *
- * Activities e exams não aparecem aqui porque utilizam
- * o fluxo acadêmico:
- *
- * activities -> submissions -> grades
- */
-const TRACKABLE_CONTENT_TYPES = [
-  "video",
-  "pdf",
-  "text",
-  "live_class",
-];
-
-/*
  * Cores dos gráficos de rosca.
  *
  * Conteúdo:

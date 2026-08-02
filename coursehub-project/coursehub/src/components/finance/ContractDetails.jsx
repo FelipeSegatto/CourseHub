@@ -52,15 +52,6 @@ export default function ContractDetails({ contract, payment }) {
     contract.endDate ||
     contract.end_date;
 
-  const installments =
-    contract.monthlyPaymentCount ||
-    contract.monthly_payment_count ||
-    contract.installments ||
-    contract.installmentCount ||
-    contract.installment_count;
-    
-
-
  const paymentMethod =
   payment?.paymentMethod ??
   payment?.payment_method ??
@@ -76,18 +67,6 @@ export default function ContractDetails({ contract, payment }) {
     ? `${getPaymentMethodLabel(paymentMethod)} · ${cardInstallments}x`
     : getPaymentMethodLabel(paymentMethod)
   : "Ainda não definida";
-  
-    
-    
-
-    const isCreditCard =
-    paymentMethod === "credit_card";
-
-    const billingType =
-    contract.billingType ??
-    contract.billing_type;
-
- 
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6">

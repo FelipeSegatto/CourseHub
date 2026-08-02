@@ -1,6 +1,5 @@
 import {
   CalendarDays,
-  CreditCard,
   GraduationCap,
 } from "lucide-react";
 
@@ -8,7 +7,6 @@ import {
   formatCurrency,
   formatDate,
   getContractStatusLabel,
-  getPaymentMethodLabel,
 } from "./financeUtils";
 
 export default function ContractCard({ contract }) {
@@ -35,10 +33,6 @@ export default function ContractCard({ contract }) {
     contract.installments ||
     contract.installmentCount ||
     contract.installment_count;
-
-  const paymentMethod =
-    contract.paymentMethod ||
-    contract.payment_method;
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-slate-300 hover:shadow-sm">

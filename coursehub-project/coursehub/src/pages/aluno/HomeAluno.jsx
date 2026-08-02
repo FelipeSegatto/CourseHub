@@ -1,4 +1,4 @@
-import { useState, useEffect, use } from "react";
+import { useState, useEffect } from "react";
 import CardCourses from "../../components/CardCourses";
 import CourseService from "../../services/CourseService";
 import HeroGreetingsText from "../../components/HeroGreetingsText";

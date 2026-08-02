@@ -4,7 +4,6 @@ import PublicLayout from "../layouts/PublicLayout";
 import AdminLayout from "../layouts/AdminLayout";
 import MainLayout from "../layouts/MainLayout";
 import TeacherLayout from "../layouts/TeacherLayout";
-import AuthLayout from "../layouts/AuthLayout";
 
 import LoginPage from "../pages/auth/LoginPage";
 import SignUpPage from "../pages/auth/SignUpPage";
@@ -14,7 +13,6 @@ import ResetPassword from "../pages/auth/ResetPassword";
 
 import HomePage from "../pages/public/HomePage";
 import DashboardPage from "../pages/public/DashboardPage";
-import ProfilePage from "../pages/public/ProfilePage";
 import AboutPage from "../pages/public/AboutPage";
 import CoursesPage from "../pages/public/CoursesPage";
 import CoursePage from "../pages/public/CoursePage";

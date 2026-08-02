@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
 
 import StudentManagementPage from "./StudentManagementPage";
@@ -75,8 +74,6 @@ export default function StudentActivitiesList({
   activityKind,
   infoCards = [],
 }) {
-  const { usuarioLogado } = useAuth();
-
   const [activities, setActivities] = useState([]);
   const [busca, setBusca] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
