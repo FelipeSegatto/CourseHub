@@ -8,6 +8,9 @@ const studentContentRoutes = require("./routes/studentContentRoutes");
 const teacherContentRoutes = require("./routes/teacherContentRoutes");
 const studentActivityRoutes = require("./routes/studentActivityRoutes");
 const teacherActivityRoutes = require("./routes/teacherActivityRoutes");
+const studentCalendarRoutes = require("./routes/studentCalendarRoutes");
+const teacherCalendarRoutes = require("./routes/teacherCalendarRoutes");
+const adminCalendarRoutes = require("./routes/adminCalendarRoutes");
 
 const {
   getPublicCourseContents,
@@ -7156,6 +7159,9 @@ app.use("/api", studentContentRoutes);
 app.use("/api", teacherContentRoutes);
 app.use("/api", studentActivityRoutes);
 app.use("/api", teacherActivityRoutes);
+app.use("/api", studentCalendarRoutes);
+app.use("/api", teacherCalendarRoutes);
+app.use("/api/admin/calendar", adminCalendarRoutes);
 
 
 /* ==========================================================

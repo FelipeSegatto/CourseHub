@@ -30,6 +30,7 @@ import NotasAluno from "../pages/aluno/NotasAluno";
 import ProgressoAluno from "../pages/aluno/ProgressoAluno";
 import FinanceiroAluno from "../pages/aluno/FinanceiroAluno";
 import StudentActivityRunner from "../pages/aluno/StudentActivityRunner";
+import CalendarioAluno from "../pages/aluno/CalendarioAluno";
 
 import HomeAdmin from "../pages/admin/HomeAdmin";
 import DashboardAdmin from "../pages/admin/DashboardAdmin";
@@ -42,6 +43,7 @@ import FinancialContractsDetails from "../pages/admin/financial/FinancialContrac
 import FinancialInvoices from "../pages/admin/financial/FinancialInvoices";
 import FinancialInvoicesDetails from "../pages/admin/financial/FinancialInvoicesDetails";
 import FinancialDashboard from "../pages/admin/financial/FinancialDashboard";
+import CalendarioAdmin from "../pages/admin/CalendarioAdmin";
 
 import HomeProfessor from "../pages/professor/HomeProfessor";
 import DashboardProfessor from "../pages/professor/DashboardProfessor";
@@ -55,6 +57,7 @@ import ActivitySubmissionsProfessor from "../pages/professor/ActivitySubmissionP
 import SubmissionReviewProfessor from "../pages/professor/SubmissionReviewProfessor";
 import AttendanceProfessor from "../pages/professor/AttendanceProfessor";
 import GradesProfessor from "../pages/professor/GradesProfessor";
+import CalendarioProfessor from "../pages/professor/CalendarioProfessor";
 
 
 
@@ -238,6 +241,10 @@ export const router = createBrowserRouter([
                 element: <ProgressoAluno />,
               },
               {
+                path: "calendario",
+                element: <CalendarioAluno />,
+              },
+              {
                 path: "perfil",
                 element: <UserProfile />,
               },
@@ -315,6 +322,10 @@ export const router = createBrowserRouter([
               {
                 path: "emissao",
                 element: <EmissaoAdmin />,
+              },
+              {
+                path: "calendario",
+                element: <CalendarioAdmin />,
               },
               {
                 path: "perfil",
@@ -448,6 +459,10 @@ export const router = createBrowserRouter([
                 element: <GradesProfessor />,
               },
               {
+                path: "calendario",
+                element: <CalendarioProfessor />,
+              },
+              {
                 path: "perfil",
                 element: <UserProfile />,
               },
@@ -462,7 +477,7 @@ export const router = createBrowserRouter([
     ],
   },
 
-  
+
 
   // =========================================================
   // ROTA GLOBAL 404

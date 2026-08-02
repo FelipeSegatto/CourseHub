@@ -1,15 +1,15 @@
 import { useAuth } from "../../auth/AuthContext";
 import CalendarPage from "../../components/calendar/CalendarPage";
 
-export default function CalendarioAluno() {
+export default function CalendarioProfessor() {
   const { usuarioLogado } = useAuth();
 
   return (
     <CalendarPage
-      role="student"
+      role="teacher"
       userId={usuarioLogado?.id}
       title="Calendário"
-      description="Acompanhe prazos de atividades e avaliações, aulas e eventos acadêmicos."
+      description="Prazos de correção, aulas das suas turmas e eventos acadêmicos."
     />
   );
 }
