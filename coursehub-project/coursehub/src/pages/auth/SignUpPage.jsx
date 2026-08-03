@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../services/APIService";
-import AuthLayout from "../../layouts/AuthLayout";
 
 export default function SignUpPage() {
   const navigate = useNavigate();
@@ -85,11 +84,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <AuthLayout
-      eyebrow="Comece sua jornada"
-      title="Novas possibilidades começam com um primeiro passo."
-      description="Crie sua conta para acessar cursos, atividades e recursos de aprendizagem."
-    >
+    <>
       <header>
         <p className="text-sm font-semibold text-blue-600">
           Crie sua conta
@@ -355,6 +350,6 @@ export default function SignUpPage() {
           </button>
         </p>
       </div>
-    </AuthLayout>
+    </>
   );
 }

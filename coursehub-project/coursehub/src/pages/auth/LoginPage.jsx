@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
-import AuthLayout from "../../layouts/AuthLayout";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -44,11 +43,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthLayout
-      eyebrow="Ambiente de aprendizagem"
-      title="Conhecimento ganha forma quando encontra espaço para crescer."
-      description="Acesse seus cursos, acompanhe seu progresso e continue exatamente de onde parou."
-    >
+    <>
       <header>
         <p className="text-sm font-semibold text-blue-600">
           Boas-vindas de volta
@@ -197,6 +192,6 @@ export default function LoginPage() {
           </button>
         </p>
       </div>
-    </AuthLayout>
+    </>
   );
 }

@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../services/APIService";
-import AuthLayout from "../../layouts/AuthLayout";
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -71,11 +70,7 @@ export default function ForgotPassword() {
   }
 
   return (
-    <AuthLayout
-      eyebrow="Recuperação de acesso"
-      title="Recupere seu acesso e continue sua jornada."
-      description="Informe o e-mail associado à sua conta para receber as instruções de redefinição de senha."
-    >
+    <>
       <button
         type="button"
         onClick={() => navigate("/login")}
@@ -205,7 +200,7 @@ export default function ForgotPassword() {
           </button>
         </p>
       </div>
-    </AuthLayout>
+    </>
   );
 }
 

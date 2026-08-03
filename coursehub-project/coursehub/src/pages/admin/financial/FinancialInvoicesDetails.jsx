@@ -10,7 +10,7 @@ import {
   useParams,
 } from "react-router-dom";
 
-import { getFinancialInvoiceDetails } from "../../../services/financialService";
+import { getFinancialInvoiceDetails } from "../../../services/FinancialService";
 
 import InvoiceStatusBadge from "../../../components/financial/InvoiceStatusBadge";
 import ChangeInvoiceDueDateModal from "../../../components/financial/ChangeInvoiceDueDateModal";

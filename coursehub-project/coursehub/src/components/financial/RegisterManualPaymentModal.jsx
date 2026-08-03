@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { registerManualPayment } from "../../services/financialService";
+import { registerManualPayment } from "../../services/FinancialService";
 
 import FinancialModal from "./FinancialModal";
 

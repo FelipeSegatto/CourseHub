@@ -7,7 +7,7 @@ import {
 
 import { useNavigate } from "react-router-dom";
 
-import { listFinancialContracts } from "../../../services/financialService";
+import { listFinancialContracts } from "../../../services/FinancialService";
 
 import FinancialContractsTable from "../../../components/financial/FinancialContractsTable";
 

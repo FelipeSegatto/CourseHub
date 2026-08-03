@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../../services/APIService";
-import AuthLayout from "../../layouts/AuthLayout";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -109,11 +108,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <AuthLayout
-      eyebrow="Segurança da conta"
-      title="Recomece com segurança e continue de onde parou."
-      description="Defina uma nova senha para recuperar o acesso à sua conta e continuar sua jornada no CourseHub."
-    >
+    <>
       <button
         type="button"
         onClick={() => navigate("/login")}
@@ -273,7 +268,7 @@ export default function ResetPassword() {
           </button>
         </p>
       </div>
-    </AuthLayout>
+    </>
   );
 }
 

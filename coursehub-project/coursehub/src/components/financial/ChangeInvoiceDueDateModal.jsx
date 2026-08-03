@@ -7,7 +7,7 @@ import FinancialModal from "./FinancialModal";
 
 import {
   changeInvoiceDueDate,
-} from "../../services/financialService";
+} from "../../services/FinancialService";
 
 function getCurrentDueDate(invoice) {
   const value =

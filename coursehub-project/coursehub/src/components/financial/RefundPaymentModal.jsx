@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { refundPayment } from "../../services/financialService";
+import { refundPayment } from "../../services/FinancialService";
 
 import FinancialModal from "./FinancialModal";
 
