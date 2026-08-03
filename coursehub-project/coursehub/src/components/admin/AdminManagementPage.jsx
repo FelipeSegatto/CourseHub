@@ -82,7 +82,11 @@ function AdminManagementPage({
                 key={action.title}
                 title={action.title}
                 description={action.description}
+                icon={action.icon}
+                to={action.to}
                 onClick={action.onClick}
+                disabled={action.disabled}
+                disabledReason={action.disabledReason}
               />
             ))}
           </div>

@@ -38,12 +38,14 @@ const teacherAttendanceRoutes = require("./routes/teacherAttendanceRoutes");
 const teacherContentRoutes = require("./routes/teacherContentRoutes");
 const teacherActivityRoutes = require("./routes/teacherActivityRoutes");
 const teacherCalendarRoutes = require("./routes/teacherCalendarRoutes");
+const teacherDashboardRoutes = require("./routes/teacherDashboardRoutes");
 
 const adminStudentRoutes = require("./routes/adminStudentRoutes");
 const adminTeacherRoutes = require("./routes/adminTeacherRoutes");
 const adminCourseRoutes = require("./routes/adminCourseRoutes");
 const adminFinancialRoutes = require("./routes/adminFinancialRoutes");
 const adminCalendarRoutes = require("./routes/adminCalendarRoutes");
+const adminDashboardRoutes = require("./routes/adminDashboardRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -85,12 +87,14 @@ app.use("/api", teacherAttendanceRoutes);
 app.use("/api", teacherContentRoutes);
 app.use("/api", teacherActivityRoutes);
 app.use("/api", teacherCalendarRoutes);
+app.use("/api", teacherDashboardRoutes);
 
 app.use("/api", adminStudentRoutes);
 app.use("/api", adminTeacherRoutes);
 app.use("/api", adminCourseRoutes);
 app.use("/api/admin/financial", adminFinancialRoutes);
 app.use("/api/admin/calendar", adminCalendarRoutes);
+app.use("/api", adminDashboardRoutes);
 
 /* ==========================================================
    INICIALIZAÇÃO DA API
