@@ -14,6 +14,10 @@ export default function NavbarAdmin() {
       to: "/admin/dashboard-admin",
     },
     {
+      label: "Usuários",
+      to: "/admin/usuarios",
+    },
+    {
       label: "Relatórios",
       to: "/admin/relatorios",
     },

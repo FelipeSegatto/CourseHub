@@ -9,6 +9,7 @@ const {
   createCourse,
   updateCourse,
   deleteCourse,
+  listActivePricingPlansByCourse,
 } = require("../services/admin/adminCourseService");
 
 const router = express.Router();
@@ -124,6 +125,24 @@ router.delete(
       });
     } catch (error) {
       return handleServiceError(res, error, "Erro ao arquivar curso.");
+    }
+  }
+);
+
+/**
+ * GET /api/admin/courses/:id/pricing-plans
+ */
+router.get(
+  "/admin/courses/:id/pricing-plans",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const plans = await listActivePricingPlansByCourse(db, req.params.id);
+
+      return res.status(200).json(plans);
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao buscar planos de preço do curso.");
     }
   }
 );

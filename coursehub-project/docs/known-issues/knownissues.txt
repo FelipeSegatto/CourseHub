@@ -117,3 +117,36 @@ backend/
 └── middlewares/
 
 Todo o projeto deverá utilizar exclusivamente esta pasta para autenticação, autorização, rate limiting e demais middlewares.
+
+---
+
+### 3. Matrícula administrativa (Fase 2) — sem geração de faturas, mudança de curso e troca de role limitadas
+
+**Status: comportamento deliberado desta fase, documentado, não é um bug.**
+
+`POST /api/admin/enrollments` cria a matrícula e o contrato financeiro
+(`financial_contracts`) juntos, numa transação, copiando os dados do plano
+de preço selecionado. Nenhuma `invoice` é gerada automaticamente — nenhum
+lugar do backend (antes ou depois desta fase) gera faturas a partir de um
+contrato; construir isso exigiria um motor de parcelamento/vencimentos que
+não existe hoje. Um curso sem nenhum plano de preço ativo não pode receber
+novas matrículas por este endpoint até que um plano seja cadastrado
+diretamente no banco (não há tela de gestão de planos nesta fase).
+
+Mudança de curso de uma matrícula existente é bloqueada com 409 — trocar
+`course_id` tem consequências acadêmicas/financeiras maiores (contrato
+ligado ao plano do curso antigo, progresso ligado ao conteúdo do curso
+antigo) que não foram tratadas nesta fase. Fica como evolução futura.
+
+`PATCH /api/admin/users/:id/role` é bloqueado sempre que a conta já possui
+uma entidade acadêmica/profissional vinculada (`students`/`teachers`) —
+converter uma entidade em outra exigiria um fluxo de migração de dados que
+não existe (campos diferentes entre as tabelas, sem conversão automática).
+Na prática, hoje o endpoint só tem efeito em contas sem vínculo (admins).
+
+Não existe tabela de auditoria genérica no schema. A troca de turma de uma
+matrícula (`POST /api/admin/enrollments/:id/change-class`) registra
+motivo/ator/data diretamente em 3 colunas novas de `enrollments`
+(`class_change_reason`, `class_changed_at`, `class_changed_by_user_id`, ver
+`database/migrations/20260803_001_add_class_change_audit_to_enrollments.sql`),
+não num log reutilizável por outras entidades.

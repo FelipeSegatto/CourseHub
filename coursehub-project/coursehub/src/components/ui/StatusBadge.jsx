@@ -63,6 +63,21 @@ function StatusBadge({
       className: "bg-green-100 text-green-700",
       },
 
+    finished: {
+      text: "Finalizada",
+      className: "bg-gray-100 text-gray-700",
+      },
+
+    cancelled: {
+      text: "Cancelada",
+      className: "bg-red-100 text-red-700",
+      },
+
+    locked: {
+      text: "Bloqueada",
+      className: "bg-orange-100 text-orange-700",
+      },
+
     not_started: {
       text: "Não iniciado",
       className:
