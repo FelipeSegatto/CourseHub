@@ -353,6 +353,35 @@ async function deleteCourse(db, id) {
   }
 }
 
+/**
+ * Lista os planos de preço ATIVOS de um curso — usado pela criação
+ * de matrícula para o admin escolher qual plano gera o contrato
+ * financeiro. Não há tela de gestão de planos nesta fase; isto é
+ * só leitura do que já existe.
+ */
+async function listActivePricingPlansByCourse(db, courseId) {
+  const normalizedCourseId = Number(courseId);
+
+  if (!Number.isInteger(normalizedCourseId) || normalizedCourseId <= 0) {
+    throw createServiceError("ID do curso inválido.", 400);
+  }
+
+  const [rows] = await db.promise().query(
+    `
+      SELECT
+        id, course_id, name, description, billing_type, total_amount,
+        monthly_payment_count, monthly_payment_amount, max_card_installments,
+        accepts_pix, accepts_boleto, accepts_credit_card, status
+      FROM course_pricing_plans
+      WHERE course_id = ? AND status = 'active'
+      ORDER BY total_amount ASC
+    `,
+    [normalizedCourseId]
+  );
+
+  return rows;
+}
+
 module.exports = {
   createServiceError,
   listCourses,
@@ -360,4 +389,5 @@ module.exports = {
   createCourse,
   updateCourse,
   deleteCourse,
+  listActivePricingPlansByCourse,
 };

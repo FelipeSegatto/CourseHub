@@ -36,6 +36,9 @@ import DashboardAdmin from "../pages/admin/DashboardAdmin";
 import CourseAdmin from "../pages/admin/CourseAdmin";
 import StudentsAdmin from "../pages/admin/StudentsAdmin";
 import TeachersAdmin from "../pages/admin/TeachersAdmin";
+import ClassesAdmin from "../pages/admin/ClassesAdmin";
+import UsersAdmin from "../pages/admin/UsersAdmin";
+import EnrollmentsAdmin from "../pages/admin/EnrollmentsAdmin";
 import EmissaoAdmin from "../pages/admin/EmissaoAdmin";
 import FinancialContracts from "../pages/admin/financial/FinancialContracts";
 import FinancialContractsDetails from "../pages/admin/financial/FinancialContractsDetails";
@@ -298,6 +301,18 @@ export const router = createBrowserRouter([
               {
                 path: "professores",
                 element: <TeachersAdmin />,
+              },
+              {
+                path: "turmas",
+                element: <ClassesAdmin />,
+              },
+              {
+                path: "usuarios",
+                element: <UsersAdmin />,
+              },
+              {
+                path: "matriculas",
+                element: <EnrollmentsAdmin />,
               },
               {
                 path: "financeiro",
