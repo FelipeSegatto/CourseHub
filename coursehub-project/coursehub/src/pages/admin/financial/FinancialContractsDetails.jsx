@@ -13,7 +13,7 @@ import {
 import {
   getFinancialContractDetails,
   getFinancialContractEvents,
-} from "../../../services/financialService";
+} from "../../../services/FinancialService";
 
 import ContractStatusBadge from "../../../components/financial/ContractStatusBadge";
 import ContractInvoicesTable from "../../../components/financial/ContractInvoicesTable";

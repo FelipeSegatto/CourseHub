@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { cancelInvoice } from "../../services/financialService";
+import { cancelInvoice } from "../../services/FinancialService";
 
 import FinancialModal from "./FinancialModal";
 

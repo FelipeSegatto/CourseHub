@@ -12,7 +12,7 @@ import {
 
 import {
   listFinancialInvoices,
-} from "../../../services/financialService";
+} from "../../../services/FinancialService";
 
 import FinancialInvoicesTable from "../../../components/financial/FinancialInvoicesTable";
 

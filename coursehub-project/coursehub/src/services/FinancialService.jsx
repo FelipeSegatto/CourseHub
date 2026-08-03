@@ -1,4 +1,4 @@
-import { apiFetch } from "./apiService";
+import { apiFetch } from "./APIService";
 
 function buildQueryString(params = {}) {
   const query = new URLSearchParams();

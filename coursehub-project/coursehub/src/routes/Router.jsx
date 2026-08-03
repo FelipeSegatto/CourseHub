@@ -4,6 +4,7 @@ import PublicLayout from "../layouts/PublicLayout";
 import AdminLayout from "../layouts/AdminLayout";
 import MainLayout from "../layouts/MainLayout";
 import TeacherLayout from "../layouts/TeacherLayout";
+import AuthLayout from "../layouts/AuthLayout";
 
 import LoginPage from "../pages/auth/LoginPage";
 import SignUpPage from "../pages/auth/SignUpPage";
@@ -121,38 +122,39 @@ export const router = createBrowserRouter([
         path:"portal",
         element: <DashboardPage />,
       },
-
-      // ============================
-      // RECUPERAÇÃO DE SENHA
-      // ============================
-
-      {
-        path: "esqueci-minha-senha",
-        element: <ForgotPassword />,
-      },
-      {
-        path: "redefinir-senha",
-        element: <ResetPassword />,
-      },
     ],
   },
 
   // =========================================================
-  // LOGIN E CADASTRO
+  // LOGIN, CADASTRO E RECUPERAÇÃO DE SENHA
+  // Login/cadastro redirecionam usuários já autenticados;
+  // recuperação de senha fica acessível independente da sessão.
   // =========================================================
 
   {
-    element: <PublicOnlyRoute />,
+    element: <AuthLayout />,
     children: [
       {
-        path: "/login",
-        element: <LoginPage />,
+        element: <PublicOnlyRoute />,
+        children: [
+          {
+            path: "/login",
+            element: <LoginPage />,
+          },
+          {
+            path: "/register",
+            element: <SignUpPage />,
+          },
+        ],
       },
       {
-        path: "/register",
-        element: <SignUpPage />,
+        path: "/esqueci-minha-senha",
+        element: <ForgotPassword />,
       },
-    
+      {
+        path: "/redefinir-senha",
+        element: <ResetPassword />,
+      },
     ],
   },
 

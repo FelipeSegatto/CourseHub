@@ -1,12 +1,45 @@
+import { Outlet, useLocation } from "react-router-dom";
 import CourseHubLogo from "../components/logo/Logo";
 import loginBackground from "../assets/login-bg.webp";
 
-export default function AuthLayout({
-  children,
-  eyebrow = "CourseHub",
-  title = "Aprender também é encontrar novas perspectivas.",
-  description = "Acesse sua conta e continue sua jornada de aprendizagem.",
-}) {
+const AUTH_COPY_BY_PATH = {
+  "/login": {
+    eyebrow: "Ambiente de aprendizagem",
+    title: "Conhecimento ganha forma quando encontra espaço para crescer.",
+    description:
+      "Acesse seus cursos, acompanhe seu progresso e continue exatamente de onde parou.",
+  },
+  "/register": {
+    eyebrow: "Comece sua jornada",
+    title: "Novas possibilidades começam com um primeiro passo.",
+    description:
+      "Crie sua conta para acessar cursos, atividades e recursos de aprendizagem.",
+  },
+  "/esqueci-minha-senha": {
+    eyebrow: "Recuperação de acesso",
+    title: "Recupere seu acesso e continue sua jornada.",
+    description:
+      "Informe o e-mail associado à sua conta para receber as instruções de redefinição de senha.",
+  },
+  "/redefinir-senha": {
+    eyebrow: "Segurança da conta",
+    title: "Recomece com segurança e continue de onde parou.",
+    description:
+      "Defina uma nova senha para recuperar o acesso à sua conta e continuar sua jornada no CourseHub.",
+  },
+};
+
+const DEFAULT_AUTH_COPY = {
+  eyebrow: "CourseHub",
+  title: "Aprender também é encontrar novas perspectivas.",
+  description: "Acesse sua conta e continue sua jornada de aprendizagem.",
+};
+
+export default function AuthLayout() {
+  const { pathname } = useLocation();
+  const { eyebrow, title, description } =
+    AUTH_COPY_BY_PATH[pathname] || DEFAULT_AUTH_COPY;
+
   return (
     <main className="min-h-screen bg-slate-50 lg:grid lg:grid-cols-[1.1fr_0.9fr]">
       {/* Área visual */}
@@ -60,7 +93,7 @@ export default function AuthLayout({
             />
           </div>
 
-          {children}
+          <Outlet />
         </div>
       </section>
     </main>
