@@ -21,13 +21,22 @@ function extractTime(due_date) {
   return formatTimeOnly(`${hours}:${minutes}:00`);
 }
 
+function buildDeepLink(row, { role }) {
+  if (role === "teacher") {
+    return row.class_id
+      ? `/professor/turmas/${row.class_id}/materiais`
+      : "/professor/materiais";
+  }
+
+  if (role === "admin") {
+    return "/admin/materiais";
+  }
+
+  return `/aluno/dashboard-aluno/courses/${row.course_id}`;
+}
+
 function toBasicDto(row, { role }) {
-  const deepLink =
-    role === "teacher"
-      ? row.class_id
-        ? `/professor/turmas/${row.class_id}/materiais`
-        : "/professor/materiais"
-      : `/aluno/dashboard-aluno/courses/${row.course_id}`;
+  const deepLink = buildDeepLink(row, { role });
 
   return {
     id: `course-content:${row.id}`,

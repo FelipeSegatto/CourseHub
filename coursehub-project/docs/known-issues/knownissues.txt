@@ -150,3 +150,30 @@ motivo/ator/data diretamente em 3 colunas novas de `enrollments`
 (`class_change_reason`, `class_changed_at`, `class_changed_by_user_id`, ver
 `database/migrations/20260803_001_add_class_change_audit_to_enrollments.sql`),
 não num log reutilizável por outras entidades.
+
+---
+
+### 4. `course_contents` com tipos legados (`activity`/`assessment`) e dedup de `live_class` por convenção (Fase 3)
+
+**Status: dado legado preservado sem migração; regra de calendário é uma
+convenção de aplicação, não uma constraint de banco.**
+
+O enum `course_contents.type` ainda inclui os valores `'activity'` e
+`'assessment'`, herdados de antes da tabela `activities` existir. Hoje
+existem 19 linhas reais com esses tipos (10 `activity` + 9 `assessment`,
+todas de 2026-06-24) — texto solto e alguns links de Google Forms, sem
+`due_date`. Elas já são invisíveis para professor e aluno (`teacherCourseContentService.js`/`studentCourseContentService.js`
+filtram por `CONTENT_TYPES = ["video","pdf","text","live_class"]`), e
+`adminContentService.js` (Fase 3) reaproveita a mesma allowlist — nunca
+lista, cria ou edita essas 19 linhas. Nenhuma migração ou limpeza foi feita;
+os dados continuam no banco, só inacessíveis pela aplicação.
+
+A exclusão de `course_contents.type = 'live_class'` do calendário (para não
+duplicar com `class_sessions`, a fonte oficial de encontros) depende
+inteiramente de `due_date IS NULL` — não existe nenhuma constraint de banco
+impedindo que uma linha `live_class` receba um `due_date` no futuro. A partir
+da Fase 3, `adminContentService.createMaterial`/`updateMaterial` bloqueiam
+explicitamente `due_date` para `type = 'live_class'` (400), mas isso é uma
+regra de aplicação — um `UPDATE` direto no banco (fora da API) ainda
+poderia reintroduzir a duplicação. Ficou documentado aqui em vez de virar
+uma constraint `CHECK`, que não foi pedida nesta fase.

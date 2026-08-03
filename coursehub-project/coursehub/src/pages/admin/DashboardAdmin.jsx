@@ -41,6 +41,11 @@ const quickActions = [
     disabled: true,
     disabledReason: "Em breve — certificados ainda não têm dados reais nesta versão.",
   },
+  {
+    title: "Gerenciar materiais",
+    description: "Vídeos, PDFs, textos e aulas ao vivo de todos os cursos.",
+    to: "/admin/materiais",
+  },
 ];
 
 export default function DashboardAdmin() {

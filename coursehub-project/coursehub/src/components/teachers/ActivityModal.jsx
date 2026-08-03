@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../services/APIService";
 
 function formatDateForInput(date) {
@@ -59,9 +59,32 @@ export default function ActivityModal({
   classes = [],
   activityKind = "activity",
   userId,
+  /*
+   * Permite reaproveitar este modal fora do contexto de professor
+   * (ex.: admin, que tem escopo global e não tem `userId` de
+   * professor). Quando omitido, mantém exatamente os endpoints de
+   * professor já usados hoje — comportamento 100% inalterado.
+   */
+  endpoints = null,
   handleCloseModal,
   onSuccess,
 }) {
+  const fetchDetailEndpoint = useCallback(
+    (activityId) =>
+      endpoints?.fetchDetail
+        ? endpoints.fetchDetail(activityId)
+        : `/api/teacher/by-user/${userId}/activities/${activityId}/full`,
+    [endpoints, userId]
+  );
+
+  const createEndpoint = () =>
+    endpoints?.create ? endpoints.create() : "/api/activities";
+
+  const updateEndpoint = (activityId) =>
+    endpoints?.update
+      ? endpoints.update(activityId)
+      : `/api/teacher/by-user/${userId}/activities/${activityId}`;
+
   const isEditMode = mode === "edit";
   const isExam = activityKind === "exam";
 
@@ -141,9 +164,7 @@ export default function ActivityModal({
 
         let data;
         try {
-          data = await apiFetch(
-            `/api/teacher/by-user/${userId}/activities/${activity.id}/full`
-          );
+          data = await apiFetch(fetchDetailEndpoint(activity.id));
         } catch (loadActivityError) {
           throw new Error(
             loadActivityError.data?.message ||
@@ -247,6 +268,7 @@ export default function ActivityModal({
     activity?.id,
     userId,
     activityKind,
+    fetchDetailEndpoint,
   ]);
 
   function handleChange(event) {
@@ -451,7 +473,7 @@ export default function ActivityModal({
       throw new Error("Selecione um curso.");
     }
 
-    if (!userId) {
+    if (!userId && !endpoints) {
       throw new Error(
         "Usuário do professor não encontrado."
       );
@@ -627,8 +649,8 @@ export default function ActivityModal({
       };
 
       const endpoint = isEditMode
-        ? `/api/teacher/by-user/${userId}/activities/${activity.id}`
-        : "/api/activities";
+        ? updateEndpoint(activity.id)
+        : createEndpoint();
 
       const method = isEditMode
         ? "PUT"

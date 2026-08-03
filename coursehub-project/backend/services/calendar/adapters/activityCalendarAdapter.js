@@ -39,8 +39,9 @@ function buildDeepLink(row, { role }) {
     return isExam ? `/aluno/avaliacoes/${row.id}` : `/aluno/atividades/${row.id}`;
   }
 
-  // Não existe página de detalhe de atividade do lado do admin hoje.
-  return null;
+  // Não há detalhe por ID do lado admin — leva para a listagem já
+  // filtrável (ActivitiesAdmin/AssessmentsAdmin).
+  return isExam ? "/admin/avaliacoes" : "/admin/atividades";
 }
 
 function toBasicDto(row, { role }) {

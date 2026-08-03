@@ -6,10 +6,16 @@ const {
 
 const { resolveActivityClassScope } = require("./activityScopeService");
 
+const {
+  isOptionCorrect,
+  validateQuestions,
+  buildQuestionStructureForDiff,
+  haveQuestionsChanged,
+} = require("./activityQuestionService");
+
 const ALLOWED_ACTIVITY_KINDS = ["activity", "exam"];
 const ALLOWED_ACTIVITY_TYPES = ["mixed", "quiz", "text", "upload"];
 const ALLOWED_STATUSES = ["active", "inactive", "draft", "archived"];
-const ALLOWED_QUESTION_TYPES = ["multiple_choice", "text", "upload"];
 
 function normalizePositiveId(value) {
   const normalized = Number(value);
@@ -40,89 +46,6 @@ function normalizeActivityClassId(rawClassId) {
   }
 
   return normalized;
-}
-
-function isOptionCorrect(option) {
-  return (
-    option.is_correct === true ||
-    option.is_correct === 1 ||
-    option.is_correct === "1" ||
-    option.is_correct === "true"
-  );
-}
-
-/**
- * Valida a lista de questões de uma atividade. Lança erro de
- * negócio (400) na primeira inconsistência encontrada.
- */
-function validateQuestions(questions) {
-  if (!Array.isArray(questions) || questions.length === 0) {
-    throw createServiceError(
-      "Adicione pelo menos uma questão.",
-      400
-    );
-  }
-
-  questions.forEach((question, questionIndex) => {
-    const displayedQuestionNumber = questionIndex + 1;
-
-    if (!question.question_text?.trim()) {
-      throw createServiceError(
-        `O enunciado da questão ${displayedQuestionNumber} é obrigatório.`,
-        400
-      );
-    }
-
-    if (!ALLOWED_QUESTION_TYPES.includes(question.question_type)) {
-      throw createServiceError(
-        `O tipo da questão ${displayedQuestionNumber} é inválido.`,
-        400
-      );
-    }
-
-    if (
-      question.points !== undefined &&
-      question.points !== null &&
-      Number(question.points) <= 0
-    ) {
-      throw createServiceError(
-        `A pontuação da questão ${displayedQuestionNumber} deve ser maior que zero.`,
-        400
-      );
-    }
-
-    if (question.question_type === "multiple_choice") {
-      if (
-        !Array.isArray(question.options) ||
-        question.options.length < 2
-      ) {
-        throw createServiceError(
-          `A questão ${displayedQuestionNumber} precisa ter pelo menos duas alternativas.`,
-          400
-        );
-      }
-
-      const hasEmptyOption = question.options.some(
-        (option) => !option.option_text?.trim()
-      );
-
-      if (hasEmptyOption) {
-        throw createServiceError(
-          `Preencha todas as alternativas da questão ${displayedQuestionNumber}.`,
-          400
-        );
-      }
-
-      const hasCorrectOption = question.options.some(isOptionCorrect);
-
-      if (!hasCorrectOption) {
-        throw createServiceError(
-          `Marque pelo menos uma alternativa correta na questão ${displayedQuestionNumber}.`,
-          400
-        );
-      }
-    }
-  });
 }
 
 /**
@@ -882,49 +805,26 @@ async function updateActivity(db, { userId, activityId, payload }) {
       });
     }
 
-    const currentQuestionStructure = currentQuestionRows.map(
-      (question, index) => ({
-        id: Number(question.id),
-        question_text: question.question_text.trim(),
-        question_type: question.question_type,
-        points: Number(question.points),
-        order_index: index + 1,
-        options:
-          question.question_type === "multiple_choice"
-            ? currentOptionsByQuestionId.get(Number(question.id)) || []
-            : [],
-      })
-    );
-
-    const receivedQuestionStructure = questions.map((question, index) => ({
-      id:
-        question.id !== undefined &&
-        question.id !== null &&
-        question.id !== ""
-          ? Number(question.id)
-          : null,
-      question_text: question.question_text.trim(),
+    const currentQuestionsWithOptions = currentQuestionRows.map((question) => ({
+      id: question.id,
+      question_text: question.question_text,
       question_type: question.question_type,
-      points: Number(question.points),
-      order_index: index + 1,
+      points: question.points,
       options:
         question.question_type === "multiple_choice"
-          ? question.options.map((option) => ({
-              id:
-                option.id !== undefined &&
-                option.id !== null &&
-                option.id !== ""
-                  ? Number(option.id)
-                  : null,
-              option_text: option.option_text.trim(),
-              is_correct: isOptionCorrect(option),
-            }))
+          ? currentOptionsByQuestionId.get(Number(question.id)) || []
           : [],
     }));
 
-    const questionsWereChanged =
-      JSON.stringify(currentQuestionStructure) !==
-      JSON.stringify(receivedQuestionStructure);
+    const currentQuestionStructure = buildQuestionStructureForDiff(
+      currentQuestionsWithOptions
+    );
+    const receivedQuestionStructure = buildQuestionStructureForDiff(questions);
+
+    const questionsWereChanged = haveQuestionsChanged(
+      currentQuestionStructure,
+      receivedQuestionStructure
+    );
 
     if (totalSubmissions > 0 && questionsWereChanged) {
       const error = createServiceError(

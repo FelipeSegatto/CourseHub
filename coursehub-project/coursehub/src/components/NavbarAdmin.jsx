@@ -41,8 +41,12 @@ export default function NavbarAdmin() {
       to: "/admin/materiais",
     },
     {
-      label: "Atividades e Avaliações",
+      label: "Atividades",
       to: "/admin/atividades",
+    },
+    {
+      label: "Avaliações",
+      to: "/admin/avaliacoes",
     },
   ];
 
