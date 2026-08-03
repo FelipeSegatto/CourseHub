@@ -223,13 +223,15 @@ export default function CourseAdmin() {
       title: "Gerenciar acessos",
       description:
         "Edite status, bloqueios e dados cadastrais.",
-      onClick: () => {},
+      disabled: true,
+      disabledReason: "Em breve — ainda não há uma página dedicada para isso.",
     },
     {
       title: "Acompanhar métricas dos cursos",
       description:
         "Veja o desempenho dos cursos.",
-      onClick: () => {},
+      disabled: true,
+      disabledReason: "Em breve — ainda não há uma página dedicada para isso.",
     },
   ];
 
