@@ -72,7 +72,7 @@ Também é necessário revisar a criação de registros em `payment_events` e `f
 
 
 
-Known Issue — Estrutura duplicada de middlewares
+Known Issue — Estrutura duplicada de middlewares - RESOLVIDO
 Duplicação da pasta middleware
 
 Status: Baixa prioridade (Technical Debt)
