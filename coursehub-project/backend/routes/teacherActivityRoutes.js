@@ -18,6 +18,7 @@ const {
 
 const {
   gradeSubmission,
+  quickGradeSubmission,
 } = require("../services/activities/activityGradingService");
 
 const router = express.Router();
@@ -254,6 +255,40 @@ router.put(
 
       return res.status(error.statusCode || 500).json({
         message: error.message || "Erro ao salvar a correção.",
+        error: error.message,
+        code: error.code,
+        sqlMessage: error.sqlMessage,
+      });
+    }
+  }
+);
+
+/**
+ * PATCH /api/teacher/by-user/:userId/submissions/:submissionId/quick-grade
+ * Sobrescrita rápida da nota total, sem passar pela correção por
+ * questão — usada pela planilha de notas do professor.
+ */
+router.patch(
+  "/teacher/by-user/:userId/submissions/:submissionId/quick-grade",
+  authenticateToken,
+  authorizeRoles("teacher"),
+  async (req, res) => {
+    try {
+      const { score, feedback } = req.body;
+
+      const result = await quickGradeSubmission(db, {
+        userId: req.auth.userId,
+        submissionId: req.params.submissionId,
+        score,
+        feedback,
+      });
+
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error("Erro ao sobrescrever a nota:", error);
+
+      return res.status(error.statusCode || 500).json({
+        message: error.message || "Erro ao sobrescrever a nota.",
         error: error.message,
         code: error.code,
         sqlMessage: error.sqlMessage,

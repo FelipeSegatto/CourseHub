@@ -64,6 +64,10 @@ export default function NavbarAdmin() {
       to: "/admin/notas",
     },
     {
+      label: "Frequência",
+      to: "/admin/frequencia",
+    },
+    {
       label: "Progressão",
       to: "/admin/progressao",
     },

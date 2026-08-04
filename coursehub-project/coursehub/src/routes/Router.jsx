@@ -49,6 +49,8 @@ import FinancialInvoices from "../pages/admin/financial/FinancialInvoices";
 import FinancialInvoicesDetails from "../pages/admin/financial/FinancialInvoicesDetails";
 import FinancialDashboard from "../pages/admin/financial/FinancialDashboard";
 import CalendarioAdmin from "../pages/admin/CalendarioAdmin";
+import GradesAdmin from "../pages/admin/GradesAdmin";
+import AttendanceAdmin from "../pages/admin/AttendanceAdmin";
 
 import HomeProfessor from "../pages/professor/HomeProfessor";
 import DashboardProfessor from "../pages/professor/DashboardProfessor";
@@ -61,6 +63,7 @@ import ExamProfessor from "../pages/professor/ExamProfessor";
 import ActivitySubmissionsProfessor from "../pages/professor/ActivitySubmissionProfessor";
 import SubmissionReviewProfessor from "../pages/professor/SubmissionReviewProfessor";
 import AttendanceProfessor from "../pages/professor/AttendanceProfessor";
+import AttendanceHistoryProfessor from "../pages/professor/AttendanceHistoryProfessor";
 import GradesProfessor from "../pages/professor/GradesProfessor";
 import CalendarioProfessor from "../pages/professor/CalendarioProfessor";
 
@@ -330,6 +333,14 @@ export const router = createBrowserRouter([
                 element: <AssessmentsAdmin />,
               },
               {
+                path: "notas",
+                element: <GradesAdmin />,
+              },
+              {
+                path: "frequencia",
+                element: <AttendanceAdmin />,
+              },
+              {
                 path: "financeiro",
                 element: <FinancialDashboard />,
               },
@@ -423,6 +434,12 @@ export const router = createBrowserRouter([
                 path: "turmas/:classId/frequencia",
                 element: (
                   <AttendanceProfessor />
+                ),
+              },
+              {
+                path: "frequencia",
+                element: (
+                  <AttendanceHistoryProfessor />
                 ),
               },
 

@@ -10,6 +10,55 @@ function normalizePositiveId(value) {
 }
 
 /**
+ * Upsert da nota oficial em `grades`, compartilhado por
+ * gradeSubmission (correção por questão) e quickGradeSubmission
+ * (sobrescrita direta do total). Mantém uma única nota por envio
+ * (uk_grade_submission) e por aluno/atividade (uk_grade_student_activity).
+ */
+async function upsertGradeRecord(
+  connection,
+  { submissionId, studentId, courseId, activityId, teacherId, title, score, maxScore, feedback }
+) {
+  await connection.query(
+    `
+      INSERT INTO grades
+      (
+        submission_id,
+        student_id,
+        course_id,
+        activity_id,
+        teacher_id,
+        title,
+        score,
+        max_score,
+        feedback,
+        graded_at,
+        created_at,
+        updated_at
+      )
+      VALUES
+      (
+        ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        NOW(), NOW(), NOW()
+      )
+
+      ON DUPLICATE KEY UPDATE
+        student_id = VALUES(student_id),
+        course_id = VALUES(course_id),
+        activity_id = VALUES(activity_id),
+        teacher_id = VALUES(teacher_id),
+        title = VALUES(title),
+        score = VALUES(score),
+        max_score = VALUES(max_score),
+        feedback = VALUES(feedback),
+        graded_at = NOW(),
+        updated_at = NOW()
+    `,
+    [submissionId, studentId, courseId, activityId, teacherId, title, score, maxScore, feedback]
+  );
+}
+
+/**
  * Corrige uma entrega e registra sua nota oficial. A submissão
  * precisa pertencer a um aluno elegível para o escopo da
  * atividade (geral ou mesma turma) — nunca corrige com base
@@ -327,53 +376,17 @@ async function gradeSubmission(
       );
     }
 
-    await connection.query(
-      `
-        INSERT INTO grades
-        (
-          submission_id,
-          student_id,
-          course_id,
-          activity_id,
-          teacher_id,
-          title,
-          score,
-          max_score,
-          feedback,
-          graded_at,
-          created_at,
-          updated_at
-        )
-        VALUES
-        (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?,
-          NOW(), NOW(), NOW()
-        )
-
-        ON DUPLICATE KEY UPDATE
-          student_id = VALUES(student_id),
-          course_id = VALUES(course_id),
-          activity_id = VALUES(activity_id),
-          teacher_id = VALUES(teacher_id),
-          title = VALUES(title),
-          score = VALUES(score),
-          max_score = VALUES(max_score),
-          feedback = VALUES(feedback),
-          graded_at = NOW(),
-          updated_at = NOW()
-      `,
-      [
-        normalizedSubmissionId,
-        submission.student_id,
-        submission.course_id,
-        submission.activity_id,
-        submission.teacher_id,
-        submission.activity_title,
-        totalScore,
-        activityMaxScore,
-        normalizedGeneralFeedback,
-      ]
-    );
+    await upsertGradeRecord(connection, {
+      submissionId: normalizedSubmissionId,
+      studentId: submission.student_id,
+      courseId: submission.course_id,
+      activityId: submission.activity_id,
+      teacherId: submission.teacher_id,
+      title: submission.activity_title,
+      score: totalScore,
+      maxScore: activityMaxScore,
+      feedback: normalizedGeneralFeedback,
+    });
 
     await connection.commit();
 
@@ -407,6 +420,177 @@ async function gradeSubmission(
     } catch (rollbackError) {
       console.error(
         "Erro ao desfazer a transação de correção:",
+        rollbackError
+      );
+    }
+
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Sobrescrita rápida da nota total de um envio, sem passar pela
+ * correção por questão. Usada pela planilha de notas do professor
+ * (edição direta na célula) quando reabrir a correção completa não
+ * vale a pena para um ajuste pontual. Não toca submission_answers —
+ * depois de uma sobrescrita, a soma das pontuações por questão pode
+ * deixar de bater com o total exibido (mesmo trade-off que qualquer
+ * ajuste manual sempre tem).
+ */
+async function quickGradeSubmission(db, { userId, submissionId, score, feedback }) {
+  const normalizedSubmissionId = normalizePositiveId(submissionId);
+
+  if (!normalizedSubmissionId) {
+    throw createServiceError("ID da entrega inválido.", 400);
+  }
+
+  const normalizedScore = Number(score);
+
+  if (Number.isNaN(normalizedScore) || normalizedScore < 0) {
+    throw createServiceError("Nota inválida.", 400);
+  }
+
+  const normalizedFeedback =
+    typeof feedback === "string" ? feedback.trim() || null : null;
+
+  const connection = await db.promise().getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [submissionRows] = await connection.query(
+      `
+        SELECT
+          s.id AS submission_id,
+          s.student_id,
+          s.activity_id,
+
+          a.course_id,
+          a.class_id,
+          a.title AS activity_title,
+          a.activity_kind,
+          a.max_score,
+
+          t.id AS teacher_id
+
+        FROM submissions s
+
+        INNER JOIN activities a
+          ON a.id = s.activity_id
+
+        INNER JOIN courses c
+          ON c.id = a.course_id
+
+        INNER JOIN teachers t
+          ON t.id = c.teacher_id
+
+        WHERE s.id = ?
+          AND t.user_id = ?
+
+        LIMIT 1
+      `,
+      [normalizedSubmissionId, userId]
+    );
+
+    if (submissionRows.length === 0) {
+      throw createServiceError(
+        "Entrega não encontrada ou não pertence ao professor.",
+        404
+      );
+    }
+
+    const submission = submissionRows[0];
+
+    const [enrollmentRows] = await connection.query(
+      `
+        SELECT id, student_id, course_id, class_id, status
+        FROM enrollments
+        WHERE student_id = ?
+          AND course_id = ?
+          AND status = 'active'
+        LIMIT 1
+      `,
+      [submission.student_id, submission.course_id]
+    );
+
+    const enrollment = enrollmentRows[0] || null;
+
+    if (
+      !enrollment ||
+      !validateStudentActivityScope(
+        { course_id: submission.course_id, class_id: submission.class_id },
+        enrollment
+      )
+    ) {
+      throw createServiceError(
+        "Esta entrega não pertence a um aluno elegível para esta atividade.",
+        409
+      );
+    }
+
+    const activityMaxScore = Number(submission.max_score);
+
+    if (!Number.isNaN(activityMaxScore) && normalizedScore > activityMaxScore) {
+      throw createServiceError(
+        `A nota não pode ultrapassar ${activityMaxScore}.`,
+        400
+      );
+    }
+
+    await connection.query(
+      `
+        UPDATE submissions
+        SET
+          status = 'graded',
+          score = ?,
+          feedback = ?,
+          graded_by_teacher_id = ?,
+          graded_at = NOW(),
+          updated_at = NOW()
+        WHERE id = ?
+      `,
+      [normalizedScore, normalizedFeedback, submission.teacher_id, normalizedSubmissionId]
+    );
+
+    await upsertGradeRecord(connection, {
+      submissionId: normalizedSubmissionId,
+      studentId: submission.student_id,
+      courseId: submission.course_id,
+      activityId: submission.activity_id,
+      teacherId: submission.teacher_id,
+      title: submission.activity_title,
+      score: normalizedScore,
+      maxScore: activityMaxScore,
+      feedback: normalizedFeedback,
+    });
+
+    await connection.commit();
+
+    return {
+      message:
+        submission.activity_kind === "exam"
+          ? "Nota da avaliação atualizada com sucesso."
+          : "Nota da atividade atualizada com sucesso.",
+
+      submission: {
+        id: normalizedSubmissionId,
+        activity_id: submission.activity_id,
+        student_id: submission.student_id,
+        status: "graded",
+        score: normalizedScore,
+        max_score: activityMaxScore,
+        feedback: normalizedFeedback,
+        graded_by_teacher_id: submission.teacher_id,
+      },
+    };
+  } catch (error) {
+    try {
+      await connection.rollback();
+    } catch (rollbackError) {
+      console.error(
+        "Erro ao desfazer a transação de sobrescrita de nota:",
         rollbackError
       );
     }
@@ -515,5 +699,6 @@ async function getStudentGrades(db, { userId }) {
 
 module.exports = {
   gradeSubmission,
+  quickGradeSubmission,
   getStudentGrades,
 };
