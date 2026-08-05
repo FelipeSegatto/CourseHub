@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 require("dotenv").config();
 
 const db = require("../../db");
+const { retryOnDeadlock } = require("../testHelpers");
 const {
   registerNotificationType,
   _unregisterNotificationType,
@@ -53,7 +54,9 @@ before(async () => {
 after(async () => {
   _unregisterNotificationType(TEST_TYPE);
 
-  await db.promise().query("DELETE FROM notifications WHERE type = ?", [TEST_TYPE]);
+  await retryOnDeadlock(() =>
+    db.promise().query("DELETE FROM notifications WHERE type = ?", [TEST_TYPE])
+  );
 
   await db.promise().end();
 });

@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 require("dotenv").config();
 
 const db = require("../../db");
+const { retryOnDeadlock } = require("../testHelpers");
 const {
   registerNotificationType,
   _unregisterNotificationType,
@@ -50,16 +51,18 @@ after(async () => {
   // Exact type match, not a 'test.%' LIKE -- other notifications test
   // files run concurrently in their own process and must not have
   // their still-in-flight rows deleted by this file's cleanup.
-  await db
-    .promise()
-    .query("DELETE FROM notifications WHERE type IN (?, ?)", [
+  await retryOnDeadlock(() =>
+    db.promise().query("DELETE FROM notifications WHERE type IN (?, ?)", [
       TEST_TYPE,
       "test.notification_service.essential",
-    ]);
-  await db.promise().query("DELETE FROM notification_preferences WHERE category IN (?, ?)", [
-    TEST_CATEGORY,
-    "test_essential",
-  ]);
+    ])
+  );
+  await retryOnDeadlock(() =>
+    db.promise().query("DELETE FROM notification_preferences WHERE category IN (?, ?)", [
+      TEST_CATEGORY,
+      "test_essential",
+    ])
+  );
 
   await db.promise().end();
 });

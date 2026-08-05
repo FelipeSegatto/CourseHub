@@ -6,6 +6,7 @@ require("dotenv").config();
 require("../../services/notifications/eventDefinitions"); // registers learning.activity.published
 
 const db = require("../../db");
+const { retryOnDeadlock } = require("../testHelpers");
 const { createActivity, updateActivity } = require("../../services/activities/teacherActivityService");
 const {
   resolveActiveStudentsForCourseOrClass,
@@ -69,16 +70,25 @@ async function getRecipientUserIdsForActivity(activityId) {
 
 after(async () => {
   if (createdActivityIds.length > 0) {
-    await db
-      .promise()
-      .query(`DELETE FROM notifications WHERE type = 'learning.activity.published' AND source_id IN (${createdActivityIds.map(() => "?").join(",")})`, createdActivityIds);
+    const placeholders = createdActivityIds.map(() => "?").join(",");
 
-    await db
-      .promise()
-      .query(`DELETE FROM activities WHERE id IN (${createdActivityIds.map(() => "?").join(",")})`, createdActivityIds);
+    await retryOnDeadlock(() =>
+      db
+        .promise()
+        .query(
+          `DELETE FROM notifications WHERE type = 'learning.activity.published' AND source_id IN (${placeholders})`,
+          createdActivityIds
+        )
+    );
+
+    await retryOnDeadlock(() =>
+      db.promise().query(`DELETE FROM activities WHERE id IN (${placeholders})`, createdActivityIds)
+    );
   }
 
-  await db.promise().query("DELETE FROM activities WHERE title LIKE 'TEST ETAPA4 %'");
+  await retryOnDeadlock(() =>
+    db.promise().query("DELETE FROM activities WHERE title LIKE 'TEST ETAPA4 %'")
+  );
 
   await db.promise().end();
 });

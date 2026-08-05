@@ -1035,6 +1035,23 @@ async function updateActivity(db, { userId, activityId, payload }) {
         classId: normalizedClassId,
         teacherUserId: userId,
       });
+    } else if (currentActivity.status === "active" && normalizedStatus !== "active") {
+      // Same cancellation as deactivateActivity, but reached through
+      // the general edit form (e.g. status set to "inactive" there
+      // instead of via the dedicated deactivate endpoint) -- students
+      // who could see it lose access either way, so both paths must
+      // notify. Same dedup key as deactivateActivity's, so if a
+      // caller somehow hits both, only one notification survives.
+      await notifyActivityCancelled(db, connection, {
+        activityId: normalizedActivityId,
+        activityKind,
+        title: title.trim(),
+        dueDate: dueDate || null,
+        courseId: normalizedCourseId,
+        courseName: courseRows[0].name,
+        classId: normalizedClassId,
+        teacherUserId: userId,
+      });
     }
 
     return {

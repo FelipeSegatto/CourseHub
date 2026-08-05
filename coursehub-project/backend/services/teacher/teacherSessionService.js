@@ -1,5 +1,11 @@
 const { createServiceError } = require("../classes/classAccessService");
 const { requireOwnedClass } = require("./teacherClassService");
+const { withTransaction } = require("../../utils/dbTransaction");
+const { datesRepresentSameInstant } = require("../../utils/appConfig");
+const { createNotificationEvent } = require("../notifications/notificationService");
+const {
+  resolveActiveStudentsForCourseOrClass,
+} = require("../notifications/notificationRecipientResolvers");
 
 const ALLOWED_SESSION_TYPES = new Set([
   "class",
@@ -82,6 +88,50 @@ function mapClassSession(session) {
     createdAt: session.created_at,
     updatedAt: session.updated_at,
   };
+}
+
+/**
+ * Shared by every learning.session.* event -- same shape as
+ * notifyActivityEvent/notifyContentEvent. Sessions always belong to
+ * exactly one real class (no course-wide "class_id null" case), so
+ * the resolver call is simpler here.
+ */
+async function notifySessionEvent(
+  db,
+  connection,
+  type,
+  { sessionId, title, sessionDate, startTime, endTime, courseId, courseName, classId, className, teacherUserId }
+) {
+  const recipients = await resolveActiveStudentsForCourseOrClass(connection, {
+    courseId,
+    classId,
+  });
+
+  if (recipients.length === 0) {
+    return;
+  }
+
+  await createNotificationEvent(db, {
+    type,
+    sourceType: "class_session",
+    sourceId: sessionId,
+    actorUserId: teacherUserId,
+    courseId,
+    classId,
+    context: {
+      sessionId,
+      sessionTitle: title,
+      sessionDate,
+      startTime,
+      endTime,
+      courseId,
+      courseName,
+      classId,
+      className,
+    },
+    recipients,
+    connection,
+  });
 }
 
 /**
@@ -350,99 +400,149 @@ async function createSession(db, { userId, classId, payload }) {
     status: payload.status || "scheduled",
   });
 
-  await requireOwnedClass(db.promise(), { userId, classId });
+  return withTransaction(db, async (connection) => {
+    const { classData } = await requireOwnedClass(connection, { userId, classId });
 
-  let insertId;
+    let insertId;
 
-  try {
-    const [result] = await db.promise().query(
-      `
-        INSERT INTO class_sessions (
-          class_id, session_number, title, session_date, start_time,
-          end_time, session_type, description, status
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-      [
-        classId,
-        normalized.sessionNumber,
-        normalized.title,
-        normalized.sessionDate,
-        normalized.startTime,
-        normalized.endTime,
-        normalized.sessionType,
-        normalized.description,
-        normalized.status,
-      ]
-    );
-
-    insertId = result.insertId;
-  } catch (error) {
-    if (error.code === "ER_DUP_ENTRY") {
-      throw createServiceError(
-        "Já existe uma sessão com esse número nesta turma.",
-        409
+    try {
+      const [result] = await connection.query(
+        `
+          INSERT INTO class_sessions (
+            class_id, session_number, title, session_date, start_time,
+            end_time, session_type, description, status
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          classId,
+          normalized.sessionNumber,
+          normalized.title,
+          normalized.sessionDate,
+          normalized.startTime,
+          normalized.endTime,
+          normalized.sessionType,
+          normalized.description,
+          normalized.status,
+        ]
       );
+
+      insertId = result.insertId;
+    } catch (error) {
+      if (error.code === "ER_DUP_ENTRY") {
+        throw createServiceError(
+          "Já existe uma sessão com esse número nesta turma.",
+          409
+        );
+      }
+
+      throw error;
     }
 
-    throw error;
-  }
+    if (normalized.status === "scheduled") {
+      await notifySessionEvent(db, connection, "learning.session.scheduled", {
+        sessionId: insertId,
+        title: normalized.title,
+        sessionDate: normalized.sessionDate,
+        startTime: normalized.startTime,
+        endTime: normalized.endTime,
+        courseId: classData.course_id,
+        courseName: classData.course_title || classData.course_name,
+        classId,
+        className: classData.name,
+        teacherUserId: userId,
+      });
+    }
 
-  const createdSession = await getTeacherSessionByUserId(db, userId, insertId);
+    const createdSession = await getTeacherSessionByUserId(db, userId, insertId, { connection });
 
-  return { session: mapClassSession(createdSession) };
+    return { session: mapClassSession(createdSession) };
+  });
 }
 
 /**
  * Edita uma sessão existente (identificada só por sessionId).
  */
 async function updateSession(db, { userId, sessionId, payload }) {
-  const currentSession = await getTeacherSessionByUserId(db, userId, sessionId);
-
-  if (!currentSession) {
-    throw createServiceError(
-      "Sessão não encontrada ou não vinculada ao professor.",
-      404
-    );
-  }
-
   const normalized = validateSessionPayload(payload);
 
-  try {
-    await db.promise().query(
-      `
-        UPDATE class_sessions
-        SET
-          session_number = ?, title = ?, session_date = ?, start_time = ?,
-          end_time = ?, session_type = ?, description = ?, status = ?
-        WHERE id = ?
-      `,
-      [
-        normalized.sessionNumber,
-        normalized.title,
-        normalized.sessionDate,
-        normalized.startTime,
-        normalized.endTime,
-        normalized.sessionType,
-        normalized.description,
-        normalized.status,
-        sessionId,
-      ]
-    );
-  } catch (error) {
-    if (error.code === "ER_DUP_ENTRY") {
+  return withTransaction(db, async (connection) => {
+    const currentSession = await getTeacherSessionByUserId(db, userId, sessionId, { connection });
+
+    if (!currentSession) {
       throw createServiceError(
-        "Já existe uma sessão com esse número nesta turma.",
-        409
+        "Sessão não encontrada ou não vinculada ao professor.",
+        404
       );
     }
 
-    throw error;
-  }
+    try {
+      await connection.query(
+        `
+          UPDATE class_sessions
+          SET
+            session_number = ?, title = ?, session_date = ?, start_time = ?,
+            end_time = ?, session_type = ?, description = ?, status = ?
+          WHERE id = ?
+        `,
+        [
+          normalized.sessionNumber,
+          normalized.title,
+          normalized.sessionDate,
+          normalized.startTime,
+          normalized.endTime,
+          normalized.sessionType,
+          normalized.description,
+          normalized.status,
+          sessionId,
+        ]
+      );
+    } catch (error) {
+      if (error.code === "ER_DUP_ENTRY") {
+        throw createServiceError(
+          "Já existe uma sessão com esse número nesta turma.",
+          409
+        );
+      }
 
-  const updatedSession = await getTeacherSessionByUserId(db, userId, sessionId);
+      throw error;
+    }
 
-  return { session: mapClassSession(updatedSession) };
+    const notifyParams = {
+      sessionId,
+      title: normalized.title,
+      sessionDate: normalized.sessionDate,
+      startTime: normalized.startTime,
+      endTime: normalized.endTime,
+      courseId: currentSession.course_id,
+      courseName: currentSession.course_name,
+      classId: currentSession.class_id,
+      className: currentSession.class_name,
+      teacherUserId: userId,
+    };
+
+    const scheduleChanged =
+      !datesRepresentSameInstant(currentSession.session_date, normalized.sessionDate) ||
+      currentSession.start_time !== normalized.startTime ||
+      currentSession.end_time !== normalized.endTime;
+
+    if (
+      currentSession.status === "scheduled" &&
+      normalized.status === "scheduled" &&
+      scheduleChanged
+    ) {
+      await notifySessionEvent(db, connection, "learning.session.changed", notifyParams);
+    } else if (currentSession.status === "scheduled" && normalized.status === "cancelled") {
+      // Same cancellation as cancelSession, reached through the
+      // general edit form instead of the dedicated endpoint -- both
+      // paths must notify (mirrors the activity/content alignment).
+      await notifySessionEvent(db, connection, "learning.session.cancelled", notifyParams);
+    }
+
+    const updatedSession = await getTeacherSessionByUserId(db, userId, sessionId, { connection });
+
+    return { session: mapClassSession(updatedSession) };
+  });
 }
 
 /**
@@ -450,31 +550,50 @@ async function updateSession(db, { userId, sessionId, payload }) {
  * Idempotente: cancelar uma sessão já cancelada só confirma.
  */
 async function cancelSession(db, { userId, sessionId }) {
-  const session = await getTeacherSessionByUserId(db, userId, sessionId);
+  return withTransaction(db, async (connection) => {
+    const session = await getTeacherSessionByUserId(db, userId, sessionId, { connection });
 
-  if (!session) {
-    throw createServiceError(
-      "Sessão não encontrada ou não vinculada ao professor.",
-      404
+    if (!session) {
+      throw createServiceError(
+        "Sessão não encontrada ou não vinculada ao professor.",
+        404
+      );
+    }
+
+    if (session.status === "cancelled") {
+      return { alreadyCancelled: true, session: mapClassSession(session) };
+    }
+
+    const wasScheduled = session.status === "scheduled";
+
+    await connection.query(
+      `
+        UPDATE class_sessions
+        SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `,
+      [sessionId]
     );
-  }
 
-  if (session.status === "cancelled") {
-    return { alreadyCancelled: true, session: mapClassSession(session) };
-  }
+    if (wasScheduled) {
+      await notifySessionEvent(db, connection, "learning.session.cancelled", {
+        sessionId,
+        title: session.title,
+        sessionDate: session.session_date,
+        startTime: session.start_time,
+        endTime: session.end_time,
+        courseId: session.course_id,
+        courseName: session.course_name,
+        classId: session.class_id,
+        className: session.class_name,
+        teacherUserId: userId,
+      });
+    }
 
-  await db.promise().query(
-    `
-      UPDATE class_sessions
-      SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `,
-    [sessionId]
-  );
+    const cancelledSession = await getTeacherSessionByUserId(db, userId, sessionId, { connection });
 
-  const cancelledSession = await getTeacherSessionByUserId(db, userId, sessionId);
-
-  return { alreadyCancelled: false, session: mapClassSession(cancelledSession) };
+    return { alreadyCancelled: false, session: mapClassSession(cancelledSession) };
+  });
 }
 
 module.exports = {

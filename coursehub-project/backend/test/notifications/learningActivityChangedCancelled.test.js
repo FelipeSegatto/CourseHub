@@ -6,6 +6,7 @@ require("dotenv").config();
 require("../../services/notifications/eventDefinitions");
 
 const db = require("../../db");
+const { retryOnDeadlock } = require("../testHelpers");
 const {
   createActivity,
   updateActivity,
@@ -55,17 +56,23 @@ after(async () => {
   if (createdActivityIds.length > 0) {
     const placeholders = createdActivityIds.map(() => "?").join(",");
 
-    await db
-      .promise()
-      .query(
-        `DELETE FROM notifications WHERE type LIKE 'learning.activity.%' AND source_id IN (${placeholders})`,
-        createdActivityIds
-      );
+    await retryOnDeadlock(() =>
+      db
+        .promise()
+        .query(
+          `DELETE FROM notifications WHERE type LIKE 'learning.activity.%' AND source_id IN (${placeholders})`,
+          createdActivityIds
+        )
+    );
 
-    await db.promise().query(`DELETE FROM activities WHERE id IN (${placeholders})`, createdActivityIds);
+    await retryOnDeadlock(() =>
+      db.promise().query(`DELETE FROM activities WHERE id IN (${placeholders})`, createdActivityIds)
+    );
   }
 
-  await db.promise().query("DELETE FROM activities WHERE title LIKE 'TEST ETAPA5A %'");
+  await retryOnDeadlock(() =>
+    db.promise().query("DELETE FROM activities WHERE title LIKE 'TEST ETAPA5A %'")
+  );
 
   await db.promise().end();
 });
@@ -154,6 +161,25 @@ test("deactivating an active activity fires learning.activity.cancelled once", a
   const activity = await createActiveActivity();
 
   await deactivateActivity(db, { userId: TEACHER_USER_ID, activityId: activity.id });
+
+  assert.equal(await countNotifications("learning.activity.cancelled", activity.id), 1);
+});
+
+test("setting status to inactive via the general edit form also fires learning.activity.cancelled", async () => {
+  // Same real-world effect as deactivateActivity (students lose
+  // access), reached through a different code path -- must notify
+  // too, not just the dedicated endpoint.
+  const activity = await createActiveActivity();
+
+  await updateActivity(db, {
+    userId: TEACHER_USER_ID,
+    activityId: activity.id,
+    payload: basePayload({
+      class_id: CLASS_A_ID,
+      status: "inactive",
+      title: activity.title,
+    }),
+  });
 
   assert.equal(await countNotifications("learning.activity.cancelled", activity.id), 1);
 });

@@ -11,3 +11,6 @@ require("./learningActivityCancelled");
 require("./learningContentPublished");
 require("./learningContentChanged");
 require("./learningContentCancelled");
+require("./learningSessionScheduled");
+require("./learningSessionChanged");
+require("./learningSessionCancelled");

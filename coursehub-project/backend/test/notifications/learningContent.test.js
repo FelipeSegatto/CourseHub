@@ -6,6 +6,7 @@ require("dotenv").config();
 require("../../services/notifications/eventDefinitions");
 
 const db = require("../../db");
+const { retryOnDeadlock } = require("../testHelpers");
 const {
   createCourseContent,
   updateCourseContent,
@@ -54,19 +55,23 @@ after(async () => {
   if (createdContentIds.length > 0) {
     const placeholders = createdContentIds.map(() => "?").join(",");
 
-    await db
-      .promise()
-      .query(
-        `DELETE FROM notifications WHERE type LIKE 'learning.content.%' AND source_id IN (${placeholders})`,
-        createdContentIds
-      );
+    await retryOnDeadlock(() =>
+      db
+        .promise()
+        .query(
+          `DELETE FROM notifications WHERE type LIKE 'learning.content.%' AND source_id IN (${placeholders})`,
+          createdContentIds
+        )
+    );
 
-    await db
-      .promise()
-      .query(`DELETE FROM course_contents WHERE id IN (${placeholders})`, createdContentIds);
+    await retryOnDeadlock(() =>
+      db.promise().query(`DELETE FROM course_contents WHERE id IN (${placeholders})`, createdContentIds)
+    );
   }
 
-  await db.promise().query("DELETE FROM course_contents WHERE title LIKE 'TEST ETAPA5B %'");
+  await retryOnDeadlock(() =>
+    db.promise().query("DELETE FROM course_contents WHERE title LIKE 'TEST ETAPA5B %'")
+  );
 
   await db.promise().end();
 });
