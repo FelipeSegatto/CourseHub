@@ -14,3 +14,4 @@ require("./learningContentCancelled");
 require("./learningSessionScheduled");
 require("./learningSessionChanged");
 require("./learningSessionCancelled");
+require("./learningSubmissionReceived");

@@ -9,6 +9,9 @@ const {
   getEligibleEnrollmentForActivity,
 } = require("./activityScopeService");
 
+const { createNotificationEvent } = require("../notifications/notificationService");
+const { resolveTeacherForCourse } = require("../notifications/notificationRecipientResolvers");
+
 function normalizePositiveId(value) {
   const normalized = Number(value);
 
@@ -510,6 +513,42 @@ async function submitActivityAnswers(
      * igual ao comportamento anterior à migração deste service.
      */
     void fullscreenExitCount;
+
+    const teacherRecipient = await resolveTeacherForCourse(connection, {
+      courseId: activity.course_id,
+    });
+
+    if (teacherRecipient) {
+      const [courseRows] = await connection.query(
+        "SELECT name FROM courses WHERE id = ? LIMIT 1",
+        [activity.course_id]
+      );
+
+      const [studentRows] = await connection.query(
+        "SELECT name FROM students WHERE id = ? LIMIT 1",
+        [studentId]
+      );
+
+      await createNotificationEvent(db, {
+        type: "learning.submission.received",
+        sourceType: "submission",
+        sourceId: submissionId,
+        actorUserId: userId,
+        courseId: activity.course_id,
+        classId: activity.class_id,
+        context: {
+          submissionId,
+          activityId: normalizedActivityId,
+          activityTitle: activity.title,
+          activityKind: activity.activity_kind,
+          studentName: studentRows[0]?.name || "Aluno",
+          courseId: activity.course_id,
+          courseName: courseRows[0]?.name || "",
+        },
+        recipients: [teacherRecipient],
+        connection,
+      });
+    }
 
     await connection.commit();
 

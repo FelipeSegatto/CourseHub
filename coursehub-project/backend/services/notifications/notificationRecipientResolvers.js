@@ -46,6 +46,63 @@ async function resolveActiveStudentsForCourseOrClass(runner, { courseId, classId
   }));
 }
 
+/**
+ * Single-recipient audience: the teacher responsible for a course
+ * (used by submission-received). courses.teacher_id is nullable and
+ * a teacher can be inactive, so this can legitimately return null --
+ * callers must treat that as "nobody to notify", not an error.
+ */
+async function resolveTeacherForCourse(runner, { courseId }) {
+  const [rows] = await runner.query(
+    `
+      SELECT u.id AS user_id, u.name, u.email
+      FROM courses c
+      INNER JOIN teachers t ON t.id = c.teacher_id
+      INNER JOIN users u ON u.id = t.user_id
+      WHERE c.id = ?
+        AND t.status = 'active'
+        AND u.status = 'active'
+      LIMIT 1
+    `,
+    [courseId]
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return { userId: rows[0].user_id, role: "teacher", name: rows[0].name, email: rows[0].email };
+}
+
+/**
+ * Single-recipient audience: the student who owns a grade/attendance
+ * record (used by grade-published and attendance-marked). Returns
+ * null if the student or their user account is inactive -- same
+ * "nobody to notify" contract as resolveTeacherForCourse.
+ */
+async function resolveStudentOwner(runner, { studentId }) {
+  const [rows] = await runner.query(
+    `
+      SELECT u.id AS user_id, u.name, u.email
+      FROM students s
+      INNER JOIN users u ON u.id = s.user_id
+      WHERE s.id = ?
+        AND s.status = 'active'
+        AND u.status = 'active'
+      LIMIT 1
+    `,
+    [studentId]
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return { userId: rows[0].user_id, role: "student", name: rows[0].name, email: rows[0].email };
+}
+
 module.exports = {
   resolveActiveStudentsForCourseOrClass,
+  resolveTeacherForCourse,
+  resolveStudentOwner,
 };
