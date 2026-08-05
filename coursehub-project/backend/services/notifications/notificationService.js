@@ -198,17 +198,24 @@ async function createNotificationEvent(
         emailPolicy: definition.emailPolicy,
       });
 
+      // next_attempt_at uses MySQL's own NOW() (via IF), not a JS
+      // Date parameter: mysql2 rounds a Date's milliseconds to the
+      // nearest second when serializing DATETIME, which can round
+      // UP into the future and make the row invisible to
+      // claimBatch's "next_attempt_at <= NOW()" check for up to ~1s.
+      // Letting MySQL compute it server-side avoids the whole class
+      // of driver-rounding-vs-NOW() mismatches.
       await connection.query(
         `
           INSERT INTO notification_deliveries
           (recipient_id, channel, destination_snapshot, status, next_attempt_at, skip_reason, created_at, updated_at)
-          VALUES (?, 'email', ?, ?, ?, ?, NOW(), NOW())
+          VALUES (?, 'email', ?, ?, IF(?, NOW(), NULL), ?, NOW(), NOW())
         `,
         [
           recipientId,
           recipient.email,
           eligible ? "pending" : "skipped",
-          eligible ? new Date() : null,
+          eligible ? 1 : 0,
           eligible ? null : skipReason,
         ]
       );

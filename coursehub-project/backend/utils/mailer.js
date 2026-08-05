@@ -51,11 +51,33 @@ async function getTransporter() {
   return transporterPromise;
 }
 
-async function sendPasswordResetEmail({ to, resetUrl }) {
+/**
+ * Generic send, used by both the password-reset flow and the
+ * notification outbox worker. Never logs `to` or the message body --
+ * callers that need a preview link in dev get it back on the
+ * returned value instead of it being printed here.
+ */
+async function sendEmail({ to, subject, text, html }) {
   const transporter = await getTransporter();
 
   const info = await transporter.sendMail({
     from: process.env.SMTP_FROM || "CourseHub <no-reply@coursehub.local>",
+    to,
+    subject,
+    text,
+    html,
+  });
+
+  const previewUrl = process.env.SMTP_HOST ? null : nodemailer.getTestMessageUrl(info) || null;
+
+  return {
+    messageId: info.messageId,
+    previewUrl,
+  };
+}
+
+async function sendPasswordResetEmail({ to, resetUrl }) {
+  const result = await sendEmail({
     to,
     subject: "Redefinição de senha — CourseHub",
     text: `Recebemos uma solicitação para redefinir sua senha.\n\nAcesse o link abaixo (válido por 15 minutos):\n${resetUrl}\n\nSe você não pediu isso, ignore este e-mail.`,
@@ -66,14 +88,11 @@ async function sendPasswordResetEmail({ to, resetUrl }) {
     `,
   });
 
-  if (!process.env.SMTP_HOST) {
-    console.log(
-      "[mailer] Conta de teste (Ethereal) — preview do e-mail:",
-      nodemailer.getTestMessageUrl(info)
-    );
+  if (result.previewUrl) {
+    console.log("[mailer] Conta de teste (Ethereal) — preview do e-mail:", result.previewUrl);
   }
 
-  return info;
+  return result;
 }
 
-module.exports = { sendPasswordResetEmail };
+module.exports = { sendEmail, sendPasswordResetEmail };

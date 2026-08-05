@@ -2,7 +2,8 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "worker:notifications": "node workers/notificationEmailWorker.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
