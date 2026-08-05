@@ -56,6 +56,9 @@ const adminFinancialRoutes = require("./routes/adminFinancialRoutes");
 const adminCalendarRoutes = require("./routes/adminCalendarRoutes");
 const adminDashboardRoutes = require("./routes/adminDashboardRoutes");
 
+const notificationRoutes = require("./routes/notificationRoutes");
+const notificationPreferenceRoutes = require("./routes/notificationPreferenceRoutes");
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -81,6 +84,9 @@ app.use("/api", authRoutes);
 app.use("/api", profileRoutes);
 app.use("/api", publicCourseRoutes);
 app.use("/api", publicUserRoutes);
+
+app.use("/api", notificationRoutes);
+app.use("/api", notificationPreferenceRoutes);
 
 app.use("/api", studentCourseRoutes);
 app.use("/api", studentProgressRoutes);

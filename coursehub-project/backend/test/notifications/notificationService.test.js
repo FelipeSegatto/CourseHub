@@ -17,8 +17,12 @@ let userA; // used as actor
 let userB; // used as recipient
 
 before(async () => {
+  // node:test runs files in parallel (separate processes) by
+  // default. This file owns OFFSET 0 (first 2 active users) --
+  // other notifications test files must use a disjoint OFFSET so
+  // concurrent runs never mutate the same physical user's rows.
   const [rows] = await db.promise().query(
-    "SELECT id, email FROM users WHERE status = 'active' ORDER BY id ASC LIMIT 2"
+    "SELECT id, email FROM users WHERE status = 'active' ORDER BY id ASC LIMIT 2 OFFSET 0"
   );
 
   if (rows.length < 2) {
@@ -43,9 +47,18 @@ before(async () => {
 after(async () => {
   _unregisterNotificationType(TEST_TYPE);
 
-  await db.promise().query("DELETE FROM notifications WHERE type LIKE 'test.%'");
-  await db.promise().query("DELETE FROM notification_preferences WHERE category = ?", [
+  // Exact type match, not a 'test.%' LIKE -- other notifications test
+  // files run concurrently in their own process and must not have
+  // their still-in-flight rows deleted by this file's cleanup.
+  await db
+    .promise()
+    .query("DELETE FROM notifications WHERE type IN (?, ?)", [
+      TEST_TYPE,
+      "test.notification_service.essential",
+    ]);
+  await db.promise().query("DELETE FROM notification_preferences WHERE category IN (?, ?)", [
     TEST_CATEGORY,
+    "test_essential",
   ]);
 
   await db.promise().end();

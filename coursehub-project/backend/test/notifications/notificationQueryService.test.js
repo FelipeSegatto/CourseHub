@@ -1,0 +1,261 @@
+const { test, before, after } = require("node:test");
+const assert = require("node:assert/strict");
+
+require("dotenv").config();
+
+const db = require("../../db");
+const {
+  registerNotificationType,
+  _unregisterNotificationType,
+} = require("../../services/notifications/notificationTypeRegistry");
+const { createNotificationEvent } = require("../../services/notifications/notificationService");
+const {
+  listInbox,
+  getUnreadCount,
+  markAsRead,
+  markAllAsRead,
+  archiveNotification,
+} = require("../../services/notifications/notificationQueryService");
+const {
+  listPreferences,
+  updatePreference,
+} = require("../../services/notifications/notificationPreferenceService");
+
+const TEST_TYPE = "test.notification_query.smoke";
+const TEST_CATEGORY = "test_query_category";
+
+let userA; // actor
+let userB; // recipient under test
+let userC; // second recipient, used for horizontal-isolation checks
+
+before(async () => {
+  // node:test runs files in parallel (separate processes) by default,
+  // and both test files write to real user rows -- OFFSET 2 keeps
+  // this file's users disjoint from notificationService.test.js's
+  // (which uses the first 2, offset 0), so concurrent runs never
+  // mutate the same physical user's notifications. Any new
+  // notifications test file must claim its own offset range.
+  const [rows] = await db
+    .promise()
+    .query("SELECT id, email FROM users WHERE status = 'active' ORDER BY id ASC LIMIT 3 OFFSET 2");
+
+  if (rows.length < 3) {
+    throw new Error("Need at least 5 active users in the dev DB to run these tests.");
+  }
+
+  [userA, userB, userC] = rows;
+
+  registerNotificationType({
+    type: TEST_TYPE,
+    category: TEST_CATEGORY,
+    priority: "normal",
+    emailPolicy: "default_on",
+    requiredContext: ["itemId"],
+    buildTitle: (context) => `Query test item ${context.itemId}`,
+    buildMessage: (context) => `Message ${context.itemId}`,
+    buildActionPath: (context) => `/test/query/${context.itemId}`,
+    buildDeduplicationKey: (context) => `test:query:${context.itemId}:${context.runId}`,
+  });
+});
+
+after(async () => {
+  _unregisterNotificationType(TEST_TYPE);
+
+  await db.promise().query("DELETE FROM notifications WHERE type = ?", [TEST_TYPE]);
+  await db.promise().query("DELETE FROM notification_preferences WHERE category = ?", [
+    TEST_CATEGORY,
+  ]);
+
+  await db.promise().end();
+});
+
+async function createForRecipient(recipient, itemId, runId) {
+  const result = await createNotificationEvent(db, {
+    type: TEST_TYPE,
+    sourceType: "test_source",
+    sourceId: itemId,
+    actorUserId: userA.id,
+    context: { itemId, runId },
+    recipients: [{ userId: recipient.id, role: "student", email: recipient.email }],
+  });
+
+  return result;
+}
+
+test("listInbox never returns another user's notifications", async () => {
+  const runId = `run-${Date.now()}-iso`;
+
+  await createForRecipient(userB, 1, runId);
+  await createForRecipient(userC, 2, runId);
+
+  const { items: itemsForB } = await listInbox(db, { userId: userB.id, category: TEST_CATEGORY });
+  const { items: itemsForC } = await listInbox(db, { userId: userC.id, category: TEST_CATEGORY });
+
+  assert.ok(itemsForB.some((item) => item.title === "Query test item 1"));
+  assert.ok(!itemsForB.some((item) => item.title === "Query test item 2"));
+
+  assert.ok(itemsForC.some((item) => item.title === "Query test item 2"));
+  assert.ok(!itemsForC.some((item) => item.title === "Query test item 1"));
+});
+
+test("listInbox response never exposes email, metadata, or delivery internals", async () => {
+  const runId = `run-${Date.now()}-shape`;
+
+  await createForRecipient(userB, 3, runId);
+
+  const { items } = await listInbox(db, { userId: userB.id, category: TEST_CATEGORY });
+  const item = items.find((entry) => entry.title === "Query test item 3");
+
+  assert.ok(item);
+
+  const forbiddenKeys = ["email", "metadata", "deliveries", "destination_snapshot", "status"];
+
+  forbiddenKeys.forEach((key) => {
+    assert.equal(Object.hasOwn(item, key), false, `response must not expose "${key}"`);
+  });
+});
+
+test("markAsRead on another user's notification returns 404, does not mutate it", async () => {
+  const runId = `run-${Date.now()}-mark`;
+
+  const created = await createForRecipient(userB, 4, runId);
+
+  await assert.rejects(
+    markAsRead(db, { userId: userC.id, notificationId: created.notificationId }),
+    (error) => error.statusCode === 404
+  );
+
+  const [rows] = await db
+    .promise()
+    .query(
+      "SELECT read_at FROM notification_recipients WHERE notification_id = ? AND user_id = ?",
+      [created.notificationId, userB.id]
+    );
+
+  assert.equal(rows[0].read_at, null, "another user's failed attempt must not mark it read");
+});
+
+test("archiveNotification on another user's notification returns 404", async () => {
+  const runId = `run-${Date.now()}-archive`;
+
+  const created = await createForRecipient(userB, 5, runId);
+
+  await assert.rejects(
+    archiveNotification(db, { userId: userC.id, notificationId: created.notificationId }),
+    (error) => error.statusCode === 404
+  );
+});
+
+test("markAsRead is idempotent and decreases the unread count exactly once", async () => {
+  const runId = `run-${Date.now()}-read`;
+
+  const initialCount = await getUnreadCount(db, { userId: userB.id });
+
+  const created = await createForRecipient(userB, 6, runId);
+
+  const afterCreate = await getUnreadCount(db, { userId: userB.id });
+  assert.equal(afterCreate.unreadCount, initialCount.unreadCount + 1);
+
+  await markAsRead(db, { userId: userB.id, notificationId: created.notificationId });
+  await markAsRead(db, { userId: userB.id, notificationId: created.notificationId }); // idempotent, no error, no double-decrement
+
+  const afterRead = await getUnreadCount(db, { userId: userB.id });
+  assert.equal(afterRead.unreadCount, initialCount.unreadCount);
+});
+
+test("markAllAsRead only affects the caller's own unread notifications", async () => {
+  const runId = `run-${Date.now()}-all`;
+
+  await createForRecipient(userB, 7, runId);
+  await createForRecipient(userC, 8, runId);
+
+  const beforeC = await getUnreadCount(db, { userId: userC.id });
+
+  await markAllAsRead(db, { userId: userB.id });
+
+  const afterB = await getUnreadCount(db, { userId: userB.id });
+  const afterC = await getUnreadCount(db, { userId: userC.id });
+
+  assert.equal(afterB.unreadCount, 0);
+  assert.equal(afterC.unreadCount, beforeC.unreadCount, "another user's unread count must be untouched");
+});
+
+test("listInbox cursor pagination returns no duplicates and no gaps across pages", async () => {
+  const runId = `run-${Date.now()}-cursor`;
+
+  await createForRecipient(userB, 101, runId);
+  await createForRecipient(userB, 102, runId);
+  await createForRecipient(userB, 103, runId);
+
+  const page1 = await listInbox(db, {
+    userId: userB.id,
+    category: TEST_CATEGORY,
+    limit: 2,
+  });
+
+  assert.equal(page1.items.length, 2);
+  assert.ok(page1.nextCursor);
+
+  const page2 = await listInbox(db, {
+    userId: userB.id,
+    category: TEST_CATEGORY,
+    limit: 2,
+    cursor: page1.nextCursor,
+  });
+
+  const page1Ids = page1.items.map((item) => item.recipientId);
+  const page2Ids = page2.items.map((item) => item.recipientId);
+
+  const overlap = page1Ids.filter((id) => page2Ids.includes(id));
+
+  assert.equal(overlap.length, 0, "pages must not overlap");
+});
+
+test("archived items are excluded from the default inbox but not from includeArchived=true", async () => {
+  const runId = `run-${Date.now()}-arch`;
+
+  const created = await createForRecipient(userB, 9, runId);
+  await archiveNotification(db, { userId: userB.id, notificationId: created.notificationId });
+
+  const { items: withoutArchived } = await listInbox(db, {
+    userId: userB.id,
+    category: TEST_CATEGORY,
+  });
+  const { items: withArchived } = await listInbox(db, {
+    userId: userB.id,
+    category: TEST_CATEGORY,
+    includeArchived: true,
+  });
+
+  assert.ok(!withoutArchived.some((item) => item.title === "Query test item 9"));
+  assert.ok(withArchived.some((item) => item.title === "Query test item 9"));
+});
+
+test("updatePreference rejects invalid category and non-boolean emailEnabled", async () => {
+  await assert.rejects(
+    updatePreference(db, { userId: userB.id, category: "", emailEnabled: true }),
+    (error) => error.statusCode === 400
+  );
+
+  await assert.rejects(
+    updatePreference(db, { userId: userB.id, category: TEST_CATEGORY, emailEnabled: "yes" }),
+    (error) => error.statusCode === 400
+  );
+});
+
+test("listPreferences reflects the stored override, not just the registry default", async () => {
+  const defaults = await listPreferences(db, { userId: userB.id });
+  const beforeUpdate = defaults.find((entry) => entry.category === TEST_CATEGORY);
+
+  assert.ok(beforeUpdate);
+  assert.equal(beforeUpdate.emailEnabled, true, "default_on category defaults to enabled");
+  assert.equal(beforeUpdate.isDefault, true);
+
+  await updatePreference(db, { userId: userB.id, category: TEST_CATEGORY, emailEnabled: false });
+
+  const afterUpdate = await listPreferences(db, { userId: userB.id });
+  const overridden = afterUpdate.find((entry) => entry.category === TEST_CATEGORY);
+
+  assert.equal(overridden.emailEnabled, false);
+  assert.equal(overridden.isDefault, false);
+});
