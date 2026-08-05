@@ -79,13 +79,33 @@ async function resolveEmailEligibility(connection, { userId, category, emailPoli
  * matching the "an event never rewrites/re-fans-out" rule.
  *
  * `recipients` must already be resolved by the caller (userId, role,
- * name, email) -- this stage has no domain resolvers yet (those are
- * stage 5); this function only does the generic materialization
- * part: dedup, fan-out, and email-eligibility.
+ * name, email) -- domain-specific "who should be notified" logic
+ * lives in notificationRecipientResolvers.js, not here.
+ *
+ * Pass `connection` when the notification must be created inside an
+ * already-open business transaction (e.g. publishing an activity):
+ * this function then reuses that connection and does NOT call
+ * beginTransaction/commit/rollback itself -- the caller owns the
+ * transaction boundary, matching this codebase's "runner can be the
+ * pool or an existing connection" convention (see
+ * classAccessService.js). Without `connection`, it manages its own
+ * transaction exactly as before (used by callers where creating the
+ * notification IS the entire operation).
  */
 async function createNotificationEvent(
   db,
-  { type, sourceType, sourceId, actorUserId, courseId, classId, context = {}, recipients, excludeActor = true }
+  {
+    type,
+    sourceType,
+    sourceId,
+    actorUserId,
+    courseId,
+    classId,
+    context = {},
+    recipients,
+    excludeActor = true,
+    connection: externalConnection,
+  }
 ) {
   const definition = getNotificationType(type);
 
@@ -113,10 +133,13 @@ async function createNotificationEvent(
 
   const priority = resolvePriority(definition, context);
 
-  const connection = await db.promise().getConnection();
+  const ownsTransaction = !externalConnection;
+  const connection = externalConnection || (await db.promise().getConnection());
 
   try {
-    await connection.beginTransaction();
+    if (ownsTransaction) {
+      await connection.beginTransaction();
+    }
 
     let notificationId;
     let deduplicated = false;
@@ -169,7 +192,9 @@ async function createNotificationEvent(
     }
 
     if (deduplicated) {
-      await connection.commit();
+      if (ownsTransaction) {
+        await connection.commit();
+      }
 
       return { notificationId, deduplicated: true, recipientIds: [] };
     }
@@ -221,14 +246,23 @@ async function createNotificationEvent(
       );
     }
 
-    await connection.commit();
+    if (ownsTransaction) {
+      await connection.commit();
+    }
 
     return { notificationId, deduplicated: false, recipientIds };
   } catch (error) {
-    await connection.rollback();
+    if (ownsTransaction) {
+      await connection.rollback();
+    }
+    // Not our transaction -- propagate and let the caller's own
+    // catch/rollback undo the notification insert along with
+    // whatever business change it was wrapping.
     throw error;
   } finally {
-    connection.release();
+    if (ownsTransaction) {
+      connection.release();
+    }
   }
 }
 

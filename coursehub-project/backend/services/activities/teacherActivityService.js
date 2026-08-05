@@ -6,6 +6,11 @@ const {
 
 const { resolveActivityClassScope } = require("./activityScopeService");
 
+const { createNotificationEvent } = require("../notifications/notificationService");
+const {
+  resolveActiveStudentsForCourseOrClass,
+} = require("../notifications/notificationRecipientResolvers");
+
 const {
   isOptionCorrect,
   validateQuestions,
@@ -46,6 +51,47 @@ function normalizeActivityClassId(rawClassId) {
   }
 
   return normalized;
+}
+
+/**
+ * Fires learning.activity.published inside the same transaction as
+ * the activity write that just made it active. A course/class with
+ * no actively-enrolled students yet is a normal case, not an error
+ * -- notificationService throws on zero recipients, so this only
+ * calls it when there's actually someone to tell.
+ */
+async function notifyActivityPublished(
+  db,
+  connection,
+  { activityId, activityKind, title, dueDate, courseId, courseName, classId, teacherUserId }
+) {
+  const recipients = await resolveActiveStudentsForCourseOrClass(connection, {
+    courseId,
+    classId,
+  });
+
+  if (recipients.length === 0) {
+    return;
+  }
+
+  await createNotificationEvent(db, {
+    type: "learning.activity.published",
+    sourceType: "activity",
+    sourceId: activityId,
+    actorUserId: teacherUserId,
+    courseId,
+    classId,
+    context: {
+      activityId,
+      activityTitle: title,
+      activityKind,
+      courseId,
+      courseName,
+      dueDate,
+    },
+    recipients,
+    connection,
+  });
 }
 
 /**
@@ -519,6 +565,19 @@ async function createActivity(db, { userId, payload }) {
       }
     }
 
+    if (normalizedStatus === "active") {
+      await notifyActivityPublished(db, connection, {
+        activityId,
+        activityKind,
+        title: title.trim(),
+        dueDate: dueDate || null,
+        courseId: normalizedCourseId,
+        courseName: courseRows[0].name,
+        classId: normalizedClassId,
+        teacherUserId: userId,
+      });
+    }
+
     await connection.commit();
 
     return {
@@ -945,6 +1004,19 @@ async function updateActivity(db, { userId, activityId, payload }) {
           }
         }
       }
+    }
+
+    if (currentActivity.status === "draft" && normalizedStatus === "active") {
+      await notifyActivityPublished(db, connection, {
+        activityId: normalizedActivityId,
+        activityKind,
+        title: title.trim(),
+        dueDate: dueDate || null,
+        courseId: normalizedCourseId,
+        courseName: courseRows[0].name,
+        classId: normalizedClassId,
+        teacherUserId: userId,
+      });
     }
 
     await connection.commit();

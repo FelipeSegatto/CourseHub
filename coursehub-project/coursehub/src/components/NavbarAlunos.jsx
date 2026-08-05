@@ -1,11 +1,13 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useUnreadNotifications } from "../hooks/useUnreadNotifications";
 import CourseHubLogo from "./logo/Logo";
 import NavbarDropdown from "./NavbarDropdown";
 
 export default function NavbarAlunos() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, estaLogado } = useAuth();
+  const { unreadCount } = useUnreadNotifications({ enabled: estaLogado });
 
   const studiesItems = [
     {
@@ -107,9 +109,19 @@ export default function NavbarAlunos() {
 
           <NavLink
             to="/aluno/notificacoes"
-            className={linkClass}
+            className={({ isActive }) => `relative ${linkClass({ isActive })}`}
           >
             Notificações
+            {unreadCount > 0 && (
+              <span
+                className="
+                  ml-1.5 inline-flex h-5 min-w-5 items-center justify-center
+                  rounded-full bg-red-600 px-1.5 text-xs font-semibold text-white
+                "
+              >
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
           </NavLink>
         </nav>
 

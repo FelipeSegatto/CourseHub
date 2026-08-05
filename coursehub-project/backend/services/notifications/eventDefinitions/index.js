@@ -1,0 +1,8 @@
+/**
+ * Side-effect-only module: requiring it registers every notification
+ * type in notificationTypeRegistry.js. Required once at server
+ * startup (server.js) so the registry is populated before any route
+ * can try to emit an event. New event definitions (stage 5+) get
+ * their own file here and one require line added below.
+ */
+require("./learningActivityPublished");

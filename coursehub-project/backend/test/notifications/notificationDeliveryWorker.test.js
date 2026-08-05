@@ -96,7 +96,14 @@ test("claimBatch moves a due delivery from pending to processing", async () => {
   const runId = `run-${Date.now()}-claim`;
   const deliveryId = await createDelivery(1, runId);
 
-  const jobs = await claimBatch(db, { batchSize: 10, workerId: "test-worker-a", leaseMinutes: 5 });
+  // batchSize is intentionally generous: other test files (e.g.
+  // learningActivityPublished.test.js) run concurrently and create
+  // real 'pending' deliveries for real recipients in the same
+  // shared queue -- claimBatch correctly has no per-type filter
+  // (production must claim across all types), so a small batchSize
+  // here would flakily starve this test's own target row out of the
+  // LIMIT window under contention.
+  const jobs = await claimBatch(db, { batchSize: 1000, workerId: "test-worker-a", leaseMinutes: 5 });
 
   assert.ok(jobs.some((job) => job.delivery_id === deliveryId));
 
@@ -114,8 +121,8 @@ test("two concurrent claims never return the same delivery (FOR UPDATE SKIP LOCK
   const idTwo = await createDelivery(3, runId);
 
   const [batchA, batchB] = await Promise.all([
-    claimBatch(db, { batchSize: 10, workerId: "worker-a", leaseMinutes: 5 }),
-    claimBatch(db, { batchSize: 10, workerId: "worker-b", leaseMinutes: 5 }),
+    claimBatch(db, { batchSize: 1000, workerId: "worker-a", leaseMinutes: 5 }),
+    claimBatch(db, { batchSize: 1000, workerId: "worker-b", leaseMinutes: 5 }),
   ]);
 
   const claimedIds = [...batchA, ...batchB]
@@ -132,7 +139,7 @@ test("an expired processing lease becomes claimable again", async () => {
   const runId = `run-${Date.now()}-lease`;
   const deliveryId = await createDelivery(4, runId);
 
-  await claimBatch(db, { batchSize: 10, workerId: "worker-stale", leaseMinutes: 5 });
+  await claimBatch(db, { batchSize: 1000, workerId: "worker-stale", leaseMinutes: 5 });
 
   // Simulate a crashed worker: back-date the lock past the lease window.
   await db
@@ -141,7 +148,7 @@ test("an expired processing lease becomes claimable again", async () => {
       deliveryId,
     ]);
 
-  const jobs = await claimBatch(db, { batchSize: 10, workerId: "worker-recovery", leaseMinutes: 5 });
+  const jobs = await claimBatch(db, { batchSize: 1000, workerId: "worker-recovery", leaseMinutes: 5 });
 
   assert.ok(jobs.some((job) => job.delivery_id === deliveryId));
 });
@@ -150,7 +157,7 @@ test("markDeliverySent clears the lock and records the provider id", async () =>
   const runId = `run-${Date.now()}-sent`;
   const deliveryId = await createDelivery(5, runId);
 
-  await claimBatch(db, { batchSize: 10, workerId: "worker-a", leaseMinutes: 5 });
+  await claimBatch(db, { batchSize: 1000, workerId: "worker-a", leaseMinutes: 5 });
   await markDeliverySent(db, { deliveryId, providerMessageId: "provider-123" });
 
   const [rows] = await db
