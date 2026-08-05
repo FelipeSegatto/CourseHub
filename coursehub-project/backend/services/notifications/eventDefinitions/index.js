@@ -8,3 +8,6 @@
 require("./learningActivityPublished");
 require("./learningActivityChanged");
 require("./learningActivityCancelled");
+require("./learningContentPublished");
+require("./learningContentChanged");
+require("./learningContentCancelled");

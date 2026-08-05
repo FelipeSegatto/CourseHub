@@ -6,6 +6,7 @@ const {
 
 const { resolveActivityClassScope } = require("./activityScopeService");
 const { withTransaction } = require("../../utils/dbTransaction");
+const { datesRepresentSameInstant } = require("../../utils/appConfig");
 
 const { createNotificationEvent } = require("../notifications/notificationService");
 const {
@@ -110,17 +111,8 @@ function notifyActivityCancelled(db, connection, params) {
   return notifyActivityEvent(db, connection, "learning.activity.cancelled", params);
 }
 
-/**
- * True when two DATETIME-ish values (JS Date from mysql2, ISO
- * string from the request body, or null) represent a different
- * instant -- used to detect an actual due-date change, not just a
- * re-save of the same value.
- */
 function dueDatesDiffer(previousValue, nextValue) {
-  const previousTime = previousValue ? new Date(previousValue).getTime() : null;
-  const nextTime = nextValue ? new Date(nextValue).getTime() : null;
-
-  return previousTime !== nextTime;
+  return !datesRepresentSameInstant(previousValue, nextValue);
 }
 
 /**

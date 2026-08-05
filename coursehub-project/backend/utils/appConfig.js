@@ -41,4 +41,36 @@ function formatTimeOnly(value) {
   return String(value).slice(0, 5);
 }
 
-module.exports = { TIMEZONE, formatDateOnly, formatTimeOnly };
+/**
+ * True when two DATETIME-ish values represent a different instant.
+ * Handles the three shapes this app actually compares: a JS Date
+ * from mysql2 (already local-time-based), a full "YYYY-MM-DD HH:mm:ss"
+ * string, and a bare "YYYY-MM-DD" string from an <input type="date">.
+ *
+ * The bare-date case needs care: per the ECMA-262 Date Time String
+ * Format, "2026-09-01" alone parses as UTC midnight, but
+ * "2026-09-01 00:00:00" (space-separated, not "T") parses as LOCAL
+ * midnight in every JS engine -- the same local interpretation
+ * mysql2 uses when it reads the DATETIME column back. Comparing a
+ * bare date string against a DB-sourced Date without this padding
+ * silently drifts by the server's UTC offset and reports a "change"
+ * for a value that's actually identical (confirmed by a real test
+ * failure: re-saving the same due date on a course_contents row
+ * falsely fired learning.content.changed).
+ */
+function toComparableTime(value) {
+  if (!value) return null;
+
+  if (value instanceof Date) return value.getTime();
+
+  const stringValue = String(value);
+  const isBareDate = /^\d{4}-\d{2}-\d{2}$/.test(stringValue);
+
+  return new Date(isBareDate ? `${stringValue} 00:00:00` : stringValue).getTime();
+}
+
+function datesRepresentSameInstant(previousValue, nextValue) {
+  return toComparableTime(previousValue) === toComparableTime(nextValue);
+}
+
+module.exports = { TIMEZONE, formatDateOnly, formatTimeOnly, datesRepresentSameInstant };
