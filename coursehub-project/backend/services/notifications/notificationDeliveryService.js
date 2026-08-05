@@ -1,3 +1,5 @@
+const { withTransaction } = require("../../utils/dbTransaction");
+
 function createServiceError(message, statusCode) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -40,11 +42,7 @@ function getRetryDelaysMinutes() {
  * (SELECT + UPDATE to 'processing') is atomic.
  */
 async function claimBatch(db, { batchSize, workerId, leaseMinutes }) {
-  const connection = await db.promise().getConnection();
-
-  try {
-    await connection.beginTransaction();
-
+  return withTransaction(db, async (connection) => {
     const [rows] = await connection.query(
       `
         SELECT
@@ -74,8 +72,6 @@ async function claimBatch(db, { batchSize, workerId, leaseMinutes }) {
     );
 
     if (rows.length === 0) {
-      await connection.commit();
-
       return [];
     }
 
@@ -90,15 +86,8 @@ async function claimBatch(db, { batchSize, workerId, leaseMinutes }) {
       [workerId, ...ids]
     );
 
-    await connection.commit();
-
     return rows;
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
-  }
+  });
 }
 
 async function markDeliverySent(db, { deliveryId, providerMessageId }) {

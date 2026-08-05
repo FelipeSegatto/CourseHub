@@ -16,6 +16,12 @@ const {
 // 8 (Turma B), each with distinct actively-enrolled students. Used
 // read-only for scope lookups; every row this file writes
 // (activities + notifications) is deleted in after().
+//
+// This file owns teacher 11 / course 1. Other activity-notification
+// test files run concurrently (separate node:test processes) and
+// must use a different teacher/course -- hammering the same real
+// classroom rows from two transactions at once caused real InnoDB
+// deadlocks (see learningActivityChangedCancelled.test.js).
 const TEACHER_USER_ID = 11;
 const COURSE_ID = 1;
 const CLASS_A_ID = 1;

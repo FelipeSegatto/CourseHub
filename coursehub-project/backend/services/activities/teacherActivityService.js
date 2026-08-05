@@ -5,6 +5,7 @@ const {
 } = require("../classes/classAccessService");
 
 const { resolveActivityClassScope } = require("./activityScopeService");
+const { withTransaction } = require("../../utils/dbTransaction");
 
 const { createNotificationEvent } = require("../notifications/notificationService");
 const {
@@ -54,15 +55,17 @@ function normalizeActivityClassId(rawClassId) {
 }
 
 /**
- * Fires learning.activity.published inside the same transaction as
- * the activity write that just made it active. A course/class with
- * no actively-enrolled students yet is a normal case, not an error
- * -- notificationService throws on zero recipients, so this only
- * calls it when there's actually someone to tell.
+ * Shared by every learning.activity.* event: resolves the audience
+ * inside the caller's own transaction and fires the notification
+ * only if there's actually someone to tell. A course/class with no
+ * actively-enrolled students is a normal case, not an error --
+ * notificationService throws on zero recipients, so callers never
+ * see that error as long as they go through this helper.
  */
-async function notifyActivityPublished(
+async function notifyActivityEvent(
   db,
   connection,
+  type,
   { activityId, activityKind, title, dueDate, courseId, courseName, classId, teacherUserId }
 ) {
   const recipients = await resolveActiveStudentsForCourseOrClass(connection, {
@@ -75,7 +78,7 @@ async function notifyActivityPublished(
   }
 
   await createNotificationEvent(db, {
-    type: "learning.activity.published",
+    type,
     sourceType: "activity",
     sourceId: activityId,
     actorUserId: teacherUserId,
@@ -88,10 +91,36 @@ async function notifyActivityPublished(
       courseId,
       courseName,
       dueDate,
+      classId,
     },
     recipients,
     connection,
   });
+}
+
+function notifyActivityPublished(db, connection, params) {
+  return notifyActivityEvent(db, connection, "learning.activity.published", params);
+}
+
+function notifyActivityChanged(db, connection, params) {
+  return notifyActivityEvent(db, connection, "learning.activity.changed", params);
+}
+
+function notifyActivityCancelled(db, connection, params) {
+  return notifyActivityEvent(db, connection, "learning.activity.cancelled", params);
+}
+
+/**
+ * True when two DATETIME-ish values (JS Date from mysql2, ISO
+ * string from the request body, or null) represent a different
+ * instant -- used to detect an actual due-date change, not just a
+ * re-save of the same value.
+ */
+function dueDatesDiffer(previousValue, nextValue) {
+  const previousTime = previousValue ? new Date(previousValue).getTime() : null;
+  const nextTime = nextValue ? new Date(nextValue).getTime() : null;
+
+  return previousTime !== nextTime;
 }
 
 /**
@@ -425,11 +454,7 @@ async function createActivity(db, { userId, payload }) {
     throw createServiceError("Status da atividade inválido.", 400);
   }
 
-  const connection = await db.promise().getConnection();
-
-  try {
-    await connection.beginTransaction();
-
+  return withTransaction(db, async (connection) => {
     const [teacherRows] = await connection.query(
       `
         SELECT id
@@ -578,8 +603,6 @@ async function createActivity(db, { userId, payload }) {
       });
     }
 
-    await connection.commit();
-
     return {
       message:
         activityKind === "exam"
@@ -604,20 +627,7 @@ async function createActivity(db, { userId, payload }) {
         graded_submissions: 0,
       },
     };
-  } catch (error) {
-    try {
-      await connection.rollback();
-    } catch (rollbackError) {
-      console.error(
-        "Erro ao desfazer a transação de criação de atividade:",
-        rollbackError
-      );
-    }
-
-    throw error;
-  } finally {
-    connection.release();
-  }
+  });
 }
 
 /**
@@ -714,11 +724,7 @@ async function updateActivity(db, { userId, activityId, payload }) {
 
   validateQuestions(questions);
 
-  const connection = await db.promise().getConnection();
-
-  try {
-    await connection.beginTransaction();
-
+  return withTransaction(db, async (connection) => {
     const [teacherRows] = await connection.query(
       `
         SELECT id
@@ -740,6 +746,7 @@ async function updateActivity(db, { userId, activityId, payload }) {
         SELECT
           a.id,
           a.course_id,
+          a.class_id,
           a.activity_kind,
           a.title,
           a.description,
@@ -1006,6 +1013,10 @@ async function updateActivity(db, { userId, activityId, payload }) {
       }
     }
 
+    const previousClassId =
+      currentActivity.class_id === null ? null : Number(currentActivity.class_id);
+    const scopeChanged = previousClassId !== normalizedClassId;
+
     if (currentActivity.status === "draft" && normalizedStatus === "active") {
       await notifyActivityPublished(db, connection, {
         activityId: normalizedActivityId,
@@ -1017,9 +1028,22 @@ async function updateActivity(db, { userId, activityId, payload }) {
         classId: normalizedClassId,
         teacherUserId: userId,
       });
+    } else if (
+      currentActivity.status === "active" &&
+      normalizedStatus === "active" &&
+      (dueDatesDiffer(currentActivity.due_date, dueDate || null) || scopeChanged)
+    ) {
+      await notifyActivityChanged(db, connection, {
+        activityId: normalizedActivityId,
+        activityKind,
+        title: title.trim(),
+        dueDate: dueDate || null,
+        courseId: normalizedCourseId,
+        courseName: courseRows[0].name,
+        classId: normalizedClassId,
+        teacherUserId: userId,
+      });
     }
-
-    await connection.commit();
 
     return {
       message:
@@ -1046,24 +1070,14 @@ async function updateActivity(db, { userId, activityId, payload }) {
         questions_updated: totalSubmissions === 0,
       },
     };
-  } catch (error) {
-    try {
-      await connection.rollback();
-    } catch (rollbackError) {
-      console.error(
-        "Erro ao desfazer a transação de atualização de atividade:",
-        rollbackError
-      );
-    }
-
-    throw error;
-  } finally {
-    connection.release();
-  }
+  });
 }
 
 /**
- * Desativa (soft delete) uma atividade ou avaliação.
+ * Desativa (soft delete) uma atividade ou avaliação. Transacional
+ * (não era antes) porque agora precisa nascer atomicamente com
+ * learning.activity.cancelled quando a atividade estava ativa --
+ * desativar um draft/archived nunca notifica (aluno nunca a viu).
  */
 async function deactivateActivity(db, { userId, activityId }) {
   const normalizedActivityId = normalizePositiveId(activityId);
@@ -1072,82 +1086,104 @@ async function deactivateActivity(db, { userId, activityId }) {
     throw createServiceError("ID da atividade inválido.", 400);
   }
 
-  const runner = db.promise();
+  return withTransaction(db, async (connection) => {
+    const teacherId = await getTeacherIdByUserId(connection, userId);
 
-  const teacherId = await getTeacherIdByUserId(runner, userId);
+    if (!teacherId) {
+      throw createServiceError("Professor não encontrado.", 404);
+    }
 
-  if (!teacherId) {
-    throw createServiceError("Professor não encontrado.", 404);
-  }
+    const [activityRows] = await connection.query(
+      `
+        SELECT
+          a.id,
+          a.status,
+          a.activity_kind,
+          a.title,
+          a.course_id,
+          a.class_id,
 
-  const [activityRows] = await runner.execute(
-    `
-      SELECT
-        a.id,
-        a.status,
-        a.activity_kind
-      FROM activities a
+          c.name AS course_name
 
-      INNER JOIN courses c
-        ON c.id = a.course_id
+        FROM activities a
 
-      WHERE a.id = ?
-        AND c.teacher_id = ?
+        INNER JOIN courses c
+          ON c.id = a.course_id
 
-      LIMIT 1
-    `,
-    [normalizedActivityId, teacherId]
-  );
+        WHERE a.id = ?
+          AND c.teacher_id = ?
 
-  if (activityRows.length === 0) {
-    throw createServiceError(
-      "Atividade não encontrada ou não pertence ao professor.",
-      404
+        LIMIT 1
+
+        FOR UPDATE
+      `,
+      [normalizedActivityId, teacherId]
     );
-  }
 
-  const activity = activityRows[0];
+    if (activityRows.length === 0) {
+      throw createServiceError(
+        "Atividade não encontrada ou não pertence ao professor.",
+        404
+      );
+    }
 
-  if (activity.status === "inactive") {
-    throw createServiceError(
-      activity.activity_kind === "exam"
-        ? "Esta avaliação já está inativa."
-        : "Esta atividade já está inativa.",
-      409
+    const activity = activityRows[0];
+
+    if (activity.status === "inactive") {
+      throw createServiceError(
+        activity.activity_kind === "exam"
+          ? "Esta avaliação já está inativa."
+          : "Esta atividade já está inativa.",
+        409
+      );
+    }
+
+    const wasActive = activity.status === "active";
+
+    const [result] = await connection.query(
+      `
+        UPDATE activities
+        SET
+          status = 'inactive',
+          updated_at = NOW()
+        WHERE id = ?
+      `,
+      [normalizedActivityId]
     );
-  }
 
-  const [result] = await runner.execute(
-    `
-      UPDATE activities
-      SET
-        status = 'inactive',
-        updated_at = NOW()
-      WHERE id = ?
-    `,
-    [normalizedActivityId]
-  );
+    if (result.affectedRows === 0) {
+      throw createServiceError(
+        activity.activity_kind === "exam"
+          ? "Não foi possível desativar a avaliação."
+          : "Não foi possível desativar a atividade.",
+        404
+      );
+    }
 
-  if (result.affectedRows === 0) {
-    throw createServiceError(
-      activity.activity_kind === "exam"
-        ? "Não foi possível desativar a avaliação."
-        : "Não foi possível desativar a atividade.",
-      404
-    );
-  }
+    if (wasActive) {
+      await notifyActivityCancelled(db, connection, {
+        activityId: normalizedActivityId,
+        activityKind: activity.activity_kind,
+        title: activity.title,
+        courseId: activity.course_id,
+        courseName: activity.course_name,
+        classId: activity.class_id,
+        teacherUserId: userId,
+      });
+    }
 
-  return {
-    message:
-      activity.activity_kind === "exam"
-        ? "Avaliação desativada com sucesso."
-        : "Atividade desativada com sucesso.",
+    return {
+      message:
+        activity.activity_kind === "exam"
+          ? "Avaliação desativada com sucesso."
+          : "Atividade desativada com sucesso.",
 
-    activity: {
-      id: normalizedActivityId,
-      status: "inactive",
-    },
-  };
+      activity: {
+        id: normalizedActivityId,
+        status: "inactive",
+      },
+    };
+  });
 }
 
 module.exports = {

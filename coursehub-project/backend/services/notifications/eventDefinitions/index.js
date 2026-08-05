@@ -6,3 +6,5 @@
  * their own file here and one require line added below.
  */
 require("./learningActivityPublished");
+require("./learningActivityChanged");
+require("./learningActivityCancelled");

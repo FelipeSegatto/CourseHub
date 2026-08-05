@@ -146,38 +146,87 @@ test("archiveNotification on another user's notification returns 404", async () 
   );
 });
 
-test("markAsRead is idempotent and decreases the unread count exactly once", async () => {
-  const runId = `run-${Date.now()}-read`;
+test("getUnreadCount reflects at least the notifications this test just created", async () => {
+  // Lower-bound assertion (>=), not equality: getUnreadCount is
+  // intentionally global/unfiltered, so concurrently-run test files
+  // notifying this same real user can only push the count up, never
+  // down, relative to what this test itself created and left unread.
+  const runId = `run-${Date.now()}-count`;
 
-  const initialCount = await getUnreadCount(db, { userId: userB.id });
+  const before = await getUnreadCount(db, { userId: userB.id });
+
+  await createForRecipient(userB, 10, runId);
+  await createForRecipient(userB, 11, runId);
+
+  const after = await getUnreadCount(db, { userId: userB.id });
+
+  assert.ok(after.unreadCount >= before.unreadCount + 2);
+});
+
+test("markAsRead is idempotent and marks exactly the target recipient row read", async () => {
+  // Asserts against this specific recipient row's read_at, not the
+  // global unread count: getUnreadCount has no type filter by
+  // design (a badge counts every notification), so it's genuinely
+  // affected by whatever other notifications concurrently-run test
+  // files (e.g. learningActivityPublished.test.js, which notifies
+  // real enrolled students) happen to create for this same real
+  // user in the same window -- a global-count delta here would be
+  // flaky under concurrency, not a real bug.
+  const runId = `run-${Date.now()}-read`;
 
   const created = await createForRecipient(userB, 6, runId);
 
-  const afterCreate = await getUnreadCount(db, { userId: userB.id });
-  assert.equal(afterCreate.unreadCount, initialCount.unreadCount + 1);
+  const [beforeRows] = await db
+    .promise()
+    .query("SELECT read_at FROM notification_recipients WHERE notification_id = ? AND user_id = ?", [
+      created.notificationId,
+      userB.id,
+    ]);
+
+  assert.equal(beforeRows[0].read_at, null);
 
   await markAsRead(db, { userId: userB.id, notificationId: created.notificationId });
-  await markAsRead(db, { userId: userB.id, notificationId: created.notificationId }); // idempotent, no error, no double-decrement
+  await markAsRead(db, { userId: userB.id, notificationId: created.notificationId }); // idempotent, must not throw
 
-  const afterRead = await getUnreadCount(db, { userId: userB.id });
-  assert.equal(afterRead.unreadCount, initialCount.unreadCount);
+  const [afterRows] = await db
+    .promise()
+    .query("SELECT read_at FROM notification_recipients WHERE notification_id = ? AND user_id = ?", [
+      created.notificationId,
+      userB.id,
+    ]);
+
+  assert.ok(afterRows[0].read_at);
 });
 
 test("markAllAsRead only affects the caller's own unread notifications", async () => {
+  // Checks the two specific rows this test created, not the global
+  // unread count -- same concurrency-noise reasoning as the
+  // "idempotent" test above (getUnreadCount is intentionally global,
+  // unfiltered by type, so it's not a safe thing to snapshot/diff
+  // across an await boundary while other test files may be notifying
+  // these same real users).
   const runId = `run-${Date.now()}-all`;
 
-  await createForRecipient(userB, 7, runId);
-  await createForRecipient(userC, 8, runId);
-
-  const beforeC = await getUnreadCount(db, { userId: userC.id });
+  const forB = await createForRecipient(userB, 7, runId);
+  const forC = await createForRecipient(userC, 8, runId);
 
   await markAllAsRead(db, { userId: userB.id });
 
-  const afterB = await getUnreadCount(db, { userId: userB.id });
-  const afterC = await getUnreadCount(db, { userId: userC.id });
+  const [rowB] = await db
+    .promise()
+    .query("SELECT read_at FROM notification_recipients WHERE notification_id = ? AND user_id = ?", [
+      forB.notificationId,
+      userB.id,
+    ]);
+  const [rowC] = await db
+    .promise()
+    .query("SELECT read_at FROM notification_recipients WHERE notification_id = ? AND user_id = ?", [
+      forC.notificationId,
+      userC.id,
+    ]);
 
-  assert.equal(afterB.unreadCount, 0);
-  assert.equal(afterC.unreadCount, beforeC.unreadCount, "another user's unread count must be untouched");
+  assert.ok(rowB[0].read_at, "the caller's own notification must be marked read");
+  assert.equal(rowC[0].read_at, null, "another user's notification must be untouched");
 });
 
 test("listInbox cursor pagination returns no duplicates and no gaps across pages", async () => {
