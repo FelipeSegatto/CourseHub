@@ -39,7 +39,55 @@ let invoiceCounter = 0;
 const createdInvoiceIds = [];
 const createdCalendarEventIds = [];
 
+// Self-heals a leftover fixture from a previous run whose after()
+// hook never completed (e.g. was killed, or hit an FK error before
+// reaching this cleanup) -- otherwise that stale enrollment row
+// permanently blocks every future run's before() with ER_DUP_ENTRY
+// on (student_id, course_id). Same FK order as after() below.
+async function cleanupStaleFixture() {
+  const [staleInvoices] = await db.promise().query(
+    `
+      SELECT i.id
+      FROM invoices i
+      INNER JOIN financial_contracts fc ON fc.id = i.financial_contract_id
+      INNER JOIN enrollments en ON en.id = fc.enrollment_id
+      WHERE en.student_id = ? AND en.course_id = ?
+    `,
+    [STUDENT_ID, FIN_COURSE_ID]
+  );
+
+  if (staleInvoices.length > 0) {
+    const staleIds = staleInvoices.map((row) => row.id);
+    const placeholders = staleIds.map(() => "?").join(",");
+
+    await db.promise().query(`UPDATE invoices SET status = 'cancelled' WHERE id IN (${placeholders})`, staleIds);
+    await db.promise().query(`DELETE FROM invoice_collection_actions WHERE invoice_id IN (${placeholders})`, staleIds);
+    await db.promise().query(
+      `DELETE FROM payment_events WHERE payment_id IN (SELECT id FROM payments WHERE invoice_id IN (${placeholders}))`,
+      staleIds
+    );
+    await db.promise().query(
+      `DELETE FROM financial_events WHERE invoice_id IN (${placeholders}) OR payment_id IN (SELECT id FROM payments WHERE invoice_id IN (${placeholders}))`,
+      [...staleIds, ...staleIds]
+    );
+    await db.promise().query(`DELETE FROM payments WHERE invoice_id IN (${placeholders})`, staleIds);
+    await db.promise().query(`DELETE FROM invoices WHERE id IN (${placeholders})`, staleIds);
+  }
+
+  await db.promise().query(
+    `DELETE FROM financial_contracts WHERE enrollment_id IN (SELECT id FROM enrollments WHERE student_id = ? AND course_id = ?)`,
+    [STUDENT_ID, FIN_COURSE_ID]
+  );
+
+  await db.promise().query("DELETE FROM enrollments WHERE student_id = ? AND course_id = ?", [
+    STUDENT_ID,
+    FIN_COURSE_ID,
+  ]);
+}
+
 before(async () => {
+  await cleanupStaleFixture();
+
   const [enrollmentResult] = await db.promise().query(
     `
       INSERT INTO enrollments (student_id, course_id, class_id, status, enrolled_at, created_at, updated_at)
@@ -116,6 +164,26 @@ after(async () => {
   if (createdInvoiceIds.length > 0) {
     const placeholders = createdInvoiceIds.map(() => "?").join(",");
 
+    // scheduledReminders.test.js's generateMissingCollectionActions
+    // scans every open (pending/processing/overdue) invoice in the
+    // whole table, not just its own fixture -- when the two files
+    // run concurrently (node --test runs files in parallel
+    // processes), it can attach invoice_collection_actions rows to
+    // these invoices too, even though this file never calls that
+    // service itself. Closing the invoice status FIRST makes it
+    // permanently ineligible for that scan, so the
+    // invoice_collection_actions delete right after it is final --
+    // nothing can re-attach a new row once the status is closed.
+    // Without this ordering, a delete-then-recreate race in the gap
+    // before the final DELETE FROM invoices intermittently threw
+    // ER_ROW_IS_REFERENCED (observed empirically).
+    await retryOnDeadlock(() =>
+      db.promise().query(
+        `UPDATE invoices SET status = 'cancelled' WHERE id IN (${placeholders}) AND status NOT IN ('paid', 'cancelled', 'refunded')`,
+        createdInvoiceIds
+      )
+    );
+
     await retryOnDeadlock(() =>
       db.promise().query(
         `
@@ -127,6 +195,10 @@ after(async () => {
         `,
         [...createdInvoiceIds, ...createdInvoiceIds]
       )
+    );
+
+    await retryOnDeadlock(() =>
+      db.promise().query(`DELETE FROM invoice_collection_actions WHERE invoice_id IN (${placeholders})`, createdInvoiceIds)
     );
 
     // financial_events/payment_events FK-reference payments -- must
@@ -168,6 +240,45 @@ after(async () => {
       );
     }
   }
+
+  // Fallback for any invoice orphaned by a previous crashed/killed
+  // run (same FK ordering, and the same close-first race fix, as the
+  // createdInvoiceIds-based cleanup above).
+  await retryOnDeadlock(() =>
+    db.promise().query(
+      "UPDATE invoices SET status = 'cancelled' WHERE description LIKE 'TEST ETAPA5E invoice %' AND status NOT IN ('paid', 'cancelled', 'refunded')"
+    )
+  );
+
+  await retryOnDeadlock(() =>
+    db.promise().query(
+      "DELETE FROM notifications WHERE (type IN ('financial.invoice.changed', 'financial.invoice.cancelled') AND source_id IN (SELECT id FROM invoices WHERE description LIKE 'TEST ETAPA5E invoice %')) OR (type IN ('financial.payment.approved', 'financial.payment.refunded') AND source_id IN (SELECT id FROM payments WHERE invoice_id IN (SELECT id FROM invoices WHERE description LIKE 'TEST ETAPA5E invoice %')))"
+    )
+  );
+
+  await retryOnDeadlock(() =>
+    db.promise().query(
+      "DELETE FROM invoice_collection_actions WHERE invoice_id IN (SELECT id FROM invoices WHERE description LIKE 'TEST ETAPA5E invoice %')"
+    )
+  );
+
+  await retryOnDeadlock(() =>
+    db.promise().query(
+      "DELETE FROM payment_events WHERE payment_id IN (SELECT id FROM payments WHERE invoice_id IN (SELECT id FROM invoices WHERE description LIKE 'TEST ETAPA5E invoice %'))"
+    )
+  );
+
+  await retryOnDeadlock(() =>
+    db.promise().query(
+      "DELETE FROM financial_events WHERE invoice_id IN (SELECT id FROM invoices WHERE description LIKE 'TEST ETAPA5E invoice %') OR payment_id IN (SELECT id FROM payments WHERE invoice_id IN (SELECT id FROM invoices WHERE description LIKE 'TEST ETAPA5E invoice %'))"
+    )
+  );
+
+  await retryOnDeadlock(() =>
+    db.promise().query(
+      "DELETE FROM payments WHERE invoice_id IN (SELECT id FROM invoices WHERE description LIKE 'TEST ETAPA5E invoice %')"
+    )
+  );
 
   await retryOnDeadlock(() =>
     db.promise().query("DELETE FROM invoices WHERE description LIKE 'TEST ETAPA5E invoice %'")

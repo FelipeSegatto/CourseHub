@@ -24,3 +24,8 @@ require("./financialPaymentRefunded");
 require("./calendarEventPublished");
 require("./calendarEventChanged");
 require("./calendarEventCancelled");
+require("./financialInvoiceReminder");
+require("./financialInvoiceOverdue");
+require("./financialInvoiceOverdueChargeWarning");
+require("./financialEnrollmentLockWarning");
+require("./financialEnrollmentLocked");

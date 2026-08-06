@@ -77,7 +77,24 @@ async function createDelivery(itemId, runId) {
       result.recipientIds[0],
     ]);
 
-  return deliveryRows[0].id;
+  const deliveryId = deliveryRows[0].id;
+
+  // claimBatch orders by next_attempt_at ASC -- with the notification
+  // suite now spanning many files that all create real pending
+  // deliveries concurrently (learning/financial/calendar events),
+  // a same-instant next_attempt_at is no longer enough to guarantee
+  // this row lands inside any fixed batchSize. Back-dating it here
+  // guarantees first position regardless of how much unrelated
+  // contention exists at test time, rather than relying on a
+  // generous-enough batchSize (which just gets less reliable as the
+  // suite grows).
+  await db
+    .promise()
+    .query("UPDATE notification_deliveries SET next_attempt_at = NOW() - INTERVAL 1 YEAR WHERE id = ?", [
+      deliveryId,
+    ]);
+
+  return deliveryId;
 }
 
 test("buildNotificationEmail escapes HTML but keeps text plain", () => {
