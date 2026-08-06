@@ -217,7 +217,7 @@ after(async () => {
 test("generateMissingCollectionActions creates all 6 rows with correct offsets", async () => {
   const invoiceId = await createTestInvoice({ dueDateExpr: "DATE_ADD(CURDATE(), INTERVAL 20 DAY)" });
 
-  await generateMissingCollectionActions(db);
+  await generateMissingCollectionActions(db, { invoiceIds: createdInvoiceIds });
 
   const actions = await getActions(invoiceId);
 
@@ -239,8 +239,8 @@ test("generateMissingCollectionActions creates all 6 rows with correct offsets",
 test("generateMissingCollectionActions is idempotent", async () => {
   const invoiceId = await createTestInvoice({ dueDateExpr: "DATE_ADD(CURDATE(), INTERVAL 20 DAY)" });
 
-  await generateMissingCollectionActions(db);
-  await generateMissingCollectionActions(db);
+  await generateMissingCollectionActions(db, { invoiceIds: createdInvoiceIds });
+  await generateMissingCollectionActions(db, { invoiceIds: createdInvoiceIds });
 
   const actions = await getActions(invoiceId);
 
@@ -256,7 +256,7 @@ test("a cancelled invoice never gets collection actions generated", async () => 
     actorUserId: 42,
   });
 
-  await generateMissingCollectionActions(db);
+  await generateMissingCollectionActions(db, { invoiceIds: createdInvoiceIds });
 
   const actions = await getActions(invoiceId);
 
@@ -266,8 +266,8 @@ test("a cancelled invoice never gets collection actions generated", async () => 
 test("processing due actions only touches what's actually due today, not future ones", async () => {
   const invoiceId = await createTestInvoice({ dueDateExpr: "CURDATE()" });
 
-  await generateMissingCollectionActions(db);
-  await processDueCollectionActions(db, { batchSize: 50 });
+  await generateMissingCollectionActions(db, { invoiceIds: createdInvoiceIds });
+  await processDueCollectionActions(db, { batchSize: 50, invoiceIds: createdInvoiceIds });
 
   const actions = await getActions(invoiceId);
   const byType = Object.fromEntries(actions.map((a) => [a.action_type, a.status]));
@@ -291,8 +291,8 @@ test("processing due actions only touches what's actually due today, not future 
 test("marked_overdue transitions the invoice and notifies once", async () => {
   const invoiceId = await createTestInvoice({ dueDateExpr: "DATE_SUB(CURDATE(), INTERVAL 1 DAY)" });
 
-  await generateMissingCollectionActions(db);
-  await processDueCollectionActions(db, { batchSize: 50 });
+  await generateMissingCollectionActions(db, { invoiceIds: createdInvoiceIds });
+  await processDueCollectionActions(db, { batchSize: 50, invoiceIds: createdInvoiceIds });
 
   const [[invoiceRow]] = await db.promise().query("SELECT status FROM invoices WHERE id = ?", [invoiceId]);
 
@@ -313,8 +313,8 @@ test("overdue_charge_10_days only warns -- never changes the invoice amount", as
     dueDateExpr: "DATE_SUB(CURDATE(), INTERVAL 10 DAY)",
   });
 
-  await generateMissingCollectionActions(db);
-  await processDueCollectionActions(db, { batchSize: 50 });
+  await generateMissingCollectionActions(db, { invoiceIds: createdInvoiceIds });
+  await processDueCollectionActions(db, { batchSize: 50, invoiceIds: createdInvoiceIds });
 
   assert.equal(await countNotifications("financial.invoice.overdue_charge_warning", invoiceId), 1);
 
@@ -326,8 +326,8 @@ test("overdue_charge_10_days only warns -- never changes the invoice amount", as
 test("lock_warning_15_days only warns -- the enrollment stays active", async () => {
   const invoiceId = await createTestInvoice({ dueDateExpr: "DATE_SUB(CURDATE(), INTERVAL 15 DAY)" });
 
-  await generateMissingCollectionActions(db);
-  await processDueCollectionActions(db, { batchSize: 50 });
+  await generateMissingCollectionActions(db, { invoiceIds: createdInvoiceIds });
+  await processDueCollectionActions(db, { batchSize: 50, invoiceIds: createdInvoiceIds });
 
   assert.equal(await countNotifications("financial.enrollment.lock_warning", invoiceId), 1);
 
@@ -347,8 +347,8 @@ test("enrollment_locked_30_days with the kill switch off (default) skips without
 
   const invoiceId = await createTestInvoice({ dueDateExpr: "DATE_SUB(CURDATE(), INTERVAL 30 DAY)" });
 
-  await generateMissingCollectionActions(db);
-  await processDueCollectionActions(db, { batchSize: 50 });
+  await generateMissingCollectionActions(db, { invoiceIds: createdInvoiceIds });
+  await processDueCollectionActions(db, { batchSize: 50, invoiceIds: createdInvoiceIds });
 
   const actions = await getActions(invoiceId);
   const lockAction = actions.find((a) => a.action_type === "enrollment_locked_30_days");
@@ -366,13 +366,13 @@ test("enrollment_locked_30_days with the kill switch off (default) skips without
 test("enrollment_locked_30_days with the kill switch on actually locks and notifies", async () => {
   const invoiceId = await createTestInvoice({ dueDateExpr: "DATE_SUB(CURDATE(), INTERVAL 30 DAY)" });
 
-  await generateMissingCollectionActions(db);
+  await generateMissingCollectionActions(db, { invoiceIds: createdInvoiceIds });
 
   const previousEnvValue = process.env.ENABLE_ENROLLMENT_AUTO_LOCK;
   process.env.ENABLE_ENROLLMENT_AUTO_LOCK = "true";
 
   try {
-    await processDueCollectionActions(db, { batchSize: 50 });
+    await processDueCollectionActions(db, { batchSize: 50, invoiceIds: createdInvoiceIds });
   } finally {
     if (previousEnvValue === undefined) {
       delete process.env.ENABLE_ENROLLMENT_AUTO_LOCK;
@@ -410,7 +410,7 @@ test("enrollment_locked_30_days with the kill switch on actually locks and notif
 test("closing an invoice invalidates its still-pending collection actions", async () => {
   const invoiceId = await createTestInvoice({ dueDateExpr: "CURDATE()" });
 
-  await generateMissingCollectionActions(db);
+  await generateMissingCollectionActions(db, { invoiceIds: createdInvoiceIds });
 
   const beforeCancel = await getActions(invoiceId);
   assert.equal(beforeCancel.filter((a) => a.status === "pending").length, 6);
@@ -429,7 +429,7 @@ test("closing an invoice invalidates its still-pending collection actions", asyn
 test("processCollectionAction skips (does not act) when the invoice already left the open states", async () => {
   const invoiceId = await createTestInvoice({ dueDateExpr: "CURDATE()" });
 
-  await generateMissingCollectionActions(db);
+  await generateMissingCollectionActions(db, { invoiceIds: createdInvoiceIds });
 
   const [actionRows] = await db
     .promise()

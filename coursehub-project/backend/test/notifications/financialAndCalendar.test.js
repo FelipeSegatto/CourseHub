@@ -303,6 +303,22 @@ after(async () => {
     );
   }
 
+  // Fallback for any calendar event orphaned by a previous crashed/
+  // killed run -- notifications.source_id has no real FK to
+  // academic_calendar_events (it's a polymorphic column), so
+  // deleting the event without deleting its notifications first
+  // leaves them permanently orphaned instead of erroring (unlike the
+  // FK-enforced tables above). Confirmed this actually happened: an
+  // earlier version of this fallback deleted only the event, and 16
+  // orphaned notifications (268 real recipient rows, from the
+  // institutional-scope test reaching every active user) sat in the
+  // database until caught by manual inspection.
+  await retryOnDeadlock(() =>
+    db.promise().query(
+      "DELETE FROM notifications WHERE type IN ('calendar.event.published', 'calendar.event.changed', 'calendar.event.cancelled') AND source_id IN (SELECT id FROM academic_calendar_events WHERE title LIKE 'TEST ETAPA5E event %')"
+    )
+  );
+
   await retryOnDeadlock(() =>
     db.promise().query("DELETE FROM academic_calendar_events WHERE title LIKE 'TEST ETAPA5E event %'")
   );

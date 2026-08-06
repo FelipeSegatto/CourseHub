@@ -31,23 +31,41 @@ function isAutoLockEnabled() {
  * re-run across invoices that already have some/all rows completely
  * safe, and critically it never resets an already processed/skipped
  * row back to pending.
+ *
+ * `invoiceIds`, when passed, restricts the scan to those specific
+ * invoices instead of every open invoice in the table. Production
+ * (the real worker) always omits it -- that's the actual intended
+ * behavior, scanning everything. It exists so tests can restrict
+ * this otherwise-global scan to their own disposable fixture:
+ * omitting it during test development is exactly what let a debug
+ * session's ~20+ full-suite runs generate real collection actions
+ * and fire real notifications against real seeded invoices (caught
+ * and cleaned up manually after the fact -- this parameter is the
+ * fix so it can't happen again).
  */
-async function generateMissingCollectionActions(db) {
-  const [result] = await db.promise().query(`
-    INSERT INTO invoice_collection_actions (invoice_id, action_type, status, scheduled_for)
-    SELECT i.id, offsets.action_type, 'pending', DATE_ADD(i.due_date, INTERVAL offsets.day_offset DAY)
-    FROM invoices i
-    CROSS JOIN (
-      SELECT 'reminder_3_days_before' AS action_type, -3 AS day_offset
-      UNION ALL SELECT 'due_date_notice', 0
-      UNION ALL SELECT 'marked_overdue', 1
-      UNION ALL SELECT 'overdue_charge_10_days', 10
-      UNION ALL SELECT 'lock_warning_15_days', 15
-      UNION ALL SELECT 'enrollment_locked_30_days', 30
-    ) AS offsets
-    WHERE i.status IN ('pending', 'processing', 'overdue')
-    ON DUPLICATE KEY UPDATE invoice_collection_actions.id = invoice_collection_actions.id
-  `);
+async function generateMissingCollectionActions(db, { invoiceIds } = {}) {
+  const scopeClause = invoiceIds ? `AND i.id IN (${invoiceIds.map(() => "?").join(",")})` : "";
+  const scopeParams = invoiceIds || [];
+
+  const [result] = await db.promise().query(
+    `
+      INSERT INTO invoice_collection_actions (invoice_id, action_type, status, scheduled_for)
+      SELECT i.id, offsets.action_type, 'pending', DATE_ADD(i.due_date, INTERVAL offsets.day_offset DAY)
+      FROM invoices i
+      CROSS JOIN (
+        SELECT 'reminder_3_days_before' AS action_type, -3 AS day_offset
+        UNION ALL SELECT 'due_date_notice', 0
+        UNION ALL SELECT 'marked_overdue', 1
+        UNION ALL SELECT 'overdue_charge_10_days', 10
+        UNION ALL SELECT 'lock_warning_15_days', 15
+        UNION ALL SELECT 'enrollment_locked_30_days', 30
+      ) AS offsets
+      WHERE i.status IN ('pending', 'processing', 'overdue')
+      ${scopeClause}
+      ON DUPLICATE KEY UPDATE invoice_collection_actions.id = invoice_collection_actions.id
+    `,
+    scopeParams
+  );
 
   // affectedRows counts 1 per real insert and 0 per no-op duplicate
   // (MySQL's own semantics for ON DUPLICATE KEY UPDATE with an
@@ -332,17 +350,25 @@ async function processCollectionAction(db, actionId) {
  * need FOR UPDATE SKIP LOCKED itself -- unlike the email delivery
  * outbox, this worker isn't expected to run with multiple concurrent
  * instances, and the per-row guard makes it safe even if it did.
+ *
+ * `invoiceIds`, when passed, restricts the claim to actions belonging
+ * to those invoices -- see generateMissingCollectionActions for why
+ * this exists (test isolation from real seeded data).
  */
-async function processDueCollectionActions(db, { batchSize = 50 } = {}) {
+async function processDueCollectionActions(db, { batchSize = 50, invoiceIds } = {}) {
+  const scopeClause = invoiceIds ? `AND invoice_id IN (${invoiceIds.map(() => "?").join(",")})` : "";
+  const scopeParams = invoiceIds || [];
+
   const [rows] = await db.promise().query(
     `
       SELECT id
       FROM invoice_collection_actions
       WHERE status = 'pending' AND scheduled_for <= CURDATE()
+      ${scopeClause}
       ORDER BY scheduled_for ASC, id ASC
       LIMIT ?
     `,
-    [batchSize]
+    [...scopeParams, batchSize]
   );
 
   let processed = 0;
