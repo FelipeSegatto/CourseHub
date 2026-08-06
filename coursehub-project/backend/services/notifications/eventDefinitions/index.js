@@ -16,3 +16,4 @@ require("./learningSessionChanged");
 require("./learningSessionCancelled");
 require("./learningSubmissionReceived");
 require("./learningGradePublished");
+require("./learningAttendanceFlagged");

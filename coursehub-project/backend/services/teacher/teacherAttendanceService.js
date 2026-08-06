@@ -5,6 +5,9 @@ const {
 } = require("../classes/classAccessService");
 
 const { requireOwnedClass } = require("./teacherClassService");
+const { withTransaction } = require("../../utils/dbTransaction");
+const { createNotificationEvent } = require("../notifications/notificationService");
+const { resolveStudentOwner } = require("../notifications/notificationRecipientResolvers");
 
 const ALLOWED_ATTENDANCE_STATUSES = new Set([
   "present",
@@ -12,6 +15,74 @@ const ALLOWED_ATTENDANCE_STATUSES = new Set([
   "late",
   "excused",
 ]);
+
+// "Presença normal não gera ruído" -- only these two statuses are
+// themselves notify-worthy; present/excused never trigger a
+// notification on their own.
+const NOTIFY_WORTHY_STATUSES = new Set(["absent", "late"]);
+
+function isRelevantAttendanceChange(previousStatus, nextStatus) {
+  if (previousStatus === null || previousStatus === undefined) {
+    return NOTIFY_WORTHY_STATUSES.has(nextStatus);
+  }
+
+  if (previousStatus === nextStatus) {
+    return false;
+  }
+
+  return NOTIFY_WORTHY_STATUSES.has(nextStatus) || NOTIFY_WORTHY_STATUSES.has(previousStatus);
+}
+
+/**
+ * Fires learning.attendance.flagged to the student who owns the
+ * attendance record, inside the caller's own transaction. No-op if
+ * the student/user is inactive (resolveStudentOwner returns null).
+ */
+async function notifyAttendanceFlagged(
+  db,
+  connection,
+  {
+    attendanceId,
+    studentId,
+    status,
+    previousStatus,
+    reason,
+    sessionId,
+    sessionTitle,
+    sessionDate,
+    courseId,
+    courseName,
+    className,
+  }
+) {
+  const recipient = await resolveStudentOwner(connection, { studentId });
+
+  if (!recipient) {
+    return;
+  }
+
+  await createNotificationEvent(db, {
+    type: "learning.attendance.flagged",
+    sourceType: "attendance",
+    sourceId: attendanceId,
+    courseId,
+    context: {
+      sessionId,
+      studentId,
+      sessionTitle,
+      sessionDate,
+      courseId,
+      courseName,
+      className,
+      status,
+      previousStatus: previousStatus ?? null,
+      isCorrection: previousStatus !== null && previousStatus !== undefined,
+      reason: reason || null,
+    },
+    recipients: [recipient],
+    connection,
+  });
+}
 
 /**
  * Frequência baseada em data (legado) — mantida temporariamente
@@ -268,14 +339,11 @@ async function registerSessionAttendance(db, { userId, classId, sessionId, recor
     );
   }
 
-  const connection = await db.promise().getConnection();
-  let transactionStarted = false;
-
-  try {
-    await connection.beginTransaction();
-    transactionStarted = true;
-
-    await requireOwnedClass(connection, { userId, classId: normalizedClassId });
+  return withTransaction(db, async (connection) => {
+    const { classData } = await requireOwnedClass(connection, {
+      userId,
+      classId: normalizedClassId,
+    });
 
     const [sessionRows] = await connection.execute(
       `
@@ -346,6 +414,22 @@ async function registerSessionAttendance(db, { userId, classId, sessionId, recor
       throw error;
     }
 
+    // Captured BEFORE the upsert so we can tell "first-ever record"
+    // apart from "record already existed with a different status" --
+    // the only two cases that matter for the notify-worthy rule.
+    const [previousRows] = await connection.execute(
+      `
+        SELECT student_id AS studentId, status
+        FROM attendance
+        WHERE class_session_id = ? AND student_id IN (${placeholders})
+      `,
+      [normalizedSessionId, ...uniqueStudentIds]
+    );
+
+    const previousStatusByStudentId = new Map(
+      previousRows.map((row) => [Number(row.studentId), row.status])
+    );
+
     const valuesPlaceholders = normalizedRecords.map(() => "(?, ?, ?, ?)").join(", ");
     const insertValues = normalizedRecords.flatMap((record) => [
       normalizedSessionId,
@@ -364,8 +448,42 @@ async function registerSessionAttendance(db, { userId, classId, sessionId, recor
       insertValues
     );
 
-    await connection.commit();
-    transactionStarted = false;
+    const relevantRecords = normalizedRecords.filter((record) =>
+      isRelevantAttendanceChange(
+        previousStatusByStudentId.get(record.studentId) ?? null,
+        record.status
+      )
+    );
+
+    if (relevantRecords.length > 0) {
+      const [savedRows] = await connection.execute(
+        `
+          SELECT id, student_id AS studentId, status
+          FROM attendance
+          WHERE class_session_id = ? AND student_id IN (${placeholders})
+        `,
+        [normalizedSessionId, ...uniqueStudentIds]
+      );
+
+      const attendanceIdByStudentId = new Map(
+        savedRows.map((row) => [Number(row.studentId), row.id])
+      );
+
+      for (const record of relevantRecords) {
+        await notifyAttendanceFlagged(db, connection, {
+          attendanceId: attendanceIdByStudentId.get(record.studentId),
+          studentId: record.studentId,
+          status: record.status,
+          previousStatus: previousStatusByStudentId.get(record.studentId) ?? null,
+          sessionId: normalizedSessionId,
+          sessionTitle: classSession.title,
+          sessionDate: classSession.sessionDate,
+          courseId: classData.course_id,
+          courseName: classData.course_name,
+          className: classData.name,
+        });
+      }
+    }
 
     const summary = normalizedRecords.reduce(
       (accumulator, record) => {
@@ -393,19 +511,7 @@ async function registerSessionAttendance(db, { userId, classId, sessionId, recor
       affectedRows: saveResult.affectedRows,
       summary,
     };
-  } catch (error) {
-    if (transactionStarted) {
-      try {
-        await connection.rollback();
-      } catch (rollbackError) {
-        console.error("Erro no rollback:", rollbackError);
-      }
-    }
-
-    throw error;
-  } finally {
-    connection.release();
-  }
+  });
 }
 
 module.exports = {
@@ -413,4 +519,6 @@ module.exports = {
   getLegacyDateAttendance,
   getSessionAttendance,
   registerSessionAttendance,
+  notifyAttendanceFlagged,
+  isRelevantAttendanceChange,
 };

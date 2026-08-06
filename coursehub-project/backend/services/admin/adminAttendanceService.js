@@ -1,3 +1,6 @@
+const { withTransaction } = require("../../utils/dbTransaction");
+const { notifyAttendanceFlagged, isRelevantAttendanceChange } = require("../teacher/teacherAttendanceService");
+
 const ALLOWED_ATTENDANCE_STATUSES = ["present", "absent", "late", "excused"];
 
 const DEFAULT_PAGE = 1;
@@ -227,19 +230,29 @@ async function adjustAttendance(db, id, { status, reason }, actingUserId) {
     throw createServiceError("Informe o motivo do ajuste.", 400);
   }
 
-  const connection = await db.promise().getConnection();
-
-  try {
-    await connection.beginTransaction();
-
+  await withTransaction(db, async (connection) => {
     const [rows] = await connection.query(
-      `SELECT id, status FROM attendance WHERE id = ? FOR UPDATE`,
+      `
+        SELECT
+          att.id, att.status, att.student_id, att.class_session_id,
+          cs.title AS session_title, cs.session_date,
+          cl.name AS class_name,
+          c.id AS course_id, c.name AS course_name
+        FROM attendance att
+        INNER JOIN class_sessions cs ON cs.id = att.class_session_id
+        INNER JOIN classes cl ON cl.id = cs.class_id
+        INNER JOIN courses c ON c.id = cl.course_id
+        WHERE att.id = ?
+        FOR UPDATE
+      `,
       [attendanceId]
     );
 
     if (rows.length === 0) {
       throw createServiceError("Registro de frequência não encontrado.", 404);
     }
+
+    const attendance = rows[0];
 
     await connection.query(
       `
@@ -255,15 +268,27 @@ async function adjustAttendance(db, id, { status, reason }, actingUserId) {
       [status, normalizedReason, actingUserId, attendanceId]
     );
 
-    await connection.commit();
+    if (isRelevantAttendanceChange(attendance.status, status)) {
+      await notifyAttendanceFlagged(db, connection, {
+        attendanceId,
+        studentId: attendance.student_id,
+        status,
+        previousStatus: attendance.status,
+        reason: normalizedReason,
+        sessionId: attendance.class_session_id,
+        sessionTitle: attendance.session_title,
+        sessionDate: attendance.session_date,
+        courseId: attendance.course_id,
+        courseName: attendance.course_name,
+        className: attendance.class_name,
+      });
+    }
+  });
 
-    return getAttendanceById(db, attendanceId);
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
-  }
+  // Read via the pool, after withTransaction has committed -- see the
+  // same fix in adminGradeService.adjustGrade for why this must not
+  // run inside the transaction callback.
+  return getAttendanceById(db, attendanceId);
 }
 
 module.exports = {
