@@ -221,7 +221,7 @@ async function adjustGrade(db, id, { score, reason }, actingUserId) {
     throw createServiceError("Informe o motivo do ajuste.", 400);
   }
 
-  return withTransaction(db, async (connection) => {
+  await withTransaction(db, async (connection) => {
     const [rows] = await connection.query(
       `
         SELECT
