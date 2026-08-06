@@ -101,8 +101,77 @@ async function resolveStudentOwner(runner, { studentId }) {
   return { userId: rows[0].user_id, role: "student", name: rows[0].name, email: rows[0].email };
 }
 
+/**
+ * Multi-recipient audience for institutional calendar events, keyed
+ * by academic_calendar_events.scope_type. "institutional" reaches
+ * every active student AND every active teacher; all_students/
+ * all_teachers narrow to one role; course/class reuse the same
+ * active-enrollment rule as academic content.
+ */
+async function resolveAllActiveStudents(runner) {
+  const [rows] = await runner.query(
+    `
+      SELECT u.id AS user_id, u.name, u.email
+      FROM students s
+      INNER JOIN users u ON u.id = s.user_id
+      WHERE s.status = 'active' AND u.status = 'active'
+    `
+  );
+
+  return rows.map((row) => ({
+    userId: row.user_id,
+    role: "student",
+    name: row.name,
+    email: row.email,
+  }));
+}
+
+async function resolveAllActiveTeachers(runner) {
+  const [rows] = await runner.query(
+    `
+      SELECT u.id AS user_id, u.name, u.email
+      FROM teachers t
+      INNER JOIN users u ON u.id = t.user_id
+      WHERE t.status = 'active' AND u.status = 'active'
+    `
+  );
+
+  return rows.map((row) => ({
+    userId: row.user_id,
+    role: "teacher",
+    name: row.name,
+    email: row.email,
+  }));
+}
+
+async function resolveCalendarAudience(runner, { scopeType, courseId, classId }) {
+  if (scopeType === "institutional") {
+    const [students, teachers] = await Promise.all([
+      resolveAllActiveStudents(runner),
+      resolveAllActiveTeachers(runner),
+    ]);
+
+    return [...students, ...teachers];
+  }
+
+  if (scopeType === "all_students") {
+    return resolveAllActiveStudents(runner);
+  }
+
+  if (scopeType === "all_teachers") {
+    return resolveAllActiveTeachers(runner);
+  }
+
+  if (scopeType === "course" || scopeType === "class") {
+    return resolveActiveStudentsForCourseOrClass(runner, { courseId, classId });
+  }
+
+  return [];
+}
+
 module.exports = {
   resolveActiveStudentsForCourseOrClass,
   resolveTeacherForCourse,
   resolveStudentOwner,
+  resolveCalendarAudience,
 };

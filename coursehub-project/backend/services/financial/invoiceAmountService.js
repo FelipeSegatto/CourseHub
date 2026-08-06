@@ -6,6 +6,9 @@ const {
   createFinancialEvent,
 } = require("./financialEventService");
 
+const { withTransaction } = require("../../utils/dbTransaction");
+const { notifyInvoiceChanged } = require("./financialNotificationService");
+
 /**
  * Cria um erro de negócio com status HTTP.
  */
@@ -93,11 +96,7 @@ async function changeInvoiceAmount(
     );
   }
 
-  const connection = await db.promise().getConnection();
-
-  try {
-    await connection.beginTransaction();
-
+  return withTransaction(db, async (connection) => {
     const [invoices] = await connection.execute(
       `
         SELECT
@@ -105,10 +104,18 @@ async function changeInvoiceAmount(
           i.financial_contract_id,
           i.amount,
           i.status,
-          fc.enrollment_id
+          i.description,
+          fc.enrollment_id,
+          en.student_id,
+          en.course_id,
+          c.name AS course_name
         FROM invoices i
         INNER JOIN financial_contracts fc
           ON fc.id = i.financial_contract_id
+        INNER JOIN enrollments en
+          ON en.id = fc.enrollment_id
+        INNER JOIN courses c
+          ON c.id = en.course_id
         WHERE i.id = ?
         FOR UPDATE
       `,
@@ -194,7 +201,16 @@ async function changeInvoiceAmount(
       invoice.financial_contract_id
     );
 
-    await connection.commit();
+    await notifyInvoiceChanged(db, connection, {
+      invoiceId: normalizedInvoiceId,
+      invoiceDescription: invoice.description,
+      changeType: "amount",
+      previousValue: previousAmount.toFixed(2),
+      newValue: normalizedNewAmount.toFixed(2),
+      studentId: invoice.student_id,
+      courseId: invoice.course_id,
+      courseName: invoice.course_name,
+    });
 
     return {
       invoiceId: normalizedInvoiceId,
@@ -204,20 +220,7 @@ async function changeInvoiceAmount(
       newAmount: normalizedNewAmount,
       invoiceStatus: invoice.status,
     };
-  } catch (error) {
-    try {
-      await connection.rollback();
-    } catch (rollbackError) {
-      console.error(
-        "Erro ao desfazer a alteração do valor da fatura:",
-        rollbackError
-      );
-    }
-
-    throw error;
-  } finally {
-    connection.release();
-  }
+  });
 }
 
 module.exports = {

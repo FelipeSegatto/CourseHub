@@ -6,6 +6,9 @@ const {
   createFinancialEvent,
 } = require("./financialEventService");
 
+const { withTransaction } = require("../../utils/dbTransaction");
+const { notifyPaymentRefunded } = require("./financialNotificationService");
+
 /**
  * Cria um erro de negócio com status HTTP.
  */
@@ -97,11 +100,7 @@ async function refundPayment(
     );
   }
 
-  const connection = await db.promise().getConnection();
-
-  try {
-    await connection.beginTransaction();
-
+  return withTransaction(db, async (connection) => {
     const [payments] = await connection.execute(
       `
         SELECT
@@ -119,12 +118,20 @@ async function refundPayment(
           i.financial_contract_id,
           i.status AS invoice_status,
           i.paid_at AS invoice_paid_at,
-          fc.enrollment_id
+          i.description AS invoice_description,
+          fc.enrollment_id,
+          en.student_id,
+          en.course_id,
+          c.name AS course_name
         FROM payments p
         INNER JOIN invoices i
           ON i.id = p.invoice_id
         INNER JOIN financial_contracts fc
           ON fc.id = i.financial_contract_id
+        INNER JOIN enrollments en
+          ON en.id = fc.enrollment_id
+        INNER JOIN courses c
+          ON c.id = en.course_id
         WHERE p.id = ?
         FOR UPDATE
       `,
@@ -238,7 +245,16 @@ async function refundPayment(
       payment.financial_contract_id
     );
 
-    await connection.commit();
+    await notifyPaymentRefunded(db, connection, {
+      paymentId: normalizedPaymentId,
+      invoiceId: payment.invoice_id,
+      invoiceDescription: payment.invoice_description,
+      amount: Number(payment.amount).toFixed(2),
+      reason: normalizedReason,
+      studentId: payment.student_id,
+      courseId: payment.course_id,
+      courseName: payment.course_name,
+    });
 
     return {
       paymentId: normalizedPaymentId,
@@ -254,20 +270,7 @@ async function refundPayment(
       refundedAt: refundDate,
       refundReason: normalizedReason,
     };
-  } catch (error) {
-    try {
-      await connection.rollback();
-    } catch (rollbackError) {
-      console.error(
-        "Erro ao desfazer a transação de reembolso:",
-        rollbackError
-      );
-    }
-
-    throw error;
-  } finally {
-    connection.release();
-  }
+  });
 }
 
 module.exports = {

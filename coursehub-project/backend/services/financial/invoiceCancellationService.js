@@ -6,6 +6,9 @@ const {
   createFinancialEvent,
 } = require("./financialEventService");
 
+const { withTransaction } = require("../../utils/dbTransaction");
+const { notifyInvoiceCancelled } = require("./financialNotificationService");
+
 /**
  * Cria um erro de negócio com status HTTP.
  */
@@ -90,11 +93,7 @@ async function cancelInvoice(
     );
   }
 
-  const connection = await db.promise().getConnection();
-
-  try {
-    await connection.beginTransaction();
-
+  return withTransaction(db, async (connection) => {
     const [invoices] = await connection.execute(
       `
         SELECT
@@ -105,10 +104,18 @@ async function cancelInvoice(
           i.due_date,
           i.paid_at,
           i.cancelled_at,
-          fc.enrollment_id
+          i.description,
+          fc.enrollment_id,
+          en.student_id,
+          en.course_id,
+          c.name AS course_name
         FROM invoices i
         INNER JOIN financial_contracts fc
           ON fc.id = i.financial_contract_id
+        INNER JOIN enrollments en
+          ON en.id = fc.enrollment_id
+        INNER JOIN courses c
+          ON c.id = en.course_id
         WHERE i.id = ?
         FOR UPDATE
       `,
@@ -196,7 +203,14 @@ async function cancelInvoice(
       invoice.financial_contract_id
     );
 
-    await connection.commit();
+    await notifyInvoiceCancelled(db, connection, {
+      invoiceId: normalizedInvoiceId,
+      invoiceDescription: invoice.description,
+      reason: reason.trim(),
+      studentId: invoice.student_id,
+      courseId: invoice.course_id,
+      courseName: invoice.course_name,
+    });
 
     return {
       invoiceId: normalizedInvoiceId,
@@ -206,20 +220,7 @@ async function cancelInvoice(
       invoiceStatus: "cancelled",
       cancelledAt: cancellationDate,
     };
-  } catch (error) {
-    try {
-      await connection.rollback();
-    } catch (rollbackError) {
-      console.error(
-        "Erro ao desfazer o cancelamento da fatura:",
-        rollbackError
-      );
-    }
-
-    throw error;
-  } finally {
-    connection.release();
-  }
+  });
 }
 
 module.exports = {
