@@ -51,6 +51,7 @@ import FinancialDashboard from "../pages/admin/financial/FinancialDashboard";
 import CalendarioAdmin from "../pages/admin/CalendarioAdmin";
 import GradesAdmin from "../pages/admin/GradesAdmin";
 import AttendanceAdmin from "../pages/admin/AttendanceAdmin";
+import NotificacoesAdmin from "../pages/admin/NotificacoesAdmin";
 
 import HomeProfessor from "../pages/professor/HomeProfessor";
 import DashboardProfessor from "../pages/professor/DashboardProfessor";
@@ -66,6 +67,7 @@ import AttendanceProfessor from "../pages/professor/AttendanceProfessor";
 import AttendanceHistoryProfessor from "../pages/professor/AttendanceHistoryProfessor";
 import GradesProfessor from "../pages/professor/GradesProfessor";
 import CalendarioProfessor from "../pages/professor/CalendarioProfessor";
+import NotificacoesProfessor from "../pages/professor/NotificacoesProfessor";
 
 
 
@@ -369,6 +371,10 @@ export const router = createBrowserRouter([
                 element: <CalendarioAdmin />,
               },
               {
+                path: "notificacoes",
+                element: <NotificacoesAdmin />,
+              },
+              {
                 path: "perfil",
                 element: <UserProfile />,
               },
@@ -508,6 +514,10 @@ export const router = createBrowserRouter([
               {
                 path: "calendario",
                 element: <CalendarioProfessor />,
+              },
+              {
+                path: "notificacoes",
+                element: <NotificacoesProfessor />,
               },
               {
                 path: "perfil",
