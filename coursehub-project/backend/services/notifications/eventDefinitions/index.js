@@ -15,3 +15,4 @@ require("./learningSessionScheduled");
 require("./learningSessionChanged");
 require("./learningSessionCancelled");
 require("./learningSubmissionReceived");
+require("./learningGradePublished");
