@@ -7,28 +7,36 @@ const MAX_BODY_LENGTH = 4000;
 
 /**
  * Ticket-style modalities flip status based on who just posted --
- * "aguardando resposta de quem". Only teacher_support is reachable
- * yet (Etapa 9); administrative_support/staff_support join this
- * table when their own etapas (10/11) build them, each with the
- * master prompt's own literal rule for that modality (they are not
- * all the same shape -- staff_support's is keyed by which side of a
- * professor<->admin pair posted, not by a fixed student/staff pair).
+ * "aguardando resposta de quem". staff_support is keyed by which side
+ * of a professor<->admin pair posted (teacher -> waiting_staff, admin
+ * -> waiting_teacher), the same shape as administrative_support but
+ * with "teacher" standing in for "student" as the requesting side.
  */
 const TICKET_STATUS_TRANSITIONS = {
   teacher_support: { student: "waiting_staff", teacher: "waiting_student" },
   administrative_support: { student: "waiting_staff", admin: "waiting_student" },
+  staff_support: { teacher: "waiting_staff", admin: "waiting_teacher" },
 };
 
 /**
  * "Ticket resolvido pode ser reaberto dentro de uma janela
  * configurável; depois disso, nova solicitação cria novo protocolo."
- * Only administrative_support has this rule so far -- teacher_support
- * has no reopen policy in the master prompt, so a message there just
- * doesn't touch status once resolved/closed (existing Etapa 9
- * behavior, unchanged).
+ * Keyed by the "requesting" role for that modality -- the side whose
+ * message is what triggers a silent reopen; the other side (staff/
+ * admin) can always post a final note on a resolved ticket without
+ * reopening it. teacher_support has no reopen policy in the master
+ * prompt, so a message there just doesn't touch status once resolved/
+ * closed (existing Etapa 9 behavior, unchanged).
  */
-const REOPEN_WINDOW_DAYS = {
-  administrative_support: Number(process.env.CHAT_TICKET_REOPEN_WINDOW_DAYS) || 7,
+const REOPEN_POLICY = {
+  administrative_support: {
+    days: Number(process.env.CHAT_TICKET_REOPEN_WINDOW_DAYS) || 7,
+    requesterRole: "student",
+  },
+  staff_support: {
+    days: Number(process.env.CHAT_TICKET_REOPEN_WINDOW_DAYS) || 7,
+    requesterRole: "teacher",
+  },
 };
 
 /**
@@ -64,14 +72,14 @@ function computeNextConversationStatus(conversationType, senderRole, currentStat
  * same absolute instant no matter which timezone constructed it.
  */
 function evaluateResolvedConversationMessage(conversationType, senderRole, conversation) {
-  const reopenWindowDays = REOPEN_WINDOW_DAYS[conversationType];
+  const policy = REOPEN_POLICY[conversationType];
 
-  if (!reopenWindowDays || senderRole !== "student") {
+  if (!policy || senderRole !== policy.requesterRole) {
     return { allowed: true, nextStatus: null };
   }
 
   const resolvedOrClosedAt = conversation.resolved_at || conversation.closed_at;
-  const windowMs = reopenWindowDays * 24 * 60 * 60 * 1000;
+  const windowMs = policy.days * 24 * 60 * 60 * 1000;
   const withinWindow = resolvedOrClosedAt && Date.now() - new Date(resolvedOrClosedAt).getTime() <= windowMs;
 
   if (withinWindow) {

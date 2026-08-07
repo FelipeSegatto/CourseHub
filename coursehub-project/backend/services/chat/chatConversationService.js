@@ -103,6 +103,7 @@ async function createConversation(
     initiatorRole,
     conversationKey = null,
     initialStatus = "open",
+    assignedUserId = null,
     initialMessage = null,
     participants,
   }
@@ -116,8 +117,8 @@ async function createConversation(
       const [result] = await connection.query(
         `
           INSERT INTO chat_conversations
-            (type, channel_kind, title, category, course_id, class_id, created_by_user_id, initiator_role, conversation_key, status, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            (type, channel_kind, title, category, course_id, class_id, created_by_user_id, initiator_role, assigned_user_id, conversation_key, status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         `,
         [
           type,
@@ -128,6 +129,7 @@ async function createConversation(
           classId,
           createdByUserId,
           initiatorRole,
+          assignedUserId,
           conversationKey,
           initialStatus,
         ]

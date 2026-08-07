@@ -27,6 +27,8 @@ const { openTeacherQuestion } = require("../services/chat/chatTeacherSupportServ
 
 const { openAdministrativeTicket } = require("../services/chat/chatAdministrativeSupportService");
 
+const { openStaffTicket } = require("../services/chat/chatStaffSupportService");
+
 const router = express.Router();
 
 function handleServiceError(res, error, fallbackMessage) {
@@ -259,6 +261,27 @@ router.post("/chat/teacher-questions", authenticateToken, authorizeRoles("studen
 router.post("/chat/administrative-tickets", authenticateToken, authorizeRoles("student"), async (req, res) => {
   try {
     const result = await openAdministrativeTicket(db, {
+      userId: req.auth.userId,
+      category: req.body.category,
+      subject: req.body.subject,
+      body: req.body.body,
+    });
+
+    return res.status(201).json(result);
+  } catch (error) {
+    return handleServiceError(res, error, "Erro ao abrir protocolo.");
+  }
+});
+
+/**
+ * POST /api/chat/staff-tickets
+ * Teacher-only: the teacher-initiated half of staff_support. Opens
+ * with only the teacher as participant, unassigned -- the same shape
+ * as /chat/administrative-tickets, one modality over.
+ */
+router.post("/chat/staff-tickets", authenticateToken, authorizeRoles("teacher"), async (req, res) => {
+  try {
+    const result = await openStaffTicket(db, {
       userId: req.auth.userId,
       category: req.body.category,
       subject: req.body.subject,

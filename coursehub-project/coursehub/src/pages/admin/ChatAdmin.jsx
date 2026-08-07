@@ -2,20 +2,37 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import {
   listAdministrativeQueue,
-  assignAdministrativeTicket,
+  listStaffQueue,
+  assignChatTicket,
   getConversation,
   resolveConversation,
 } from "../../services/ChatService";
 import { useChatThread } from "../../hooks/useChatThread";
 import InstitutionalChatNotice from "../../components/chat/InstitutionalChatNotice";
 import ChatThreadPanel from "../../components/chat/ChatThreadPanel";
+import NewStaffConversationModal from "../../components/chat/NewStaffConversationModal";
 
-const CATEGORY_FILTERS = [
-  { value: "", label: "Todas" },
-  { value: "financial", label: "Financeiro" },
-  { value: "calendar", label: "Calendário" },
-  { value: "request", label: "Requerimento" },
+const MODALITY_TABS = [
+  { type: "administrative_support", label: "Alunos" },
+  { type: "staff_support", label: "Professores" },
 ];
+
+const CATEGORY_FILTERS_BY_TYPE = {
+  administrative_support: [
+    { value: "", label: "Todas" },
+    { value: "financial", label: "Financeiro" },
+    { value: "calendar", label: "Calendário" },
+    { value: "request", label: "Requerimento" },
+  ],
+  staff_support: [
+    { value: "", label: "Todas" },
+    { value: "course", label: "Curso" },
+    { value: "class", label: "Turma" },
+    { value: "schedule", label: "Agenda" },
+    { value: "administrative", label: "Administrativo" },
+    { value: "other", label: "Outro" },
+  ],
+};
 
 const ASSIGNMENT_FILTERS = [
   { value: "unassigned", label: "Não atribuídos" },
@@ -27,8 +44,14 @@ const STATUS_LABEL = {
   open: "Aberto",
   waiting_staff: "Aguardando administração",
   waiting_student: "Aguardando aluno",
+  waiting_teacher: "Aguardando professor",
   resolved: "Resolvido",
   closed: "Encerrado",
+};
+
+const QUEUE_FETCHERS_BY_TYPE = {
+  administrative_support: listAdministrativeQueue,
+  staff_support: listStaffQueue,
 };
 
 function formatConversationTime(value) {
@@ -37,13 +60,19 @@ function formatConversationTime(value) {
   return new Date(value).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
+function requesterName(item, modality) {
+  return modality === "staff_support" ? item.teacher?.name : item.student?.name;
+}
+
 export default function ChatAdmin() {
   const { usuarioLogado } = useAuth();
   const currentUserId = usuarioLogado?.id;
 
+  const [modality, setModality] = useState(MODALITY_TABS[0].type);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [assignmentFilter, setAssignmentFilter] = useState("unassigned");
   const [selectedConversationId, setSelectedConversationId] = useState(null);
+  const [showNewConversationModal, setShowNewConversationModal] = useState(false);
 
   const [queueItems, setQueueItems] = useState([]);
   const [queueLoading, setQueueLoading] = useState(true);
@@ -55,12 +84,21 @@ export default function ChatAdmin() {
   const [claiming, setClaiming] = useState(false);
   const [claimError, setClaimError] = useState("");
 
+  function handleSelectModality(type) {
+    setModality(type);
+    setCategoryFilter("");
+    setSelectedConversationId(null);
+  }
+
   useEffect(() => {
     let cancelled = false;
 
     async function fetchQueue() {
+      setQueueLoading(true);
+
       try {
-        const result = await listAdministrativeQueue({
+        const fetchQueuePage = QUEUE_FETCHERS_BY_TYPE[modality];
+        const result = await fetchQueuePage({
           category: categoryFilter || undefined,
           unassignedOnly: assignmentFilter === "unassigned" ? true : undefined,
           assignedToUserId: assignmentFilter === "mine" ? currentUserId : undefined,
@@ -85,7 +123,7 @@ export default function ChatAdmin() {
     return () => {
       cancelled = true;
     };
-  }, [categoryFilter, assignmentFilter, currentUserId, queueReloadToken]);
+  }, [modality, categoryFilter, assignmentFilter, currentUserId, queueReloadToken]);
 
   useEffect(() => {
     if (!selectedConversationId) return undefined;
@@ -136,7 +174,7 @@ export default function ChatAdmin() {
       setClaiming(true);
       setClaimError("");
 
-      await assignAdministrativeTicket(selectedConversationId);
+      await assignChatTicket(selectedConversationId);
 
       setQueueReloadToken((token) => token + 1);
     } catch (requestError) {
@@ -157,20 +195,41 @@ export default function ChatAdmin() {
     }
   }
 
+  function handleConversationStarted(conversationId) {
+    setShowNewConversationModal(false);
+    setQueueReloadToken((token) => token + 1);
+    setSelectedConversationId(conversationId);
+  }
+
   return (
     <main className="p-6">
       <section className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Protocolos administrativos</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Atendimento institucional</h1>
         <p className="mt-2 text-gray-600">
-          Fila de protocolos abertos por alunos com a administração. Assuma um protocolo para responder.
+          Protocolos abertos por alunos e conversas com professores atendidos pela administração.
         </p>
         <InstitutionalChatNotice className="mt-2" />
       </section>
 
       <section className="grid gap-6 rounded-2xl bg-white shadow md:grid-cols-[340px_1fr]" style={{ minHeight: 520 }}>
         <div className="flex flex-col border-b border-gray-200 md:border-b-0 md:border-r">
+          <div className="flex gap-1 border-b border-gray-200 p-2">
+            {MODALITY_TABS.map((tab) => (
+              <button
+                key={tab.type}
+                type="button"
+                onClick={() => handleSelectModality(tab.type)}
+                className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                  modality === tab.type ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           <div className="flex flex-wrap gap-1 border-b border-gray-200 p-2">
-            {CATEGORY_FILTERS.map((filter) => (
+            {CATEGORY_FILTERS_BY_TYPE[modality].map((filter) => (
               <button
                 key={filter.value}
                 type="button"
@@ -184,7 +243,7 @@ export default function ChatAdmin() {
             ))}
           </div>
 
-          <div className="flex flex-wrap gap-1 border-b border-gray-200 p-2">
+          <div className="flex flex-wrap items-center gap-1 border-b border-gray-200 p-2">
             {ASSIGNMENT_FILTERS.map((filter) => (
               <button
                 key={filter.value}
@@ -197,6 +256,16 @@ export default function ChatAdmin() {
                 {filter.label}
               </button>
             ))}
+
+            {modality === "staff_support" && (
+              <button
+                type="button"
+                onClick={() => setShowNewConversationModal(true)}
+                className="ml-auto rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+              >
+                Nova conversa
+              </button>
+            )}
           </div>
 
           {queueLoading && <p className="px-4 py-6 text-center text-sm text-gray-500">Carregando...</p>}
@@ -218,7 +287,7 @@ export default function ChatAdmin() {
                   }`}
                 >
                   <span className="block w-full truncate font-semibold text-gray-900">{item.title || "Protocolo"}</span>
-                  <span className="block truncate text-xs text-gray-500">{item.student?.name}</span>
+                  <span className="block truncate text-xs text-gray-500">{requesterName(item, modality)}</span>
                   <span className="flex w-full items-center justify-between text-xs text-gray-400">
                     <span>{STATUS_LABEL[item.status] || item.status}</span>
                     <span>{formatConversationTime(item.lastMessageAt || item.createdAt)}</span>
@@ -255,7 +324,7 @@ export default function ChatAdmin() {
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
               <h3 className="font-bold text-gray-900">{selectedQueueItem?.title || "Protocolo"}</h3>
               <p className="text-sm text-gray-600">
-                Aluno: {selectedQueueItem?.student?.name || "—"}
+                {requesterName(selectedQueueItem, modality) || "—"}
                 {selectedQueueItem?.assignedAdminName && ` · atualmente com ${selectedQueueItem.assignedAdminName}`}
               </p>
               <p className="text-sm text-gray-500">
@@ -292,6 +361,13 @@ export default function ChatAdmin() {
           )}
         </div>
       </section>
+
+      {showNewConversationModal && (
+        <NewStaffConversationModal
+          onClose={() => setShowNewConversationModal(false)}
+          onConversationStarted={handleConversationStarted}
+        />
+      )}
     </main>
   );
 }

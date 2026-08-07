@@ -92,6 +92,32 @@ export async function listAdministrativeQueue(params = {}) {
   );
 }
 
-export async function assignAdministrativeTicket(conversationId) {
+export async function assignChatTicket(conversationId) {
   return apiFetch(`/api/admin/chat/conversations/${conversationId}/assign`, { method: "PATCH" });
+}
+
+export async function openStaffTicket({ category, subject, body }) {
+  return apiFetch("/api/chat/staff-tickets", {
+    method: "POST",
+    body: JSON.stringify({ category, subject, body }),
+  });
+}
+
+export async function listStaffQueue(params = {}) {
+  const queryString = buildQueryString(params);
+
+  return apiFetch(queryString ? `/api/admin/chat/staff-tickets?${queryString}` : "/api/admin/chat/staff-tickets");
+}
+
+export async function openStaffConversation({ teacherUserId, category, subject, body }) {
+  return apiFetch("/api/admin/chat/staff-conversations", {
+    method: "POST",
+    body: JSON.stringify({ teacherUserId, category, subject, body }),
+  });
+}
+
+export async function listActiveTeachersForChat() {
+  const teachers = await apiFetch("/api/admin/teachers");
+
+  return (teachers || []).filter((teacher) => teacher.status === "active" && teacher.user_status === "active");
 }
