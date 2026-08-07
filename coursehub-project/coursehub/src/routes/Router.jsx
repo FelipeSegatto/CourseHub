@@ -55,6 +55,7 @@ import AttendanceAdmin from "../pages/admin/AttendanceAdmin";
 import NotificacoesAdmin from "../pages/admin/NotificacoesAdmin";
 import ChatAdmin from "../pages/admin/ChatAdmin";
 import ModeracaoAdmin from "../pages/admin/ModeracaoAdmin";
+import SystemHealthAdmin from "../pages/admin/SystemHealthAdmin";
 
 import HomeProfessor from "../pages/professor/HomeProfessor";
 import DashboardProfessor from "../pages/professor/DashboardProfessor";
@@ -389,6 +390,10 @@ export const router = createBrowserRouter([
               {
                 path: "moderacao",
                 element: <ModeracaoAdmin />,
+              },
+              {
+                path: "sistema",
+                element: <SystemHealthAdmin />,
               },
               {
                 path: "perfil",

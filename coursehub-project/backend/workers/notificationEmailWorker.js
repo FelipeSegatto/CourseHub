@@ -86,9 +86,12 @@ async function runCycle(config = getConfig(), sendEmailFn = sendEmail) {
   return { claimed: jobs.length };
 }
 
+const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+
 async function startWorker() {
   const config = getConfig();
   let running = true;
+  let lastHeartbeatAt = Date.now();
 
   console.log(
     `[notificationEmailWorker] starting (workerId=${config.workerId}, batchSize=${config.batchSize}, pollIntervalMs=${config.pollIntervalMs}, enabled=${config.enabled})`
@@ -108,7 +111,17 @@ async function startWorker() {
   // worker process.
   while (running) {
     try {
-      await runCycle(config);
+      const { claimed } = await runCycle(config);
+
+      // A quiet worker (nothing to claim) never logs otherwise --
+      // without this, "process alive but idle" and "process crashed
+      // silently" look identical from the log alone. Only fires on
+      // idle cycles; a busy worker's own per-delivery logs already
+      // prove it's alive.
+      if (claimed === 0 && Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
+        console.log("[notificationEmailWorker] heartbeat: alive, idle");
+        lastHeartbeatAt = Date.now();
+      }
     } catch (error) {
       console.error("[notificationEmailWorker] cycle error:", error.message);
     }

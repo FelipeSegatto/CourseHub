@@ -58,11 +58,13 @@ async function startWorker() {
     try {
       const result = await runCycle(config);
 
-      if (result.claimed > 0 || result.generated > 0) {
-        console.log(
-          `[scheduledRemindersWorker] cycle: generated=${result.generated} claimed=${result.claimed} processed=${result.processed} skipped=${result.skipped}`
-        );
-      }
+      // Logged every cycle, not just when something happened -- at
+      // this worker's hourly poll interval, an unconditional line is
+      // still cheap and doubles as the "alive" heartbeat the other
+      // worker has to simulate separately at its much faster interval.
+      console.log(
+        `[scheduledRemindersWorker] cycle: generated=${result.generated} claimed=${result.claimed} processed=${result.processed} skipped=${result.skipped}`
+      );
     } catch (error) {
       console.error("[scheduledRemindersWorker] cycle error:", error.message);
     }

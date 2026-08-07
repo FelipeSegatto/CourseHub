@@ -44,6 +44,10 @@ export default function NavbarAdmin() {
       label: "Moderação",
       to: "/admin/moderacao",
     },
+    {
+      label: "Status do sistema",
+      to: "/admin/sistema",
+    },
   ];
 
   const courseItems = [

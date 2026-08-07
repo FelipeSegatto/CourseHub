@@ -47,4 +47,47 @@ const chatMessageRateLimiter = rateLimit({
   },
 });
 
-module.exports = { loginRateLimiter, forgotPasswordRateLimiter, chatMessageRateLimiter };
+/**
+ * Limita abertura de novas conversas/protocolos de chat: 10 a cada
+ * 10 minutos por usuário. Diferente do limite de mensagens (que
+ * protege uma conversa já aberta), este protege as filas de
+ * atendimento em si -- sem ele, uma conta comprometida ou um
+ * script poderia inundar a fila administrativa/de professores com
+ * protocolos vazios.
+ */
+const chatConversationOpenRateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.auth?.userId ? String(req.auth.userId) : ipKeyGenerator(req.ip)),
+  message: {
+    message: "Muitas conversas abertas em pouco tempo. Aguarde um instante antes de abrir outra.",
+  },
+});
+
+/**
+ * Limita reports de mensagem: 20 a cada hora por usuário. Reportar é
+ * intencionalmente mais barato que abrir uma conversa (é uma ação de
+ * um clique, não uma abertura de protocolo), mas ainda precisa de um
+ * teto -- sem isso, alguém poderia tentar inundar a fila de
+ * moderação para escondar reports legítimos no meio do ruído.
+ */
+const chatReportRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.auth?.userId ? String(req.auth.userId) : ipKeyGenerator(req.ip)),
+  message: {
+    message: "Muitos reports em pouco tempo. Aguarde um instante antes de reportar outra mensagem.",
+  },
+});
+
+module.exports = {
+  loginRateLimiter,
+  forgotPasswordRateLimiter,
+  chatMessageRateLimiter,
+  chatConversationOpenRateLimiter,
+  chatReportRateLimiter,
+};

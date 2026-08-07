@@ -2,7 +2,11 @@ const express = require("express");
 const db = require("../db");
 const authenticateToken = require("../middlewares/authenticateToken");
 const authorizeRoles = require("../middlewares/authorizeRoles");
-const { chatMessageRateLimiter } = require("../middlewares/rateLimiters");
+const {
+  chatMessageRateLimiter,
+  chatConversationOpenRateLimiter,
+  chatReportRateLimiter,
+} = require("../middlewares/rateLimiters");
 
 const {
   getConversationForUser,
@@ -218,18 +222,24 @@ router.get("/chat/academic-contacts", authenticateToken, authorizeRoles("student
  * Student-only. Idempotent: opening the same pair twice returns the
  * same conversation, never a duplicate or an error.
  */
-router.post("/chat/academic-conversations", authenticateToken, authorizeRoles("student"), async (req, res) => {
-  try {
-    const result = await openAcademicPeerConversation(db, {
-      userId: req.auth.userId,
-      peerUserId: req.body.peerUserId,
-    });
+router.post(
+  "/chat/academic-conversations",
+  authenticateToken,
+  authorizeRoles("student"),
+  chatConversationOpenRateLimiter,
+  async (req, res) => {
+    try {
+      const result = await openAcademicPeerConversation(db, {
+        userId: req.auth.userId,
+        peerUserId: req.body.peerUserId,
+      });
 
-    return res.status(201).json(result);
-  } catch (error) {
-    return handleServiceError(res, error, "Erro ao iniciar conversa.");
+      return res.status(201).json(result);
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao iniciar conversa.");
+    }
   }
-});
+);
 
 /**
  * POST /api/chat/teacher-questions
@@ -237,22 +247,28 @@ router.post("/chat/academic-conversations", authenticateToken, authorizeRoles("s
  * the caller's own active enrollment; the responsible teacher is
  * resolved from the course, never accepted from the client.
  */
-router.post("/chat/teacher-questions", authenticateToken, authorizeRoles("student"), async (req, res) => {
-  try {
-    const result = await openTeacherQuestion(db, {
-      userId: req.auth.userId,
-      courseId: req.body.courseId,
-      classId: req.body.classId,
-      topic: req.body.topic,
-      subject: req.body.subject,
-      body: req.body.body,
-    });
+router.post(
+  "/chat/teacher-questions",
+  authenticateToken,
+  authorizeRoles("student"),
+  chatConversationOpenRateLimiter,
+  async (req, res) => {
+    try {
+      const result = await openTeacherQuestion(db, {
+        userId: req.auth.userId,
+        courseId: req.body.courseId,
+        classId: req.body.classId,
+        topic: req.body.topic,
+        subject: req.body.subject,
+        body: req.body.body,
+      });
 
-    return res.status(201).json(result);
-  } catch (error) {
-    return handleServiceError(res, error, "Erro ao abrir dúvida.");
+      return res.status(201).json(result);
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao abrir dúvida.");
+    }
   }
-});
+);
 
 /**
  * POST /api/chat/administrative-tickets
@@ -260,20 +276,26 @@ router.post("/chat/teacher-questions", authenticateToken, authorizeRoles("studen
  * admin is assigned yet; that's the separate claim/assign flow under
  * /api/admin/chat/*.
  */
-router.post("/chat/administrative-tickets", authenticateToken, authorizeRoles("student"), async (req, res) => {
-  try {
-    const result = await openAdministrativeTicket(db, {
-      userId: req.auth.userId,
-      category: req.body.category,
-      subject: req.body.subject,
-      body: req.body.body,
-    });
+router.post(
+  "/chat/administrative-tickets",
+  authenticateToken,
+  authorizeRoles("student"),
+  chatConversationOpenRateLimiter,
+  async (req, res) => {
+    try {
+      const result = await openAdministrativeTicket(db, {
+        userId: req.auth.userId,
+        category: req.body.category,
+        subject: req.body.subject,
+        body: req.body.body,
+      });
 
-    return res.status(201).json(result);
-  } catch (error) {
-    return handleServiceError(res, error, "Erro ao abrir protocolo.");
+      return res.status(201).json(result);
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao abrir protocolo.");
+    }
   }
-});
+);
 
 /**
  * POST /api/chat/staff-tickets
@@ -281,40 +303,51 @@ router.post("/chat/administrative-tickets", authenticateToken, authorizeRoles("s
  * with only the teacher as participant, unassigned -- the same shape
  * as /chat/administrative-tickets, one modality over.
  */
-router.post("/chat/staff-tickets", authenticateToken, authorizeRoles("teacher"), async (req, res) => {
-  try {
-    const result = await openStaffTicket(db, {
-      userId: req.auth.userId,
-      category: req.body.category,
-      subject: req.body.subject,
-      body: req.body.body,
-    });
+router.post(
+  "/chat/staff-tickets",
+  authenticateToken,
+  authorizeRoles("teacher"),
+  chatConversationOpenRateLimiter,
+  async (req, res) => {
+    try {
+      const result = await openStaffTicket(db, {
+        userId: req.auth.userId,
+        category: req.body.category,
+        subject: req.body.subject,
+        body: req.body.body,
+      });
 
-    return res.status(201).json(result);
-  } catch (error) {
-    return handleServiceError(res, error, "Erro ao abrir protocolo.");
+      return res.status(201).json(result);
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao abrir protocolo.");
+    }
   }
-});
+);
 
 /**
  * POST /api/chat/messages/:messageId/report
  * Any authenticated participant of the message's own conversation --
  * assertParticipant inside reportMessage is the actual gate.
  */
-router.post("/chat/messages/:messageId/report", authenticateToken, async (req, res) => {
-  try {
-    const result = await reportMessage(db, {
-      messageId: req.params.messageId,
-      reporterUserId: req.auth.userId,
-      reason: req.body.reason,
-      details: req.body.details,
-    });
+router.post(
+  "/chat/messages/:messageId/report",
+  authenticateToken,
+  chatReportRateLimiter,
+  async (req, res) => {
+    try {
+      const result = await reportMessage(db, {
+        messageId: req.params.messageId,
+        reporterUserId: req.auth.userId,
+        reason: req.body.reason,
+        details: req.body.details,
+      });
 
-    return res.status(201).json(result);
-  } catch (error) {
-    return handleServiceError(res, error, "Erro ao reportar mensagem.");
+      return res.status(201).json(result);
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao reportar mensagem.");
+    }
   }
-});
+);
 
 /**
  * DELETE /api/chat/messages/:messageId
