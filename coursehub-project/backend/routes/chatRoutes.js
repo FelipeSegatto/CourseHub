@@ -8,6 +8,7 @@ const {
   getConversationForUser,
   listConversationsForUser,
   getUnreadConversationCount,
+  resolveConversation,
 } = require("../services/chat/chatConversationService");
 
 const {
@@ -21,6 +22,8 @@ const {
   listAcademicContacts,
   openAcademicPeerConversation,
 } = require("../services/chat/chatAcademicPeerService");
+
+const { openTeacherQuestion } = require("../services/chat/chatTeacherSupportService");
 
 const router = express.Router();
 
@@ -51,6 +54,8 @@ router.get("/chat/conversations", authenticateToken, async (req, res) => {
       cursor: req.query.cursor,
       limit: req.query.limit,
       includeArchived: req.query.includeArchived === "true",
+      type: req.query.type,
+      status: req.query.status,
     });
 
     return res.status(200).json(result);
@@ -166,6 +171,24 @@ router.patch("/chat/conversations/:conversationId/archive", authenticateToken, a
 });
 
 /**
+ * PATCH /api/chat/conversations/:conversationId/resolve
+ * Any active participant -- student confirming their question was
+ * answered counts just as much as the teacher marking it done.
+ */
+router.patch("/chat/conversations/:conversationId/resolve", authenticateToken, async (req, res) => {
+  try {
+    const result = await resolveConversation(db, {
+      conversationId: req.params.conversationId,
+      userId: req.auth.userId,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return handleServiceError(res, error, "Erro ao resolver conversa.");
+  }
+});
+
+/**
  * GET /api/chat/academic-contacts
  * Student-only: colleagues sharing an active enrollment with the
  * caller. Public academic identity only (name, avatar) -- never
@@ -199,6 +222,29 @@ router.post("/chat/academic-conversations", authenticateToken, authorizeRoles("s
     return res.status(201).json(result);
   } catch (error) {
     return handleServiceError(res, error, "Erro ao iniciar conversa.");
+  }
+});
+
+/**
+ * POST /api/chat/teacher-questions
+ * Student-only. courseId/classId are validated server-side against
+ * the caller's own active enrollment; the responsible teacher is
+ * resolved from the course, never accepted from the client.
+ */
+router.post("/chat/teacher-questions", authenticateToken, authorizeRoles("student"), async (req, res) => {
+  try {
+    const result = await openTeacherQuestion(db, {
+      userId: req.auth.userId,
+      courseId: req.body.courseId,
+      classId: req.body.classId,
+      topic: req.body.topic,
+      subject: req.body.subject,
+      body: req.body.body,
+    });
+
+    return res.status(201).json(result);
+  } catch (error) {
+    return handleServiceError(res, error, "Erro ao abrir dúvida.");
   }
 });
 

@@ -5,6 +5,37 @@ const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 100;
 const MAX_BODY_LENGTH = 4000;
 
+/**
+ * Ticket-style modalities flip status based on who just posted --
+ * "aguardando resposta de quem". Only teacher_support is reachable
+ * yet (Etapa 9); administrative_support/staff_support join this
+ * table when their own etapas (10/11) build them, each with the
+ * master prompt's own literal rule for that modality (they are not
+ * all the same shape -- staff_support's is keyed by which side of a
+ * professor<->admin pair posted, not by a fixed student/staff pair).
+ */
+const TICKET_STATUS_TRANSITIONS = {
+  teacher_support: { student: "waiting_staff", teacher: "waiting_student" },
+};
+
+/**
+ * Null means "don't touch status" -- either this isn't a ticket-style
+ * modality, the sender's role has no defined transition for it, or
+ * the conversation already reached a terminal state (resolved/closed)
+ * and a new message shouldn't silently reopen it; reopening is a
+ * distinct, deliberate action for a later etapa, not a side effect of
+ * posting.
+ */
+function computeNextConversationStatus(conversationType, senderRole, currentStatus) {
+  if (currentStatus === "resolved" || currentStatus === "closed") {
+    return null;
+  }
+
+  const transitions = TICKET_STATUS_TRANSITIONS[conversationType];
+
+  return transitions?.[senderRole] ?? null;
+}
+
 function normalizeLimit(limit) {
   const normalized = Number(limit);
 
@@ -104,6 +135,13 @@ async function createMessage(
       throw createServiceError("Você não pode enviar mensagens nesta conversa.", 403);
     }
 
+    const [conversationRows] = await connection.query(
+      `SELECT type, status FROM chat_conversations WHERE id = ? FOR UPDATE`,
+      [conversationId]
+    );
+
+    const conversation = conversationRows[0];
+
     if (clientMessageId) {
       const [existingRows] = await connection.query(
         `SELECT id FROM chat_messages WHERE sender_user_id = ? AND client_message_id = ? LIMIT 1`,
@@ -154,14 +192,27 @@ async function createMessage(
       throw error;
     }
 
-    await connection.query(
-      `
-        UPDATE chat_conversations
-        SET last_message_id = ?, last_message_at = NOW(), updated_at = NOW()
-        WHERE id = ?
-      `,
-      [messageId, conversationId]
-    );
+    const nextStatus = computeNextConversationStatus(conversation.type, participant.role, conversation.status);
+
+    if (nextStatus) {
+      await connection.query(
+        `
+          UPDATE chat_conversations
+          SET last_message_id = ?, last_message_at = NOW(), status = ?, updated_at = NOW()
+          WHERE id = ?
+        `,
+        [messageId, nextStatus, conversationId]
+      );
+    } else {
+      await connection.query(
+        `
+          UPDATE chat_conversations
+          SET last_message_id = ?, last_message_at = NOW(), updated_at = NOW()
+          WHERE id = ?
+        `,
+        [messageId, conversationId]
+      );
+    }
 
     return getMessageById(connection, messageId);
   });
@@ -215,4 +266,5 @@ module.exports = {
   createMessage,
   listMessages,
   getMessageById,
+  computeNextConversationStatus,
 };

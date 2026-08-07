@@ -69,6 +69,7 @@ import AttendanceHistoryProfessor from "../pages/professor/AttendanceHistoryProf
 import GradesProfessor from "../pages/professor/GradesProfessor";
 import CalendarioProfessor from "../pages/professor/CalendarioProfessor";
 import NotificacoesProfessor from "../pages/professor/NotificacoesProfessor";
+import ChatProfessor from "../pages/professor/ChatProfessor";
 
 
 
@@ -523,6 +524,10 @@ export const router = createBrowserRouter([
               {
                 path: "notificacoes",
                 element: <NotificacoesProfessor />,
+              },
+              {
+                path: "chat",
+                element: <ChatProfessor />,
               },
               {
                 path: "perfil",

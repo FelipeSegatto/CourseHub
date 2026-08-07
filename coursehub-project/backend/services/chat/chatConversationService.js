@@ -61,13 +61,18 @@ function mapConversationRow(row) {
   };
 }
 
+// 'direct' (academic_peer) and 'ticket' (teacher_support and, later,
+// administrative_support) are both 2-party as far as every modality
+// reachable so far goes, so "the other participant" is well-defined
+// for either. A future group channel_kind would need a different
+// summary (member count, title) instead of a single other user.
 const CALLER_AND_OTHER_PARTICIPANT_JOIN = `
   INNER JOIN chat_participants cp
     ON cp.conversation_id = cc.id AND cp.user_id = ?
   LEFT JOIN chat_participants other_cp
     ON other_cp.conversation_id = cc.id
     AND other_cp.user_id <> ?
-    AND cc.channel_kind = 'direct'
+    AND cc.channel_kind IN ('direct', 'ticket')
   LEFT JOIN users other_u ON other_u.id = other_cp.user_id
 `;
 
@@ -78,11 +83,12 @@ const CALLER_AND_OTHER_PARTICIPANT_COLUMNS = `
 
 /**
  * Generic conversation creation shared by every modality-specific
- * "open a conversation" flow (built per modality starting Etapa 8) --
- * inserts the conversation and every initial participant in one
- * transaction. Etapa 7 has no public route that calls this directly;
- * it's the building block every later chat stage's opening endpoint
- * wraps, and is exercised here only by tests.
+ * "open a conversation" flow -- inserts the conversation, every
+ * initial participant, and (for ticket-style modalities, since a
+ * ticket is never created without an opening message) the first
+ * message, all in one transaction. Etapa 8 (academic_peer) never
+ * passes initialMessage -- a direct chat opens empty. Etapa 9+
+ * (teacher_support and later) always does.
  */
 async function createConversation(
   db,
@@ -96,6 +102,8 @@ async function createConversation(
     createdByUserId,
     initiatorRole,
     conversationKey = null,
+    initialStatus = "open",
+    initialMessage = null,
     participants,
   }
 ) {
@@ -109,7 +117,7 @@ async function createConversation(
         `
           INSERT INTO chat_conversations
             (type, channel_kind, title, category, course_id, class_id, created_by_user_id, initiator_role, conversation_key, status, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', NOW(), NOW())
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         `,
         [
           type,
@@ -121,6 +129,7 @@ async function createConversation(
           createdByUserId,
           initiatorRole,
           conversationKey,
+          initialStatus,
         ]
       );
 
@@ -135,7 +144,26 @@ async function createConversation(
         });
       }
 
-      return { conversationId };
+      let firstMessageId = null;
+
+      if (initialMessage) {
+        const [messageResult] = await connection.query(
+          `
+            INSERT INTO chat_messages (conversation_id, sender_user_id, message_type, body, created_at)
+            VALUES (?, ?, 'text', ?, NOW())
+          `,
+          [conversationId, initialMessage.senderUserId, initialMessage.body]
+        );
+
+        firstMessageId = messageResult.insertId;
+
+        await connection.query(
+          `UPDATE chat_conversations SET last_message_id = ?, last_message_at = NOW(), updated_at = NOW() WHERE id = ?`,
+          [firstMessageId, conversationId]
+        );
+      }
+
+      return { conversationId, firstMessageId };
     });
   } catch (error) {
     if (error.code === "ER_DUP_ENTRY") {
@@ -186,7 +214,7 @@ async function getConversationForUser(db, { conversationId, userId }) {
  * actual chat UI (Etapa 8+) to validate it against -- no route
  * depends on the current ordering yet.
  */
-async function listConversationsForUser(db, { userId, cursor, limit, includeArchived = false }) {
+async function listConversationsForUser(db, { userId, cursor, limit, includeArchived = false, type, status }) {
   const normalizedLimit = normalizeLimit(limit);
   const normalizedCursor = normalizeCursor(cursor);
 
@@ -195,6 +223,16 @@ async function listConversationsForUser(db, { userId, cursor, limit, includeArch
 
   if (!includeArchived) {
     conditions.push("cp.archived_at IS NULL");
+  }
+
+  if (type) {
+    conditions.push("cc.type = ?");
+    params.push(type);
+  }
+
+  if (status) {
+    conditions.push("cc.status = ?");
+    params.push(status);
   }
 
   if (normalizedCursor) {
@@ -253,10 +291,38 @@ async function getUnreadConversationCount(db, { userId }) {
   return { unreadCount: Number(rows[0]?.total || 0) };
 }
 
+/**
+ * "Participante autorizado pode resolver" -- any active participant,
+ * not just staff/teacher, since resolving is the student confirming
+ * their own question is answered just as much as the teacher marking
+ * it done. Idempotent: resolving an already-resolved/closed
+ * conversation is a silent no-op, not an error. "Fechar" (teacher/
+ * admin-only, more final than resolve) is deliberately not built
+ * here -- it's an administrative-queue operation (master prompt
+ * section 8.4), out of this stage's scope.
+ */
+async function resolveConversation(db, { conversationId, userId }) {
+  const runner = db.promise();
+
+  await assertParticipant(runner, { conversationId, userId });
+
+  const [result] = await runner.query(
+    `
+      UPDATE chat_conversations
+      SET status = 'resolved', resolved_at = NOW(), updated_at = NOW()
+      WHERE id = ? AND status NOT IN ('resolved', 'closed')
+    `,
+    [conversationId]
+  );
+
+  return { conversationId, resolved: result.affectedRows > 0 };
+}
+
 module.exports = {
   createServiceError,
   createConversation,
   getConversationForUser,
   listConversationsForUser,
   getUnreadConversationCount,
+  resolveConversation,
 };

@@ -1,6 +1,7 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useUnreadNotifications } from "../hooks/useUnreadNotifications";
+import { useChatUnreadCount } from "../hooks/useChatUnreadCount";
 import CourseHubLogo from "./logo/Logo";
 import NavbarDropdown from "./NavbarDropdown";
 
@@ -8,6 +9,7 @@ export default function NavbarProfessor() {
   const navigate = useNavigate();
   const { logout, estaLogado } = useAuth();
   const { unreadCount } = useUnreadNotifications({ enabled: estaLogado });
+  const { unreadCount: unreadChatCount } = useChatUnreadCount({ enabled: estaLogado });
 
   const teachingItems = [
     {
@@ -131,6 +133,23 @@ export default function NavbarProfessor() {
                 "
               >
                 {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </NavLink>
+
+          <NavLink
+            to="/professor/chat"
+            className={({ isActive }) => `relative ${linkClass({ isActive })}`}
+          >
+            Chat
+            {unreadChatCount > 0 && (
+              <span
+                className="
+                  ml-1.5 inline-flex h-5 min-w-5 items-center justify-center
+                  rounded-full bg-red-600 px-1.5 text-xs font-semibold text-white
+                "
+              >
+                {unreadChatCount > 99 ? "99+" : unreadChatCount}
               </span>
             )}
           </NavLink>

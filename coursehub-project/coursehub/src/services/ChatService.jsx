@@ -65,3 +65,14 @@ export async function openAcademicPeerConversation(peerUserId) {
     body: JSON.stringify({ peerUserId }),
   });
 }
+
+export async function openTeacherQuestion({ courseId, classId, topic, subject, body }) {
+  return apiFetch("/api/chat/teacher-questions", {
+    method: "POST",
+    body: JSON.stringify({ courseId, classId, topic, subject, body }),
+  });
+}
+
+export async function resolveConversation(conversationId) {
+  return apiFetch(`/api/chat/conversations/${conversationId}/resolve`, { method: "PATCH" });
+}

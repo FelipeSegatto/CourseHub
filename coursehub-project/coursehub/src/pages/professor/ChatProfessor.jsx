@@ -5,12 +5,12 @@ import { useChatInbox } from "../../hooks/useChatInbox";
 import { useChatThread } from "../../hooks/useChatThread";
 import InstitutionalChatNotice from "../../components/chat/InstitutionalChatNotice";
 import ChatThreadPanel from "../../components/chat/ChatThreadPanel";
-import NewAcademicChatModal from "../../components/chat/NewAcademicChatModal";
-import NewTeacherQuestionModal from "../../components/chat/NewTeacherQuestionModal";
 
-const TABS = [
-  { type: "academic_peer", label: "Colegas" },
-  { type: "teacher_support", label: "Professores" },
+const STATUS_FILTERS = [
+  { value: "", label: "Todas" },
+  { value: "waiting_staff", label: "Aguardando resposta" },
+  { value: "waiting_student", label: "Aguardando aluno" },
+  { value: "resolved", label: "Resolvidas" },
 ];
 
 function formatConversationTime(value) {
@@ -19,23 +19,17 @@ function formatConversationTime(value) {
   return new Date(value).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
-function conversationTitle(conversation) {
-  if (conversation.type === "teacher_support") {
-    return conversation.title || "Dúvida";
-  }
-
-  return conversation.otherParticipant?.name || conversation.title || "Conversa";
-}
-
-export default function ChatAluno() {
+export default function ChatProfessor() {
   const { usuarioLogado } = useAuth();
   const currentUserId = usuarioLogado?.id;
 
-  const [activeTab, setActiveTab] = useState(TABS[0].type);
+  const [statusFilter, setStatusFilter] = useState("");
   const [selectedConversationId, setSelectedConversationId] = useState(null);
-  const [showNewChatModal, setShowNewChatModal] = useState(false);
 
-  const { conversations, setConversations, loading, error, refresh } = useChatInbox({ type: activeTab });
+  const { conversations, setConversations, loading, error, refresh } = useChatInbox({
+    type: "teacher_support",
+    status: statusFilter || undefined,
+  });
 
   const selectedConversation = conversations.find((c) => c.conversationId === selectedConversationId) || null;
 
@@ -46,11 +40,6 @@ export default function ChatAluno() {
       currentUserName: usuarioLogado?.name,
       onMessageSent: refresh,
     });
-
-  function handleSelectTab(type) {
-    setActiveTab(type);
-    setSelectedConversationId(null);
-  }
 
   async function handleArchive() {
     if (!selectedConversationId) return;
@@ -76,50 +65,31 @@ export default function ChatAluno() {
     }
   }
 
-  function handleConversationStarted(conversationId) {
-    setShowNewChatModal(false);
-    refresh();
-    setSelectedConversationId(conversationId);
-  }
-
   const canPost = selectedConversation ? selectedConversation.canPost !== false : true;
 
   return (
     <main className="p-6">
       <section className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Chat</h1>
-        <p className="mt-2 text-gray-600">
-          Converse com colegas de curso ou tire dúvidas diretamente com seus professores.
-        </p>
+        <h1 className="text-3xl font-bold text-gray-900">Dúvidas dos alunos</h1>
+        <p className="mt-2 text-gray-600">Alunos matriculados nos seus cursos podem abrir dúvidas diretamente aqui.</p>
         <InstitutionalChatNotice className="mt-2" />
       </section>
 
       <section className="grid gap-6 rounded-2xl bg-white shadow md:grid-cols-[320px_1fr]" style={{ minHeight: 520 }}>
         <div className="flex flex-col border-b border-gray-200 md:border-b-0 md:border-r">
-          <div className="flex gap-1 border-b border-gray-200 p-2">
-            {TABS.map((tab) => (
+          <div className="flex flex-wrap gap-1 border-b border-gray-200 p-2">
+            {STATUS_FILTERS.map((filter) => (
               <button
-                key={tab.type}
+                key={filter.value}
                 type="button"
-                onClick={() => handleSelectTab(tab.type)}
-                className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                  activeTab === tab.type ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"
+                onClick={() => setStatusFilter(filter.value)}
+                className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                  statusFilter === filter.value ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                {tab.label}
+                {filter.label}
               </button>
             ))}
-          </div>
-
-          <div className="flex items-center justify-between p-4">
-            <h2 className="font-bold text-gray-900">Conversas</h2>
-            <button
-              type="button"
-              onClick={() => setShowNewChatModal(true)}
-              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
-            >
-              Nova conversa
-            </button>
           </div>
 
           {loading && <p className="px-4 py-6 text-center text-sm text-gray-500">Carregando...</p>}
@@ -127,11 +97,7 @@ export default function ChatAluno() {
           {!loading && error && <p className="px-4 py-3 text-center text-sm text-red-700">{error}</p>}
 
           {!loading && !error && conversations.length === 0 && (
-            <p className="px-4 py-6 text-center text-sm text-gray-500">
-              {activeTab === "academic_peer"
-                ? "Nenhuma conversa ainda. Comece uma com um colega."
-                : "Nenhuma dúvida ainda. Comece uma com um professor."}
-            </p>
+            <p className="px-4 py-6 text-center text-sm text-gray-500">Nenhuma dúvida por aqui.</p>
           )}
 
           <ul className="flex-1 overflow-y-auto">
@@ -151,7 +117,10 @@ export default function ChatAluno() {
                   >
                     <span className="min-w-0">
                       <span className={`block truncate ${isUnread ? "font-bold text-gray-900" : "text-gray-700"}`}>
-                        {conversationTitle(conversation)}
+                        {conversation.title || "Dúvida"}
+                      </span>
+                      <span className="block truncate text-xs text-gray-500">
+                        {conversation.otherParticipant?.name}
                       </span>
                       <span className="block text-xs text-gray-400">
                         {formatConversationTime(conversation.lastMessageAt || conversation.createdAt)}
@@ -168,7 +137,7 @@ export default function ChatAluno() {
 
         <div className="flex flex-col">
           <ChatThreadPanel
-            title={selectedConversation ? conversationTitle(selectedConversation) : ""}
+            title={selectedConversation ? selectedConversation.title || "Dúvida" : ""}
             conversation={selectedConversation}
             messages={messages}
             loading={messagesLoading}
@@ -179,26 +148,11 @@ export default function ChatAluno() {
             canPost={canPost}
             currentUserId={currentUserId}
             onArchive={selectedConversation ? handleArchive : undefined}
-            onResolve={
-              selectedConversation?.type === "teacher_support" ? handleResolve : undefined
-            }
+            onResolve={selectedConversation ? handleResolve : undefined}
+            emptyStateText="Selecione uma dúvida na lista."
           />
         </div>
       </section>
-
-      {showNewChatModal && activeTab === "academic_peer" && (
-        <NewAcademicChatModal
-          onClose={() => setShowNewChatModal(false)}
-          onConversationStarted={handleConversationStarted}
-        />
-      )}
-
-      {showNewChatModal && activeTab === "teacher_support" && (
-        <NewTeacherQuestionModal
-          onClose={() => setShowNewChatModal(false)}
-          onConversationStarted={handleConversationStarted}
-        />
-      )}
     </main>
   );
 }
