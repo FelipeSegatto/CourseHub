@@ -14,6 +14,10 @@ const CATEGORY_LABELS = {
     label: "Calendário institucional",
     description: "Eventos institucionais publicados, alterados ou cancelados.",
   },
+  chat: {
+    label: "Chat",
+    description: "Novas mensagens em suas conversas.",
+  },
 };
 
 function labelFor(category) {
@@ -101,7 +105,7 @@ export default function NotificationPreferences() {
       {preferences.map((preference) => (
         <div
           key={preference.category}
-          className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 p-4"
+          className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 py-4 px-8"
         >
           <div>
             <p className="font-semibold text-gray-900">{labelFor(preference.category)}</p>

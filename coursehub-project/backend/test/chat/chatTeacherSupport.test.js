@@ -5,6 +5,7 @@ require("dotenv").config();
 
 const db = require("../../db");
 const { retryOnDeadlock } = require("../testHelpers");
+require("../../services/notifications/eventDefinitions"); // registers chat.message.received
 const { openTeacherQuestion } = require("../../services/chat/chatTeacherSupportService");
 const { resolveConversation, listConversationsForUser } = require("../../services/chat/chatConversationService");
 const { createMessage, computeNextConversationStatus } = require("../../services/chat/chatMessageService");
@@ -38,6 +39,32 @@ async function openTestQuestion(overrides = {}) {
 after(async () => {
   if (createdConversationIds.length > 0) {
     const placeholders = createdConversationIds.map(() => "?").join(",");
+
+    // Every message sent through these fixture conversations now
+    // also fires chat.message.received (Etapa 13) -- clean those up
+    // too, or real recipient accounts (e.g. the shared teacher
+    // fixture reused across chat test files) would accumulate
+    // leftover notification rows from automated test runs.
+    await retryOnDeadlock(() =>
+      db.promise().query(
+        `DELETE FROM notification_deliveries WHERE recipient_id IN (SELECT id FROM notification_recipients WHERE notification_id IN (SELECT id FROM notifications WHERE source_type = 'chat_conversation' AND source_id IN (${placeholders})))`,
+        createdConversationIds
+      )
+    );
+
+    await retryOnDeadlock(() =>
+      db.promise().query(
+        `DELETE FROM notification_recipients WHERE notification_id IN (SELECT id FROM notifications WHERE source_type = 'chat_conversation' AND source_id IN (${placeholders}))`,
+        createdConversationIds
+      )
+    );
+
+    await retryOnDeadlock(() =>
+      db.promise().query(
+        `DELETE FROM notifications WHERE source_type = 'chat_conversation' AND source_id IN (${placeholders})`,
+        createdConversationIds
+      )
+    );
 
     await retryOnDeadlock(() =>
       db.promise().query(`UPDATE chat_conversations SET last_message_id = NULL WHERE id IN (${placeholders})`, createdConversationIds)

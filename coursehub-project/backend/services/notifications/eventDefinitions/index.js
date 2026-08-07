@@ -29,3 +29,4 @@ require("./financialInvoiceOverdue");
 require("./financialInvoiceOverdueChargeWarning");
 require("./financialEnrollmentLockWarning");
 require("./financialEnrollmentLocked");
+require("./chatMessageReceived");

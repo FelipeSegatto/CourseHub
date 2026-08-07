@@ -1,5 +1,7 @@
 const { withTransaction } = require("../../utils/dbTransaction");
 const { createServiceError, assertParticipant } = require("./chatParticipantService");
+const { createNotificationEvent } = require("../notifications/notificationService");
+const { resolveOtherActiveParticipants } = require("../notifications/notificationRecipientResolvers");
 
 const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 100;
@@ -320,7 +322,32 @@ async function createMessage(
       );
     }
 
-    return getMessageById(connection, messageId);
+    const savedMessage = await getMessageById(connection, messageId);
+
+    const recipients = await resolveOtherActiveParticipants(connection, {
+      conversationId,
+      excludeUserId: userId,
+    });
+
+    if (recipients.length > 0) {
+      await createNotificationEvent(db, {
+        type: "chat.message.received",
+        sourceType: "chat_conversation",
+        sourceId: conversationId,
+        actorUserId: userId,
+        context: {
+          messageId,
+          conversationId,
+          conversationType: conversation.type,
+          senderName: savedMessage.senderName,
+          messageBody: trimmedBody,
+        },
+        recipients,
+        connection,
+      });
+    }
+
+    return savedMessage;
   });
 }
 

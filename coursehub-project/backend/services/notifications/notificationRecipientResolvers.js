@@ -169,9 +169,44 @@ async function resolveCalendarAudience(runner, { scopeType, courseId, classId })
   return [];
 }
 
+/**
+ * Multi-recipient audience for chat.message.received: every other
+ * currently-active (left_at IS NULL) participant of the conversation,
+ * regardless of role -- student, teacher, admin, or moderator can all
+ * be on the receiving end depending on modality. excludeUserId is
+ * normally the sender, but createNotificationEvent's own
+ * actorUserId/excludeActor already handles that filter; this resolver
+ * still takes it directly so a caller in a genuinely different
+ * context (none exist yet) isn't forced through the actor-exclusion
+ * path to get the same result. A participant who has left the
+ * conversation, or whose own account is inactive, is not notified.
+ */
+async function resolveOtherActiveParticipants(runner, { conversationId, excludeUserId }) {
+  const [rows] = await runner.query(
+    `
+      SELECT u.id AS user_id, u.name, u.email, cp.participant_role
+      FROM chat_participants cp
+      INNER JOIN users u ON u.id = cp.user_id
+      WHERE cp.conversation_id = ?
+        AND cp.left_at IS NULL
+        AND cp.user_id <> ?
+        AND u.status = 'active'
+    `,
+    [conversationId, excludeUserId]
+  );
+
+  return rows.map((row) => ({
+    userId: row.user_id,
+    role: row.participant_role,
+    name: row.name,
+    email: row.email,
+  }));
+}
+
 module.exports = {
   resolveActiveStudentsForCourseOrClass,
   resolveTeacherForCourse,
   resolveStudentOwner,
   resolveCalendarAudience,
+  resolveOtherActiveParticipants,
 };

@@ -5,6 +5,7 @@ require("dotenv").config();
 
 const db = require("../../db");
 const { retryOnDeadlock } = require("../testHelpers");
+require("../../services/notifications/eventDefinitions"); // registers chat.message.received
 const {
   createConversation,
   getConversationForUser,
@@ -52,6 +53,32 @@ async function createTestConversation(overrides = {}) {
 after(async () => {
   if (createdConversationIds.length > 0) {
     const placeholders = createdConversationIds.map(() => "?").join(",");
+
+    // Every message sent through these fixture conversations now
+    // also fires chat.message.received (Etapa 13) -- clean those up
+    // too, or real recipient accounts (e.g. shared teacher/admin
+    // fixtures reused across chat test files) would accumulate
+    // leftover notification rows from automated test runs.
+    await retryOnDeadlock(() =>
+      db.promise().query(
+        `DELETE FROM notification_deliveries WHERE recipient_id IN (SELECT id FROM notification_recipients WHERE notification_id IN (SELECT id FROM notifications WHERE source_type = 'chat_conversation' AND source_id IN (${placeholders})))`,
+        createdConversationIds
+      )
+    );
+
+    await retryOnDeadlock(() =>
+      db.promise().query(
+        `DELETE FROM notification_recipients WHERE notification_id IN (SELECT id FROM notifications WHERE source_type = 'chat_conversation' AND source_id IN (${placeholders}))`,
+        createdConversationIds
+      )
+    );
+
+    await retryOnDeadlock(() =>
+      db.promise().query(
+        `DELETE FROM notifications WHERE source_type = 'chat_conversation' AND source_id IN (${placeholders})`,
+        createdConversationIds
+      )
+    );
 
     // Break the circular last_message_id FK first, same reasoning as
     // the migration's own rollback: chat_conversations.last_message_id

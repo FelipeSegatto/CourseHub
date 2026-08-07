@@ -4,6 +4,8 @@ const {
   assertParticipant,
   addParticipant,
 } = require("./chatParticipantService");
+const { createNotificationEvent } = require("../notifications/notificationService");
+const { resolveOtherActiveParticipants } = require("../notifications/notificationRecipientResolvers");
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -163,6 +165,40 @@ async function createConversation(
           `UPDATE chat_conversations SET last_message_id = ?, last_message_at = NOW(), updated_at = NOW() WHERE id = ?`,
           [firstMessageId, conversationId]
         );
+
+        // Only teacher_support/staff_support ever add the other side
+        // as a participant at creation time (administrative_support/
+        // staff_support-by-teacher open with only the requester,
+        // nobody to notify yet) -- same notification this
+        // conversation's later replies get via chatMessageService's
+        // own createMessage, just fired here since the very first
+        // message never goes through that function.
+        const recipients = await resolveOtherActiveParticipants(connection, {
+          conversationId,
+          excludeUserId: initialMessage.senderUserId,
+        });
+
+        if (recipients.length > 0) {
+          const [senderRows] = await connection.query(`SELECT name FROM users WHERE id = ? LIMIT 1`, [
+            initialMessage.senderUserId,
+          ]);
+
+          await createNotificationEvent(db, {
+            type: "chat.message.received",
+            sourceType: "chat_conversation",
+            sourceId: conversationId,
+            actorUserId: initialMessage.senderUserId,
+            context: {
+              messageId: firstMessageId,
+              conversationId,
+              conversationType: type,
+              senderName: senderRows[0]?.name || "Alguém",
+              messageBody: initialMessage.body,
+            },
+            recipients,
+            connection,
+          });
+        }
       }
 
       return { conversationId, firstMessageId };
