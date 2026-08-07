@@ -14,6 +14,14 @@ const {
   assignStaffTicket,
 } = require("../services/chat/chatStaffSupportService");
 
+const { listReports, reviewReport } = require("../services/chat/chatModerationService");
+
+const {
+  getConversationForSupervisor,
+  listMessagesForSupervisor,
+  listAccessLogs,
+} = require("../services/chat/chatAccessService");
+
 const router = express.Router();
 
 // Both ticket-style admin-queue modalities share the same assign
@@ -156,6 +164,124 @@ router.patch(
       return res.status(200).json(result);
     } catch (error) {
       return handleServiceError(res, error, "Erro ao assumir atendimento.");
+    }
+  }
+);
+
+/**
+ * GET /api/admin/chat/reports
+ * Moderation queue -- open to any active admin (see the service's own
+ * docstring for why report triage isn't gated by supervision
+ * permission the way reading someone else's conversation is).
+ */
+router.get("/admin/chat/reports", authenticateToken, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const result = await listReports(db, {
+      status: req.query.status,
+      cursor: req.query.cursor,
+      limit: req.query.limit,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return handleServiceError(res, error, "Erro ao buscar reports.");
+  }
+});
+
+/**
+ * PATCH /api/admin/chat/reports/:reportId
+ * Resolve or dismiss -- reviewedByUserId always comes from the token.
+ */
+router.patch("/admin/chat/reports/:reportId", authenticateToken, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const result = await reviewReport(db, {
+      reportId: req.params.reportId,
+      adminUserId: req.auth.userId,
+      status: req.body.status,
+      resolutionNote: req.body.resolutionNote,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return handleServiceError(res, error, "Erro ao revisar report.");
+  }
+});
+
+/**
+ * GET /api/admin/chat/conversations/:conversationId/supervise
+ * Extraordinary read access to a conversation the admin isn't a
+ * participant of -- 403 (not 404) when the conversation exists but
+ * the caller lacks the matching chat.supervise_* / chat.audit_access
+ * permission, since that distinction is exactly what this stage needs
+ * to be testable. Every successful call is logged to chat_access_logs
+ * inside the service itself.
+ */
+router.get(
+  "/admin/chat/conversations/:conversationId/supervise",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result = await getConversationForSupervisor(db, {
+        conversationId: req.params.conversationId,
+        adminUserId: req.auth.userId,
+        accessReason: req.query.accessReason,
+        details: req.query.details,
+      });
+
+      return res.status(200).json(result);
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao acessar conversa.");
+    }
+  }
+);
+
+/**
+ * GET /api/admin/chat/conversations/:conversationId/supervise/messages
+ * Same permission check as the route above, but doesn't write a new
+ * access-log row per page -- the initial supervise call already did.
+ */
+router.get(
+  "/admin/chat/conversations/:conversationId/supervise/messages",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result = await listMessagesForSupervisor(db, {
+        conversationId: req.params.conversationId,
+        adminUserId: req.auth.userId,
+        cursor: req.query.cursor,
+        limit: req.query.limit,
+      });
+
+      return res.status(200).json(result);
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao buscar mensagens.");
+    }
+  }
+);
+
+/**
+ * GET /api/admin/chat/conversations/:conversationId/access-logs
+ * Who accessed this conversation under extraordinary access, and why
+ * -- the audit trail itself, readable by any admin (it's a record of
+ * past access, not access to live conversation content).
+ */
+router.get(
+  "/admin/chat/conversations/:conversationId/access-logs",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result = await listAccessLogs(db, {
+        conversationId: req.params.conversationId,
+        cursor: req.query.cursor,
+        limit: req.query.limit,
+      });
+
+      return res.status(200).json(result);
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao buscar histórico de acesso.");
     }
   }
 );

@@ -40,6 +40,10 @@ export default function NavbarAdmin() {
       label: "Calendário",
       to: "/admin/calendario",
     },
+    {
+      label: "Moderação",
+      to: "/admin/moderacao",
+    },
   ];
 
   const courseItems = [

@@ -29,6 +29,8 @@ const { openAdministrativeTicket } = require("../services/chat/chatAdministrativ
 
 const { openStaffTicket } = require("../services/chat/chatStaffSupportService");
 
+const { reportMessage, deleteMessage } = require("../services/chat/chatModerationService");
+
 const router = express.Router();
 
 function handleServiceError(res, error, fallbackMessage) {
@@ -291,6 +293,45 @@ router.post("/chat/staff-tickets", authenticateToken, authorizeRoles("teacher"),
     return res.status(201).json(result);
   } catch (error) {
     return handleServiceError(res, error, "Erro ao abrir protocolo.");
+  }
+});
+
+/**
+ * POST /api/chat/messages/:messageId/report
+ * Any authenticated participant of the message's own conversation --
+ * assertParticipant inside reportMessage is the actual gate.
+ */
+router.post("/chat/messages/:messageId/report", authenticateToken, async (req, res) => {
+  try {
+    const result = await reportMessage(db, {
+      messageId: req.params.messageId,
+      reporterUserId: req.auth.userId,
+      reason: req.body.reason,
+      details: req.body.details,
+    });
+
+    return res.status(201).json(result);
+  } catch (error) {
+    return handleServiceError(res, error, "Erro ao reportar mensagem.");
+  }
+});
+
+/**
+ * DELETE /api/chat/messages/:messageId
+ * Soft-delete: the sender removing their own message, or an admin
+ * with the matching supervision permission for that conversation's
+ * type -- deleteMessage itself decides which case applies.
+ */
+router.delete("/chat/messages/:messageId", authenticateToken, async (req, res) => {
+  try {
+    const result = await deleteMessage(db, {
+      messageId: req.params.messageId,
+      userId: req.auth.userId,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return handleServiceError(res, error, "Erro ao remover mensagem.");
   }
 });
 

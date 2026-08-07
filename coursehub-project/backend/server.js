@@ -62,6 +62,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const notificationPreferenceRoutes = require("./routes/notificationPreferenceRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const adminChatRoutes = require("./routes/adminChatRoutes");
+const adminPermissionRoutes = require("./routes/adminPermissionRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -93,6 +94,7 @@ app.use("/api", notificationRoutes);
 app.use("/api", notificationPreferenceRoutes);
 app.use("/api", chatRoutes);
 app.use("/api", adminChatRoutes);
+app.use("/api", adminPermissionRoutes);
 
 app.use("/api", studentCourseRoutes);
 app.use("/api", studentProgressRoutes);

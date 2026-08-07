@@ -121,3 +121,23 @@ export async function listActiveTeachersForChat() {
 
   return (teachers || []).filter((teacher) => teacher.status === "active" && teacher.user_status === "active");
 }
+
+export async function reportMessage(messageId, { reason, details }) {
+  return apiFetch(`/api/chat/messages/${messageId}/report`, {
+    method: "POST",
+    body: JSON.stringify({ reason, details }),
+  });
+}
+
+export async function listReports(params = {}) {
+  const queryString = buildQueryString(params);
+
+  return apiFetch(queryString ? `/api/admin/chat/reports?${queryString}` : "/api/admin/chat/reports");
+}
+
+export async function reviewReport(reportId, { status, resolutionNote }) {
+  return apiFetch(`/api/admin/chat/reports/${reportId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status, resolutionNote }),
+  });
+}

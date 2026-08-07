@@ -54,6 +54,7 @@ import GradesAdmin from "../pages/admin/GradesAdmin";
 import AttendanceAdmin from "../pages/admin/AttendanceAdmin";
 import NotificacoesAdmin from "../pages/admin/NotificacoesAdmin";
 import ChatAdmin from "../pages/admin/ChatAdmin";
+import ModeracaoAdmin from "../pages/admin/ModeracaoAdmin";
 
 import HomeProfessor from "../pages/professor/HomeProfessor";
 import DashboardProfessor from "../pages/professor/DashboardProfessor";
@@ -384,6 +385,10 @@ export const router = createBrowserRouter([
               {
                 path: "chat",
                 element: <ChatAdmin />,
+              },
+              {
+                path: "moderacao",
+                element: <ModeracaoAdmin />,
               },
               {
                 path: "perfil",
