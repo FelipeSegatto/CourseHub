@@ -7,6 +7,7 @@ require("../../services/notifications/eventDefinitions");
 
 const db = require("../../db");
 const { retryOnDeadlock } = require("../testHelpers");
+const { formatDateOnly } = require("../../utils/appConfig");
 const { createSession } = require("../../services/teacher/teacherSessionService");
 const { registerSessionAttendance } = require("../../services/teacher/teacherAttendanceService");
 const { adjustAttendance } = require("../../services/admin/adminAttendanceService");
@@ -34,7 +35,12 @@ async function createTestSession() {
     payload: {
       sessionNumber: 9000 + sessionCounter,
       title: `TEST ETAPA5D3 ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      sessionDate: new Date().toISOString().slice(0, 10),
+      // formatDateOnly, not toISOString -- toISOString cuts by UTC,
+      // which can already be "tomorrow" relative to the DB server's
+      // local CURDATE() late in the day (confirmed: this flipped a
+      // previously-passing test to a consistent failure once real
+      // wall-clock time crossed the UTC/local date boundary).
+      sessionDate: formatDateOnly(new Date()),
       startTime: "08:00",
       endTime: "10:00",
       sessionType: "class",
