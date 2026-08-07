@@ -30,6 +30,7 @@ import ProgressoAluno from "../pages/aluno/ProgressoAluno";
 import FinanceiroAluno from "../pages/aluno/FinanceiroAluno";
 import StudentActivityRunner from "../pages/aluno/StudentActivityRunner";
 import CalendarioAluno from "../pages/aluno/CalendarioAluno";
+import ChatAluno from "../pages/aluno/ChatAluno";
 
 import HomeAdmin from "../pages/admin/HomeAdmin";
 import DashboardAdmin from "../pages/admin/DashboardAdmin";
@@ -212,6 +213,10 @@ export const router = createBrowserRouter([
               {
                 path: "notificacoes",
                 element: <NotificacoesAluno />,
+              },
+              {
+                path: "chat",
+                element: <ChatAluno />,
               },
 
               // ============================

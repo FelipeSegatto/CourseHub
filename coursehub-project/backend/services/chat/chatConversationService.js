@@ -30,6 +30,14 @@ function normalizeCursor(cursor) {
   return normalized;
 }
 
+/**
+ * otherParticipant is only populated for 'direct' conversations (the
+ * join producing it is conditioned on channel_kind = 'direct') --
+ * for a 1:1 chat, "who is this conversation with" is exactly the
+ * one other participant; a group conversation would need a
+ * different summary (member count, title), which Etapa 8 doesn't
+ * build yet since it doesn't create any groups.
+ */
 function mapConversationRow(row) {
   return {
     conversationId: row.id,
@@ -45,8 +53,28 @@ function mapConversationRow(row) {
     lastMessageAt: row.last_message_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    canPost: Boolean(row.can_post),
+    lastReadMessageId: row.participant_last_read_message_id ?? null,
+    otherParticipant: row.other_user_id
+      ? { userId: row.other_user_id, name: row.other_user_name, avatarKey: row.other_user_avatar_key }
+      : null,
   };
 }
+
+const CALLER_AND_OTHER_PARTICIPANT_JOIN = `
+  INNER JOIN chat_participants cp
+    ON cp.conversation_id = cc.id AND cp.user_id = ?
+  LEFT JOIN chat_participants other_cp
+    ON other_cp.conversation_id = cc.id
+    AND other_cp.user_id <> ?
+    AND cc.channel_kind = 'direct'
+  LEFT JOIN users other_u ON other_u.id = other_cp.user_id
+`;
+
+const CALLER_AND_OTHER_PARTICIPANT_COLUMNS = `
+  cp.can_post, cp.last_read_message_id AS participant_last_read_message_id,
+  other_u.id AS other_user_id, other_u.name AS other_user_name, other_u.avatar_key AS other_user_avatar_key
+`;
 
 /**
  * Generic conversation creation shared by every modality-specific
@@ -134,12 +162,14 @@ async function getConversationForUser(db, { conversationId, userId }) {
         cc.id, cc.type, cc.channel_kind, cc.title, cc.category,
         cc.course_id, cc.class_id, cc.status, cc.priority,
         cc.last_message_id, cc.last_message_at,
-        cc.created_at, cc.updated_at
+        cc.created_at, cc.updated_at,
+        ${CALLER_AND_OTHER_PARTICIPANT_COLUMNS}
       FROM chat_conversations cc
+      ${CALLER_AND_OTHER_PARTICIPANT_JOIN}
       WHERE cc.id = ?
       LIMIT 1
     `,
-    [conversationId]
+    [userId, userId, conversationId]
   );
 
   if (rows.length === 0) {
@@ -160,8 +190,8 @@ async function listConversationsForUser(db, { userId, cursor, limit, includeArch
   const normalizedLimit = normalizeLimit(limit);
   const normalizedCursor = normalizeCursor(cursor);
 
-  const conditions = ["cp.user_id = ?", "cp.left_at IS NULL"];
-  const params = [userId];
+  const conditions = ["cp.left_at IS NULL"];
+  const params = [userId, userId];
 
   if (!includeArchived) {
     conditions.push("cp.archived_at IS NULL");
@@ -178,9 +208,10 @@ async function listConversationsForUser(db, { userId, cursor, limit, includeArch
         cc.id, cc.type, cc.channel_kind, cc.title, cc.category,
         cc.course_id, cc.class_id, cc.status, cc.priority,
         cc.last_message_id, cc.last_message_at,
-        cc.created_at, cc.updated_at
+        cc.created_at, cc.updated_at,
+        ${CALLER_AND_OTHER_PARTICIPANT_COLUMNS}
       FROM chat_conversations cc
-      INNER JOIN chat_participants cp ON cp.conversation_id = cc.id
+      ${CALLER_AND_OTHER_PARTICIPANT_JOIN}
       WHERE ${conditions.join(" AND ")}
       ORDER BY cc.id DESC
       LIMIT ?

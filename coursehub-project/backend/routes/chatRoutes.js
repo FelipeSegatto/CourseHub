@@ -1,6 +1,8 @@
 const express = require("express");
 const db = require("../db");
 const authenticateToken = require("../middlewares/authenticateToken");
+const authorizeRoles = require("../middlewares/authorizeRoles");
+const { chatMessageRateLimiter } = require("../middlewares/rateLimiters");
 
 const {
   getConversationForUser,
@@ -14,6 +16,11 @@ const {
 } = require("../services/chat/chatParticipantService");
 
 const { createMessage, listMessages } = require("../services/chat/chatMessageService");
+
+const {
+  listAcademicContacts,
+  openAcademicPeerConversation,
+} = require("../services/chat/chatAcademicPeerService");
 
 const router = express.Router();
 
@@ -109,7 +116,7 @@ router.get("/chat/conversations/:conversationId/messages", authenticateToken, as
  * from the same sender returns the already-created message instead
  * of duplicating it.
  */
-router.post("/chat/conversations/:conversationId/messages", authenticateToken, async (req, res) => {
+router.post("/chat/conversations/:conversationId/messages", authenticateToken, chatMessageRateLimiter, async (req, res) => {
   try {
     const result = await createMessage(db, {
       conversationId: req.params.conversationId,
@@ -155,6 +162,43 @@ router.patch("/chat/conversations/:conversationId/archive", authenticateToken, a
     return res.status(200).json(result);
   } catch (error) {
     return handleServiceError(res, error, "Erro ao arquivar conversa.");
+  }
+});
+
+/**
+ * GET /api/chat/academic-contacts
+ * Student-only: colleagues sharing an active enrollment with the
+ * caller. Public academic identity only (name, avatar) -- never
+ * email/phone/document.
+ */
+router.get("/chat/academic-contacts", authenticateToken, authorizeRoles("student"), async (req, res) => {
+  try {
+    const result = await listAcademicContacts(db, {
+      userId: req.auth.userId,
+      search: req.query.search,
+    });
+
+    return res.status(200).json({ items: result });
+  } catch (error) {
+    return handleServiceError(res, error, "Erro ao buscar colegas.");
+  }
+});
+
+/**
+ * POST /api/chat/academic-conversations
+ * Student-only. Idempotent: opening the same pair twice returns the
+ * same conversation, never a duplicate or an error.
+ */
+router.post("/chat/academic-conversations", authenticateToken, authorizeRoles("student"), async (req, res) => {
+  try {
+    const result = await openAcademicPeerConversation(db, {
+      userId: req.auth.userId,
+      peerUserId: req.body.peerUserId,
+    });
+
+    return res.status(201).json(result);
+  } catch (error) {
+    return handleServiceError(res, error, "Erro ao iniciar conversa.");
   }
 });
 
