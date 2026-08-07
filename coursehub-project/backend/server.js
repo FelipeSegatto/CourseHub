@@ -60,6 +60,7 @@ const adminDashboardRoutes = require("./routes/adminDashboardRoutes");
 
 const notificationRoutes = require("./routes/notificationRoutes");
 const notificationPreferenceRoutes = require("./routes/notificationPreferenceRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -89,6 +90,7 @@ app.use("/api", publicUserRoutes);
 
 app.use("/api", notificationRoutes);
 app.use("/api", notificationPreferenceRoutes);
+app.use("/api", chatRoutes);
 
 app.use("/api", studentCourseRoutes);
 app.use("/api", studentProgressRoutes);
