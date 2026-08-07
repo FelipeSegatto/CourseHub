@@ -53,6 +53,7 @@ import CalendarioAdmin from "../pages/admin/CalendarioAdmin";
 import GradesAdmin from "../pages/admin/GradesAdmin";
 import AttendanceAdmin from "../pages/admin/AttendanceAdmin";
 import NotificacoesAdmin from "../pages/admin/NotificacoesAdmin";
+import ChatAdmin from "../pages/admin/ChatAdmin";
 
 import HomeProfessor from "../pages/professor/HomeProfessor";
 import DashboardProfessor from "../pages/professor/DashboardProfessor";
@@ -379,6 +380,10 @@ export const router = createBrowserRouter([
               {
                 path: "notificacoes",
                 element: <NotificacoesAdmin />,
+              },
+              {
+                path: "chat",
+                element: <ChatAdmin />,
               },
               {
                 path: "perfil",

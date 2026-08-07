@@ -76,3 +76,22 @@ export async function openTeacherQuestion({ courseId, classId, topic, subject, b
 export async function resolveConversation(conversationId) {
   return apiFetch(`/api/chat/conversations/${conversationId}/resolve`, { method: "PATCH" });
 }
+
+export async function openAdministrativeTicket({ category, subject, body }) {
+  return apiFetch("/api/chat/administrative-tickets", {
+    method: "POST",
+    body: JSON.stringify({ category, subject, body }),
+  });
+}
+
+export async function listAdministrativeQueue(params = {}) {
+  const queryString = buildQueryString(params);
+
+  return apiFetch(
+    queryString ? `/api/admin/chat/administrative-tickets?${queryString}` : "/api/admin/chat/administrative-tickets"
+  );
+}
+
+export async function assignAdministrativeTicket(conversationId) {
+  return apiFetch(`/api/admin/chat/conversations/${conversationId}/assign`, { method: "PATCH" });
+}

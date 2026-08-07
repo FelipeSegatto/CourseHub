@@ -16,15 +16,24 @@ const MAX_BODY_LENGTH = 4000;
  */
 const TICKET_STATUS_TRANSITIONS = {
   teacher_support: { student: "waiting_staff", teacher: "waiting_student" },
+  administrative_support: { student: "waiting_staff", admin: "waiting_student" },
+};
+
+/**
+ * "Ticket resolvido pode ser reaberto dentro de uma janela
+ * configurável; depois disso, nova solicitação cria novo protocolo."
+ * Only administrative_support has this rule so far -- teacher_support
+ * has no reopen policy in the master prompt, so a message there just
+ * doesn't touch status once resolved/closed (existing Etapa 9
+ * behavior, unchanged).
+ */
+const REOPEN_WINDOW_DAYS = {
+  administrative_support: Number(process.env.CHAT_TICKET_REOPEN_WINDOW_DAYS) || 7,
 };
 
 /**
  * Null means "don't touch status" -- either this isn't a ticket-style
- * modality, the sender's role has no defined transition for it, or
- * the conversation already reached a terminal state (resolved/closed)
- * and a new message shouldn't silently reopen it; reopening is a
- * distinct, deliberate action for a later etapa, not a side effect of
- * posting.
+ * modality or the sender's role has no defined transition for it.
  */
 function computeNextConversationStatus(conversationType, senderRole, currentStatus) {
   if (currentStatus === "resolved" || currentStatus === "closed") {
@@ -34,6 +43,42 @@ function computeNextConversationStatus(conversationType, senderRole, currentStat
   const transitions = TICKET_STATUS_TRANSITIONS[conversationType];
 
   return transitions?.[senderRole] ?? null;
+}
+
+/**
+ * Decides what happens when someone posts to an already resolved/
+ * closed conversation. Three outcomes:
+ *   - { allowed: false } -- reject the message outright (student,
+ *     outside the reopen window for a modality that has one; they
+ *     need to open a new ticket instead).
+ *   - { allowed: true, nextStatus: "waiting_staff" } -- reopen (
+ *     student, inside the window).
+ *   - { allowed: true, nextStatus: null } -- post without touching
+ *     status (no reopen policy for this modality, or the sender
+ *     isn't the side the policy applies to -- e.g. an admin replying
+ *     to a closed ticket to add a final note).
+ * Comparing two real Date objects' epoch millis here is safe
+ * regardless of server/process timezone -- unlike the bare
+ * "YYYY-MM-DD" string bug class documented elsewhere in this
+ * project, a DATETIME column read as a JS Date always represents the
+ * same absolute instant no matter which timezone constructed it.
+ */
+function evaluateResolvedConversationMessage(conversationType, senderRole, conversation) {
+  const reopenWindowDays = REOPEN_WINDOW_DAYS[conversationType];
+
+  if (!reopenWindowDays || senderRole !== "student") {
+    return { allowed: true, nextStatus: null };
+  }
+
+  const resolvedOrClosedAt = conversation.resolved_at || conversation.closed_at;
+  const windowMs = reopenWindowDays * 24 * 60 * 60 * 1000;
+  const withinWindow = resolvedOrClosedAt && Date.now() - new Date(resolvedOrClosedAt).getTime() <= windowMs;
+
+  if (withinWindow) {
+    return { allowed: true, nextStatus: "waiting_staff" };
+  }
+
+  return { allowed: false };
 }
 
 function normalizeLimit(limit) {
@@ -102,6 +147,41 @@ async function getMessageById(runner, messageId) {
 }
 
 /**
+ * "Mensagens de sistema são criadas apenas pelo backend" -- takes an
+ * open `connection` directly rather than `db`, since every call site
+ * (assignment, reassignment, resolution notices) already runs inside
+ * its own transaction alongside the state change the message is
+ * announcing; this is never meant to be called standalone. Bypasses
+ * assertParticipant/can_post entirely (there's no human sender) and
+ * never touches conversation status on its own -- a system message
+ * documents a change, the caller applies the change itself.
+ */
+async function createSystemMessage(connection, { conversationId, body }) {
+  const trimmedBody = typeof body === "string" ? body.trim() : "";
+
+  if (!trimmedBody) {
+    throw createServiceError("Mensagem de sistema vazia.", 400);
+  }
+
+  const [result] = await connection.query(
+    `
+      INSERT INTO chat_messages (conversation_id, sender_user_id, message_type, body, created_at)
+      VALUES (?, NULL, 'system', ?, NOW())
+    `,
+    [conversationId, trimmedBody]
+  );
+
+  const messageId = result.insertId;
+
+  await connection.query(
+    `UPDATE chat_conversations SET last_message_id = ?, last_message_at = NOW(), updated_at = NOW() WHERE id = ?`,
+    [messageId, conversationId]
+  );
+
+  return getMessageById(connection, messageId);
+}
+
+/**
  * Transactional: validates participation + can_post + body length +
  * reply_to ownership, inserts the message, and bumps the
  * conversation's last_message_id/last_message_at -- all in the same
@@ -136,11 +216,26 @@ async function createMessage(
     }
 
     const [conversationRows] = await connection.query(
-      `SELECT type, status FROM chat_conversations WHERE id = ? FOR UPDATE`,
+      `SELECT type, status, resolved_at, closed_at FROM chat_conversations WHERE id = ? FOR UPDATE`,
       [conversationId]
     );
 
     const conversation = conversationRows[0];
+
+    let forcedNextStatus;
+
+    if (conversation.status === "resolved" || conversation.status === "closed") {
+      const evaluation = evaluateResolvedConversationMessage(conversation.type, participant.role, conversation);
+
+      if (!evaluation.allowed) {
+        throw createServiceError(
+          "Este protocolo já foi resolvido há mais tempo do que o permitido para reabertura. Abra um novo protocolo.",
+          409
+        );
+      }
+
+      forcedNextStatus = evaluation.nextStatus;
+    }
 
     if (clientMessageId) {
       const [existingRows] = await connection.query(
@@ -192,7 +287,10 @@ async function createMessage(
       throw error;
     }
 
-    const nextStatus = computeNextConversationStatus(conversation.type, participant.role, conversation.status);
+    const nextStatus =
+      forcedNextStatus !== undefined
+        ? forcedNextStatus
+        : computeNextConversationStatus(conversation.type, participant.role, conversation.status);
 
     if (nextStatus) {
       await connection.query(
@@ -264,6 +362,7 @@ async function listMessages(db, { conversationId, userId, cursor, limit }) {
 module.exports = {
   createServiceError,
   createMessage,
+  createSystemMessage,
   listMessages,
   getMessageById,
   computeNextConversationStatus,

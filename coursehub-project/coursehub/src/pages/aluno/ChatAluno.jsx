@@ -7,11 +7,15 @@ import InstitutionalChatNotice from "../../components/chat/InstitutionalChatNoti
 import ChatThreadPanel from "../../components/chat/ChatThreadPanel";
 import NewAcademicChatModal from "../../components/chat/NewAcademicChatModal";
 import NewTeacherQuestionModal from "../../components/chat/NewTeacherQuestionModal";
+import NewAdministrativeTicketModal from "../../components/chat/NewAdministrativeTicketModal";
 
 const TABS = [
   { type: "academic_peer", label: "Colegas" },
   { type: "teacher_support", label: "Professores" },
+  { type: "administrative_support", label: "Administração" },
 ];
+
+const RESOLVABLE_TYPES = new Set(["teacher_support", "administrative_support"]);
 
 function formatConversationTime(value) {
   if (!value) return "";
@@ -20,8 +24,8 @@ function formatConversationTime(value) {
 }
 
 function conversationTitle(conversation) {
-  if (conversation.type === "teacher_support") {
-    return conversation.title || "Dúvida";
+  if (conversation.type === "teacher_support" || conversation.type === "administrative_support") {
+    return conversation.title || "Protocolo";
   }
 
   return conversation.otherParticipant?.name || conversation.title || "Conversa";
@@ -89,7 +93,7 @@ export default function ChatAluno() {
       <section className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Chat</h1>
         <p className="mt-2 text-gray-600">
-          Converse com colegas de curso ou tire dúvidas diretamente com seus professores.
+          Converse com colegas de curso, tire dúvidas com seus professores ou abra um protocolo com a administração.
         </p>
         <InstitutionalChatNotice className="mt-2" />
       </section>
@@ -128,9 +132,9 @@ export default function ChatAluno() {
 
           {!loading && !error && conversations.length === 0 && (
             <p className="px-4 py-6 text-center text-sm text-gray-500">
-              {activeTab === "academic_peer"
-                ? "Nenhuma conversa ainda. Comece uma com um colega."
-                : "Nenhuma dúvida ainda. Comece uma com um professor."}
+              {activeTab === "academic_peer" && "Nenhuma conversa ainda. Comece uma com um colega."}
+              {activeTab === "teacher_support" && "Nenhuma dúvida ainda. Comece uma com um professor."}
+              {activeTab === "administrative_support" && "Nenhum protocolo ainda. Abra um com a administração."}
             </p>
           )}
 
@@ -180,7 +184,7 @@ export default function ChatAluno() {
             currentUserId={currentUserId}
             onArchive={selectedConversation ? handleArchive : undefined}
             onResolve={
-              selectedConversation?.type === "teacher_support" ? handleResolve : undefined
+              selectedConversation && RESOLVABLE_TYPES.has(selectedConversation.type) ? handleResolve : undefined
             }
           />
         </div>
@@ -195,6 +199,13 @@ export default function ChatAluno() {
 
       {showNewChatModal && activeTab === "teacher_support" && (
         <NewTeacherQuestionModal
+          onClose={() => setShowNewChatModal(false)}
+          onConversationStarted={handleConversationStarted}
+        />
+      )}
+
+      {showNewChatModal && activeTab === "administrative_support" && (
+        <NewAdministrativeTicketModal
           onClose={() => setShowNewChatModal(false)}
           onConversationStarted={handleConversationStarted}
         />

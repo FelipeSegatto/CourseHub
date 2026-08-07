@@ -25,6 +25,8 @@ const {
 
 const { openTeacherQuestion } = require("../services/chat/chatTeacherSupportService");
 
+const { openAdministrativeTicket } = require("../services/chat/chatAdministrativeSupportService");
+
 const router = express.Router();
 
 function handleServiceError(res, error, fallbackMessage) {
@@ -245,6 +247,27 @@ router.post("/chat/teacher-questions", authenticateToken, authorizeRoles("studen
     return res.status(201).json(result);
   } catch (error) {
     return handleServiceError(res, error, "Erro ao abrir dúvida.");
+  }
+});
+
+/**
+ * POST /api/chat/administrative-tickets
+ * Student-only. Opens with only the student as participant -- no
+ * admin is assigned yet; that's the separate claim/assign flow under
+ * /api/admin/chat/*.
+ */
+router.post("/chat/administrative-tickets", authenticateToken, authorizeRoles("student"), async (req, res) => {
+  try {
+    const result = await openAdministrativeTicket(db, {
+      userId: req.auth.userId,
+      category: req.body.category,
+      subject: req.body.subject,
+      body: req.body.body,
+    });
+
+    return res.status(201).json(result);
+  } catch (error) {
+    return handleServiceError(res, error, "Erro ao abrir protocolo.");
   }
 });
 
