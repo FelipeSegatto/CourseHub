@@ -8,9 +8,15 @@ import ChatThreadPanel from "../../components/chat/ChatThreadPanel";
 import NewStaffTicketModal from "../../components/chat/NewStaffTicketModal";
 
 const MODALITY_TABS = [
+  { type: "all", label: "Todos" },
   { type: "teacher_support", label: "Dúvidas dos alunos" },
   { type: "staff_support", label: "Administração" },
 ];
+
+const MODALITY_TAG_LABEL = {
+  teacher_support: "Dúvida",
+  staff_support: "Administração",
+};
 
 const STATUS_FILTERS_BY_TYPE = {
   teacher_support: [
@@ -47,8 +53,8 @@ export default function ChatProfessor() {
   const [showNewChatModal, setShowNewChatModal] = useState(false);
 
   const { conversations, setConversations, loading, error, refresh } = useChatInbox({
-    type: modality,
-    status: statusFilter || undefined,
+    type: modality === "all" ? undefined : modality,
+    status: modality === "all" ? undefined : statusFilter || undefined,
   });
 
   const selectedConversation = conversations.find((c) => c.conversationId === selectedConversationId) || null;
@@ -109,7 +115,7 @@ export default function ChatProfessor() {
         <InstitutionalChatNotice className="mt-2" />
       </section>
 
-      <section className="grid gap-6 rounded-2xl bg-white shadow md:grid-cols-[320px_1fr]" style={{ minHeight: 520 }}>
+      <section className="grid gap-6 rounded-2xl bg-white shadow md:grid-cols-[360px_minmax(0,1fr)] lg:grid-cols-[400px_minmax(0,1fr)]" style={{ minHeight: 520 }}>
         <div className="flex flex-col border-b border-gray-200 md:border-b-0 md:border-r">
           <div className="flex gap-1 border-b border-gray-200 p-2">
             {MODALITY_TABS.map((tab) => (
@@ -126,19 +132,23 @@ export default function ChatProfessor() {
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center gap-1 border-b border-gray-200 p-2">
-            {STATUS_FILTERS_BY_TYPE[modality].map((filter) => (
-              <button
-                key={filter.value}
-                type="button"
-                onClick={() => setStatusFilter(filter.value)}
-                className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
-                  statusFilter === filter.value ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-3 border-b border-gray-200 p-2">
+            {modality !== "all" && (
+              <label className="flex items-center gap-1.5 text-xs text-gray-500">
+                Status
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs font-medium text-gray-700 focus:border-blue-500 focus:outline-none"
+                >
+                  {STATUS_FILTERS_BY_TYPE[modality].map((filter) => (
+                    <option key={filter.value} value={filter.value}>
+                      {filter.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
 
             {modality === "staff_support" && (
               <button
@@ -157,7 +167,9 @@ export default function ChatProfessor() {
 
           {!loading && !error && conversations.length === 0 && (
             <p className="px-4 py-6 text-center text-sm text-gray-500">
-              {modality === "teacher_support" ? "Nenhuma dúvida por aqui." : "Nenhum protocolo com a administração ainda."}
+              {modality === "all" && "Nenhuma conversa por aqui."}
+              {modality === "teacher_support" && "Nenhuma dúvida por aqui."}
+              {modality === "staff_support" && "Nenhum protocolo com a administração ainda."}
             </p>
           )}
 
@@ -183,7 +195,12 @@ export default function ChatProfessor() {
                       <span className="block truncate text-xs text-gray-500">
                         {conversation.otherParticipant?.name}
                       </span>
-                      <span className="block text-xs text-gray-400">
+                      <span className="flex items-center gap-1.5 text-xs text-gray-400">
+                        {modality === "all" && (
+                          <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">
+                            {MODALITY_TAG_LABEL[conversation.type]}
+                          </span>
+                        )}
                         {formatConversationTime(conversation.lastMessageAt || conversation.createdAt)}
                       </span>
                     </span>

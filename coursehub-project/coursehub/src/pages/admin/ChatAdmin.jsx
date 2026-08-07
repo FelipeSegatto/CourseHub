@@ -13,6 +13,7 @@ import ChatThreadPanel from "../../components/chat/ChatThreadPanel";
 import NewStaffConversationModal from "../../components/chat/NewStaffConversationModal";
 
 const MODALITY_TABS = [
+  { type: "all", label: "Todos" },
   { type: "administrative_support", label: "Alunos" },
   { type: "staff_support", label: "Professores" },
 ];
@@ -60,9 +61,14 @@ function formatConversationTime(value) {
   return new Date(value).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
-function requesterName(item, modality) {
-  return modality === "staff_support" ? item.teacher?.name : item.student?.name;
+function requesterName(item) {
+  return item.modality === "staff_support" ? item.teacher?.name : item.student?.name;
 }
+
+const MODALITY_TAG_LABEL = {
+  administrative_support: "Aluno",
+  staff_support: "Professor",
+};
 
 export default function ChatAdmin() {
   const { usuarioLogado } = useAuth();
@@ -97,17 +103,41 @@ export default function ChatAdmin() {
       setQueueLoading(true);
 
       try {
-        const fetchQueuePage = QUEUE_FETCHERS_BY_TYPE[modality];
-        const result = await fetchQueuePage({
-          category: categoryFilter || undefined,
+        const params = {
           unassignedOnly: assignmentFilter === "unassigned" ? true : undefined,
           assignedToUserId: assignmentFilter === "mine" ? currentUserId : undefined,
           limit: 50,
-        });
+        };
+
+        let items;
+
+        if (modality === "all") {
+          // Category vocabularies don't overlap between modalities
+          // (financial/calendar/request vs course/class/schedule/...),
+          // so the category filter simply doesn't apply here -- the
+          // select is hidden for this tab. Merge both queues and sort
+          // by id (a reasonable recency proxy, both are auto-increment)
+          // so it reads as one unified feed, not two lists stitched
+          // together.
+          const [administrativeResult, staffResult] = await Promise.all([
+            listAdministrativeQueue(params),
+            listStaffQueue(params),
+          ]);
+
+          items = [
+            ...(administrativeResult?.items || []).map((item) => ({ ...item, modality: "administrative_support" })),
+            ...(staffResult?.items || []).map((item) => ({ ...item, modality: "staff_support" })),
+          ].sort((a, b) => b.conversationId - a.conversationId);
+        } else {
+          const fetchQueuePage = QUEUE_FETCHERS_BY_TYPE[modality];
+          const result = await fetchQueuePage({ ...params, category: categoryFilter || undefined });
+
+          items = (result?.items || []).map((item) => ({ ...item, modality }));
+        }
 
         if (cancelled) return;
 
-        setQueueItems(result?.items || []);
+        setQueueItems(items);
         setQueueError("");
       } catch (requestError) {
         if (cancelled) return;
@@ -211,7 +241,7 @@ export default function ChatAdmin() {
         <InstitutionalChatNotice className="mt-2" />
       </section>
 
-      <section className="grid gap-6 rounded-2xl bg-white shadow md:grid-cols-[340px_1fr]" style={{ minHeight: 520 }}>
+      <section className="grid gap-6 rounded-2xl bg-white shadow md:grid-cols-[360px_minmax(0,1fr)] lg:grid-cols-[430px_minmax(0,1fr)]">
         <div className="flex flex-col border-b border-gray-200 md:border-b-0 md:border-r">
           <div className="flex gap-1 border-b border-gray-200 p-2">
             {MODALITY_TABS.map((tab) => (
@@ -228,34 +258,38 @@ export default function ChatAdmin() {
             ))}
           </div>
 
-          <div className="flex flex-wrap gap-1 border-b border-gray-200 p-2">
-            {CATEGORY_FILTERS_BY_TYPE[modality].map((filter) => (
-              <button
-                key={filter.value}
-                type="button"
-                onClick={() => setCategoryFilter(filter.value)}
-                className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
-                  categoryFilter === filter.value ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
+          <div className="flex flex-wrap items-center gap-3 border-b border-gray-200 p-2">
+            {modality !== "all" && (
+              <label className="flex items-center gap-1.5 text-xs text-gray-500">
+                Categoria
+                <select
+                  value={categoryFilter}
+                  onChange={(event) => setCategoryFilter(event.target.value)}
+                  className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs font-medium text-gray-700 focus:border-blue-500 focus:outline-none"
+                >
+                  {CATEGORY_FILTERS_BY_TYPE[modality].map((filter) => (
+                    <option key={filter.value} value={filter.value}>
+                      {filter.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
 
-          <div className="flex flex-wrap items-center gap-1 border-b border-gray-200 p-2">
-            {ASSIGNMENT_FILTERS.map((filter) => (
-              <button
-                key={filter.value}
-                type="button"
-                onClick={() => setAssignmentFilter(filter.value)}
-                className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
-                  assignmentFilter === filter.value ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
-                }`}
+            <label className="flex items-center gap-1.5 text-xs text-gray-500">
+              Atribuição
+              <select
+                value={assignmentFilter}
+                onChange={(event) => setAssignmentFilter(event.target.value)}
+                className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs font-medium text-gray-700 focus:border-blue-500 focus:outline-none"
               >
-                {filter.label}
-              </button>
-            ))}
+                {ASSIGNMENT_FILTERS.map((filter) => (
+                  <option key={filter.value} value={filter.value}>
+                    {filter.label}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             {modality === "staff_support" && (
               <button
@@ -287,9 +321,16 @@ export default function ChatAdmin() {
                   }`}
                 >
                   <span className="block w-full truncate font-semibold text-gray-900">{item.title || "Protocolo"}</span>
-                  <span className="block truncate text-xs text-gray-500">{requesterName(item, modality)}</span>
+                  <span className="block truncate text-xs text-gray-500">{requesterName(item)}</span>
                   <span className="flex w-full items-center justify-between text-xs text-gray-400">
-                    <span>{STATUS_LABEL[item.status] || item.status}</span>
+                    <span className="flex items-center gap-1.5">
+                      {modality === "all" && (
+                        <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">
+                          {MODALITY_TAG_LABEL[item.modality]}
+                        </span>
+                      )}
+                      {STATUS_LABEL[item.status] || item.status}
+                    </span>
                     <span>{formatConversationTime(item.lastMessageAt || item.createdAt)}</span>
                   </span>
                   {item.assignedAdminName && (
@@ -324,7 +365,7 @@ export default function ChatAdmin() {
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
               <h3 className="font-bold text-gray-900">{selectedQueueItem?.title || "Protocolo"}</h3>
               <p className="text-sm text-gray-600">
-                {requesterName(selectedQueueItem, modality) || "—"}
+                {(selectedQueueItem && requesterName(selectedQueueItem)) || "—"}
                 {selectedQueueItem?.assignedAdminName && ` · atualmente com ${selectedQueueItem.assignedAdminName}`}
               </p>
               <p className="text-sm text-gray-500">
