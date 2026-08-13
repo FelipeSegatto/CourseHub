@@ -90,6 +90,25 @@ async function getChatQueueHealth(db) {
   };
 }
 
+/**
+ * Status não sensível da configuração do gateway de pagamento --
+ * qual provider está ativo e se ele parece configurado, nunca os
+ * valores das credenciais em si ou qualquer parte deles (nem mesmo
+ * um prefixo/sufixo, para manter este endpoint seguro para ser
+ * consultado por um dashboard admin sem virar um lugar por onde
+ * segredos poderiam vazar).
+ */
+function getPaymentGatewayHealth() {
+  const gateway = process.env.PAYMENT_GATEWAY || "simulated";
+
+  const configured =
+    gateway === "simulated"
+      ? true
+      : Boolean(process.env.MERCADO_PAGO_ACCESS_TOKEN) && Boolean(process.env.MERCADO_PAGO_WEBHOOK_SECRET);
+
+  return { gateway, configured };
+}
+
 async function getSystemHealth(db) {
   const [notificationOutbox, scheduledReminders, chatQueues] = await Promise.all([
     getNotificationOutboxHealth(db),
@@ -97,7 +116,13 @@ async function getSystemHealth(db) {
     getChatQueueHealth(db),
   ]);
 
-  return { notificationOutbox, scheduledReminders, chatQueues, checkedAt: new Date().toISOString() };
+  return {
+    notificationOutbox,
+    scheduledReminders,
+    chatQueues,
+    paymentGateway: getPaymentGatewayHealth(),
+    checkedAt: new Date().toISOString(),
+  };
 }
 
-module.exports = { getSystemHealth };
+module.exports = { getSystemHealth, getPaymentGatewayHealth };

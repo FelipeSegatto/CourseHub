@@ -248,23 +248,40 @@ async function registerManualPayment(
     const gatewayPaymentId =
       `manual_${crypto.randomUUID()}`;
 
+    // gateway = "manual" é um sentinela que significa "nenhum
+    // provedor de pagamento foi envolvido" -- distinto dos dois
+    // nomes de provider reais ("simulated"/"mercado_pago") que um
+    // pagamento processado por gateway carrega. source =
+    // "admin_manual" é o campo que o restante do módulo financeiro
+    // já lê para distinguir pagamentos manuais de pagamentos
+    // processados por gateway (paymentRefundService pula a chamada
+    // externa de reembolso para esse source, por exemplo); este
+    // INSERT antes deixava no valor default ("gateway"), o que era
+    // semanticamente errado para dinheiro que um admin registrou à
+    // mão.
     const [paymentResult] = await connection.execute(
       `
         INSERT INTO payments (
           invoice_id,
           gateway,
           gateway_payment_id,
+          source,
+          recorded_by_user_id,
+          admin_note,
           payment_method,
           amount,
+          currency,
           status,
           paid_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, 'admin_manual', ?, ?, ?, ?, 'BRL', ?, ?)
       `,
       [
         normalizedInvoiceId,
-        "simulated",
+        "manual",
         gatewayPaymentId,
+        actorUserId,
+        reason.trim(),
         paymentMethod,
         normalizedAmount,
         "approved",
@@ -273,6 +290,14 @@ async function registerManualPayment(
     );
 
     const paymentId = paymentResult.insertId;
+
+    await connection.execute(
+      `
+        INSERT INTO payment_events (payment_id, event_type, previous_status, new_status, source, payload)
+        VALUES (?, 'payment_recorded_manually', 'created', 'approved', 'admin', ?)
+      `,
+      [paymentId, JSON.stringify({ paymentMethod, reason: reason.trim() })]
+    );
 
     await connection.execute(
       `

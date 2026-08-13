@@ -73,6 +73,26 @@ const chatConversationOpenRateLimiter = rateLimit({
  * teto -- sem isso, alguém poderia tentar inundar a fila de
  * moderação para escondar reports legítimos no meio do ruído.
  */
+/**
+ * Limita a criação de tentativas de pagamento: 10 a cada 10 minutos
+ * por usuário. Um aluno legítimo cria no máximo umas poucas
+ * tentativas de PIX por fatura (uma nova a cada vez que a anterior
+ * expira, a cada 30 minutos); isso só precisa ser generoso o
+ * suficiente para não atrapalhar esse uso, e ao mesmo tempo limitar
+ * quantas tentativas de cobrança uma conta comprometida ou um script
+ * conseguiriam empurrar pelo gateway.
+ */
+const paymentCreateRateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.auth?.userId ? String(req.auth.userId) : ipKeyGenerator(req.ip)),
+  message: {
+    message: "Muitas tentativas de pagamento em pouco tempo. Aguarde um instante antes de tentar novamente.",
+  },
+});
+
 const chatReportRateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 20,
@@ -90,4 +110,5 @@ module.exports = {
   chatMessageRateLimiter,
   chatConversationOpenRateLimiter,
   chatReportRateLimiter,
+  paymentCreateRateLimiter,
 };

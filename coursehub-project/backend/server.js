@@ -15,9 +15,25 @@ if (
   );
 }
 
+// Falha rápido no boot, não no primeiro checkout: um gateway mal
+// configurado nunca deve ser descoberto através de um pagamento
+// falho de um aluno.
+if (process.env.PAYMENT_GATEWAY === "mercado_pago") {
+  const missingVars = ["MERCADO_PAGO_ACCESS_TOKEN", "MERCADO_PAGO_WEBHOOK_SECRET"].filter(
+    (name) => !process.env[name]
+  );
+
+  if (missingVars.length > 0) {
+    throw new Error(
+      `PAYMENT_GATEWAY=mercado_pago requer as variáveis de ambiente: ${missingVars.join(", ")}.`
+    );
+  }
+}
+
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const helmet = require("helmet");
 
 require("./services/notifications/eventDefinitions");
 
@@ -64,6 +80,7 @@ const chatRoutes = require("./routes/chatRoutes");
 const adminChatRoutes = require("./routes/adminChatRoutes");
 const adminPermissionRoutes = require("./routes/adminPermissionRoutes");
 const adminSystemHealthRoutes = require("./routes/adminSystemHealthRoutes");
+const paymentWebhookRoutes = require("./routes/paymentWebhookRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -71,6 +88,27 @@ const PORT = process.env.PORT || 3001;
 /* ==========================================================
    MIDDLEWARES GLOBAIS
    ========================================================== */
+
+// O CourseHub é uma API só de JSON, sem HTML renderizado pelo
+// servidor, então a maior parte dos padrões do helmet (CSP, COEP)
+// protege um contexto de renderização que não existe aqui e é
+// desligada em vez de deixada no padrão genérico.
+// crossOriginResourcePolicy é definido explicitamente como
+// "cross-origin": o frontend (CORS_ORIGIN, uma origem diferente em
+// dev) busca essas respostas JSON com credenciais, e o padrão
+// "same-origin" do helmet faria o *navegador* bloquear essa
+// requisição independentemente dos headers de CORS abaixo -- CORP e
+// CORS são mecanismos separados. O que é mantido (frameguard,
+// nosniff, HSTS quando de fato servido via HTTPS) é defesa em
+// profundidade de verdade, sem nenhuma desvantagem para o formato
+// desta aplicação.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 
 app.use(
   cors({
@@ -97,6 +135,7 @@ app.use("/api", chatRoutes);
 app.use("/api", adminChatRoutes);
 app.use("/api", adminPermissionRoutes);
 app.use("/api", adminSystemHealthRoutes);
+app.use("/api", paymentWebhookRoutes);
 
 app.use("/api", studentCourseRoutes);
 app.use("/api", studentProgressRoutes);

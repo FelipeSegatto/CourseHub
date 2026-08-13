@@ -160,6 +160,22 @@ export default function SystemHealthAdmin() {
             </div>
           </section>
 
+          <section className="rounded-2xl bg-white p-4 shadow">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-bold text-gray-900">Gateway de pagamento</h2>
+              <StatusPill ok={health.paymentGateway.configured} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+              <MetricCard label="Provedor ativo" value={health.paymentGateway.gateway} />
+              <MetricCard
+                label="Credenciais"
+                value={health.paymentGateway.configured ? "Configuradas" : "Faltando"}
+                warn={!health.paymentGateway.configured}
+              />
+            </div>
+          </section>
+
           <p className="text-xs text-gray-400">Última verificação: {formatDateTime(health.checkedAt)}</p>
         </div>
       )}

@@ -4,6 +4,7 @@ export default function InvoiceSection({
   invoices = [],
   payments = [],
   billingType,
+  onPaymentApproved,
 }) {
   const isMonthlyPlan = billingType === "monthly_plan";
 
@@ -60,6 +61,7 @@ export default function InvoiceSection({
                 invoice={invoice}
                 payment={invoicePayment}
                 billingType={billingType}
+                onPaymentApproved={onPaymentApproved}
               />
             );
           })}

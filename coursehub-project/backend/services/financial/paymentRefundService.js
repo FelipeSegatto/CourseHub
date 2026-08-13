@@ -8,6 +8,7 @@ const {
 
 const { withTransaction } = require("../../utils/dbTransaction");
 const { notifyPaymentRefunded } = require("./financialNotificationService");
+const { resolveGatewayByName } = require("../paymentGateway/paymentGatewayFactory");
 
 /**
  * Cria um erro de negócio com status HTTP.
@@ -175,6 +176,37 @@ async function refundPayment(
       );
     }
 
+    // Dinheiro de verdade só volta através de quem de fato o
+    // processou. Um pagamento admin_manual nunca tocou um gateway
+    // (seu gatewayPaymentId não significa nada para nenhum provider),
+    // então só os pagamentos com source === "gateway" (simulated ou
+    // mercado_pago) precisam dessa ida e volta extra -- ver
+    // docs/features/payment-gateway.md#reembolso.
+    if (payment.source === "gateway") {
+      const gatewayInstance = resolveGatewayByName(payment.gateway);
+
+      // O lock da linha é deliberadamente mantido durante esta
+      // chamada. Reembolso é uma operação de baixo volume, restrita
+      // a admin (diferente da criação de pagamento, voltada ao
+      // aluno e mantida fora de qualquer lock) -- serializar nesta
+      // linha durante uma chamada HTTP com timeout limitado é a
+      // forma mais simples de garantir que uma requisição de
+      // reembolso duplicada nunca consiga competir com o provider
+      // concorrentemente, e isso não custa nada mensurável no volume
+      // real desta operação.
+      const gatewayRefundResult = await gatewayInstance.refundPayment({
+        gatewayPaymentId: payment.gateway_payment_id,
+        amount: Number(payment.amount),
+      });
+
+      if (gatewayRefundResult.status !== "refunded") {
+        throw createServiceError(
+          "O provedor de pagamento recusou o reembolso. O pagamento permanece aprovado.",
+          502
+        );
+      }
+    }
+
     const refundDate = getCurrentMysqlDateTime();
     const normalizedReason = reason.trim();
 
@@ -185,7 +217,8 @@ async function refundPayment(
           status = 'refunded',
           refunded_at = ?,
           refund_reason = ?,
-          refunded_by_user_id = ?
+          refunded_by_user_id = ?,
+          last_synced_at = NOW()
         WHERE id = ?
       `,
       [
@@ -194,6 +227,14 @@ async function refundPayment(
         actorUserId,
         normalizedPaymentId,
       ]
+    );
+
+    await connection.execute(
+      `
+        INSERT INTO payment_events (payment_id, event_type, previous_status, new_status, source, payload)
+        VALUES (?, 'payment_refunded', ?, 'refunded', 'admin', ?)
+      `,
+      [normalizedPaymentId, payment.status, JSON.stringify({ reason: normalizedReason })]
     );
 
     await connection.execute(

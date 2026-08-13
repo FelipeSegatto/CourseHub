@@ -18,6 +18,8 @@ export default function FinanceiroAluno() {
   
 
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchFinanceData() {
       try {
         setLoading(true);
@@ -25,20 +27,41 @@ export default function FinanceiroAluno() {
 
         const data = await apiFetch("/api/student/finance");
 
-        setFinanceData(data);
+        if (!cancelled) setFinanceData(data);
       } catch (error) {
         console.error("Erro ao carregar dados financeiros:", error);
 
-        setError(
-          error.message || "Não foi possível carregar seus dados financeiros."
-        );
+        if (!cancelled) {
+          setError(
+            error.message || "Não foi possível carregar seus dados financeiros."
+          );
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     fetchFinanceData();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  // O webhook é a fonte real da verdade para "esta fatura agora está
+  // paga" -- este refetch é só para UX, disparado assim que o
+  // próprio polling do modal de pagamento observa uma aprovação,
+  // para que as listas de fatura/pagamento reflitam isso sem o aluno
+  // precisar recarregar a página.
+  async function handlePaymentApproved() {
+    try {
+      const data = await apiFetch("/api/student/finance");
+
+      setFinanceData(data);
+    } catch (error) {
+      console.error("Erro ao atualizar dados financeiros após pagamento:", error);
+    }
+  }
 
   const courses = useMemo(() => {
     if (!financeData?.contracts) {
@@ -143,11 +166,13 @@ export default function FinanceiroAluno() {
             overdueInvoice={financeData.overdueInvoice}
             nextInvoice={financeData.nextInvoice}
             contracts={financeData.contracts}
+            onPaymentApproved={handlePaymentApproved}
         />
       ) : (
         <CourseFinanceView
           courseData={selectedCourseData}
           selectedCourseId={Number(selectedCourseId)}
+          onPaymentApproved={handlePaymentApproved}
         />
       )}
     </main>
