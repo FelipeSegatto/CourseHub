@@ -1,5 +1,35 @@
 import { Link } from "react-router-dom";
 
+function formatCurrency(value) {
+  return Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+/**
+ * course_pricing_plans é a única fonte de preço comercial -- nunca
+ * course.price (mantido no banco só por compatibilidade, nunca
+ * usado aqui, nem como fallback). Sem plano ativo, mostramos
+ * "Consulte os valores" em vez de omitir o preço silenciosamente.
+ */
+function PriceDisplay({ pricing }) {
+  if (!pricing?.hasActivePlans) {
+    return <span className="text-sm font-semibold text-gray-500">Consulte os valores</span>;
+  }
+
+  return (
+    <div>
+      <strong className="block text-base text-gray-950">
+        Curso a partir de {formatCurrency(pricing.startingPrice)}
+      </strong>
+
+      {pricing.monthlyPaymentFrom !== null && (
+        <span className="block text-xs text-gray-500">
+          Mensalidades a partir de {formatCurrency(pricing.monthlyPaymentFrom)}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function CardCourses({ course }) {
   return (
     <article className="group">
@@ -34,10 +64,8 @@ export default function CardCourses({ course }) {
           <span>{course.workload_hours}h</span>
         </div>
 
-        <div className="mt-5 flex items-center justify-between">
-          <strong className="text-base text-gray-950">
-            R$ {Number(course.price).toFixed(2)}
-          </strong>
+        <div className="mt-5 flex items-center justify-between gap-3">
+          <PriceDisplay pricing={course.pricing} />
 
           <Link
             to={`/course/${course.id}`}

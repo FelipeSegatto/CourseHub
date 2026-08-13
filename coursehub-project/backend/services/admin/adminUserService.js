@@ -1,6 +1,8 @@
 const bcrypt = require("bcryptjs");
 
 const { requestPasswordReset } = require("../auth/authService");
+const { createStudent } = require("./adminStudentService");
+const { createTeacher } = require("./adminTeacherService");
 
 const ALLOWED_ROLES = ["admin", "teacher", "student"];
 const ALLOWED_STATUSES = ["active", "inactive", "blocked"];
@@ -263,6 +265,46 @@ async function createAdminUser(db, payload) {
 }
 
 /**
+ * Ponto de entrada único do cadastro administrativo de usuários
+ * (POST /api/admin/users). Nunca insere direto em `users` com
+ * qualquer role -- encaminha para o fluxo transacional já existente
+ * de cada papel (createStudent/createTeacher já criam users+entidade
+ * na mesma transação; createAdminUser cria só users, que é o
+ * suficiente para admin). Isso evita duplicar SQL/regras que já
+ * existem em adminStudentService/adminTeacherService, e garante que
+ * um admin nunca consiga criar um "professor" ou "aluno" sem o
+ * perfil correspondente -- se qualquer etapa falhar, a transação do
+ * service delegado já faz rollback completo, sem usuário órfão.
+ *
+ * A resposta é sempre normalizada pelo mesmo DTO da listagem/detalhe
+ * (getUserById), independentemente do papel escolhido.
+ */
+async function createUser(db, payload) {
+  const { role } = payload || {};
+
+  if (!ALLOWED_ROLES.includes(role)) {
+    throw createServiceError(
+      "Papel (role) inválido. Utilize admin, teacher ou student.",
+      400
+    );
+  }
+
+  if (role === "admin") {
+    return createAdminUser(db, payload);
+  }
+
+  if (role === "teacher") {
+    const teacher = await createTeacher(db, payload);
+
+    return getUserById(db, teacher.user_id);
+  }
+
+  const student = await createStudent(db, payload);
+
+  return getUserById(db, student.user_id);
+}
+
+/**
  * Atualiza nome/e-mail/gênero. Sincroniza o mesmo nome/e-mail na
  * tabela vinculada (students/teachers) na mesma transação — o
  * schema duplica esses campos lá, e deixar de sincronizar criaria
@@ -429,6 +471,23 @@ async function updateUserRole(db, id, role, actingUserId) {
     return getUserById(db, userId);
   }
 
+  // Virar "teacher" ou "student" sempre exige criar (e validar) o
+  // registro correspondente em teachers/students -- não existe fluxo
+  // de conversão que faça isso a partir de uma troca de role isolada,
+  // então esse alvo é bloqueado incondicionalmente, mesmo para uma
+  // conta sem nenhum vínculo hoje (ex.: um admin puro). Isso fecha a
+  // lacuna que o check abaixo (conta já vinculada) sozinho não cobria:
+  // ele já bloqueava aluno<->professor, mas deixava passar admin sem
+  // vínculo virando "teacher"/"student" sem nunca criar o perfil,
+  // gerando uma conta inconsistente (role diz uma coisa, nenhuma
+  // tabela de perfil concorda).
+  if (role === "teacher" || role === "student") {
+    throw createServiceError(
+      "Não é possível converter esta conta para professor ou aluno por aqui -- isso exigiria criar um novo cadastro acadêmico/profissional vinculado, que este fluxo não suporta nesta versão. Para isso, crie um novo cadastro de aluno ou professor.",
+      409
+    );
+  }
+
   if (targetUser.student_id || targetUser.teacher_id) {
     throw createServiceError(
       "Esta conta possui uma entidade acadêmica/profissional vinculada. Alteração de papel não é suportada nesta versão — evolução futura.",
@@ -489,11 +548,13 @@ module.exports = {
   listUsers,
   getUserById,
   createAdminUser,
+  createUser,
   updateUser,
   updateUserStatus,
   updateUserRole,
   softDeleteUser,
   sendPasswordReset,
+  countActiveAdmins,
   ALLOWED_ROLES,
   ALLOWED_STATUSES,
 };

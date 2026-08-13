@@ -116,6 +116,10 @@ export default function NavbarAdmin() {
       label: "Faturas",
       to: "/admin/financeiro/cobrancas"
     },
+    {
+      label: "Planos comerciais",
+      to: "/admin/financeiro/planos",
+    },
   ];
 
   function handleLogout() {

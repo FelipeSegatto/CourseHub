@@ -4,6 +4,7 @@ const db = require("../db");
 const {
   listCourses,
   getCourseById,
+  getActivePricingPlans,
 } = require("../services/public/publicCourseService");
 
 const {
@@ -44,6 +45,27 @@ router.get("/courses/:id", async (req, res) => {
       message: error.statusCode
         ? error.message
         : "Erro interno ao buscar o curso.",
+    });
+  }
+});
+
+/**
+ * GET /api/courses/:id/pricing-plans
+ * Lista os planos comerciais ATIVOS de um curso -- só campos
+ * seguros para exibição pública (sem status/timestamps internos).
+ */
+router.get("/courses/:id/pricing-plans", async (req, res) => {
+  try {
+    const plans = await getActivePricingPlans(db, req.params.id);
+
+    return res.status(200).json(plans);
+  } catch (error) {
+    console.error("Erro ao buscar planos de preço do curso:", error);
+
+    return res.status(error.statusCode || 500).json({
+      message: error.statusCode
+        ? error.message
+        : "Erro ao buscar planos de preço do curso.",
     });
   }
 });
