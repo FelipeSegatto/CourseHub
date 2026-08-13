@@ -8,6 +8,9 @@ const {
   createFinancialEvent,
 } = require("./financialEventService");
 
+const { withTransaction } = require("../../utils/dbTransaction");
+const { notifyPaymentApproved } = require("./financialNotificationService");
+
 /**
  * Cria um erro com um código HTTP associado.
  */
@@ -148,11 +151,7 @@ async function registerManualPayment(
     normalizePaymentDate(paymentDate) ||
     normalizePaymentDate(new Date());
 
-  const connection = await db.promise().getConnection();
-
-  try {
-    await connection.beginTransaction();
-
+  return withTransaction(db, async (connection) => {
     const [invoices] = await connection.execute(
       `
         SELECT
@@ -161,10 +160,18 @@ async function registerManualPayment(
           i.amount,
           i.status,
           i.paid_at,
-          fc.enrollment_id
+          i.description,
+          fc.enrollment_id,
+          en.student_id,
+          en.course_id,
+          c.name AS course_name
         FROM invoices i
         INNER JOIN financial_contracts fc
           ON fc.id = i.financial_contract_id
+        INNER JOIN enrollments en
+          ON en.id = fc.enrollment_id
+        INNER JOIN courses c
+          ON c.id = en.course_id
         WHERE i.id = ?
         FOR UPDATE
       `,
@@ -241,23 +248,40 @@ async function registerManualPayment(
     const gatewayPaymentId =
       `manual_${crypto.randomUUID()}`;
 
+    // gateway = "manual" é um sentinela que significa "nenhum
+    // provedor de pagamento foi envolvido" -- distinto dos dois
+    // nomes de provider reais ("simulated"/"mercado_pago") que um
+    // pagamento processado por gateway carrega. source =
+    // "admin_manual" é o campo que o restante do módulo financeiro
+    // já lê para distinguir pagamentos manuais de pagamentos
+    // processados por gateway (paymentRefundService pula a chamada
+    // externa de reembolso para esse source, por exemplo); este
+    // INSERT antes deixava no valor default ("gateway"), o que era
+    // semanticamente errado para dinheiro que um admin registrou à
+    // mão.
     const [paymentResult] = await connection.execute(
       `
         INSERT INTO payments (
           invoice_id,
           gateway,
           gateway_payment_id,
+          source,
+          recorded_by_user_id,
+          admin_note,
           payment_method,
           amount,
+          currency,
           status,
           paid_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, 'admin_manual', ?, ?, ?, ?, 'BRL', ?, ?)
       `,
       [
         normalizedInvoiceId,
-        "simulated",
+        "manual",
         gatewayPaymentId,
+        actorUserId,
+        reason.trim(),
         paymentMethod,
         normalizedAmount,
         "approved",
@@ -266,6 +290,14 @@ async function registerManualPayment(
     );
 
     const paymentId = paymentResult.insertId;
+
+    await connection.execute(
+      `
+        INSERT INTO payment_events (payment_id, event_type, previous_status, new_status, source, payload)
+        VALUES (?, 'payment_recorded_manually', 'created', 'approved', 'admin', ?)
+      `,
+      [paymentId, JSON.stringify({ paymentMethod, reason: reason.trim() })]
+    );
 
     await connection.execute(
       `
@@ -319,7 +351,15 @@ async function registerManualPayment(
       invoice.financial_contract_id
     );
 
-    await connection.commit();
+    await notifyPaymentApproved(db, connection, {
+      paymentId,
+      invoiceId: normalizedInvoiceId,
+      invoiceDescription: invoice.description,
+      amount: normalizedAmount.toFixed(2),
+      studentId: invoice.student_id,
+      courseId: invoice.course_id,
+      courseName: invoice.course_name,
+    });
 
     return {
       paymentId,
@@ -332,20 +372,7 @@ async function registerManualPayment(
       invoiceStatus: "paid",
       paymentStatus: "approved",
     };
-  } catch (error) {
-    try {
-      await connection.rollback();
-    } catch (rollbackError) {
-      console.error(
-        "Erro ao desfazer a transação de pagamento:",
-        rollbackError
-      );
-    }
-
-    throw error;
-  } finally {
-    connection.release();
-  }
+  });
 }
 
 module.exports = {

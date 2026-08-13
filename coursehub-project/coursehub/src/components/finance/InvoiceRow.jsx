@@ -1,15 +1,21 @@
+import { useState } from "react";
+
 import {
   formatCurrency,
   formatDate,
   getInvoiceStatusLabel,
   getPaymentMethodLabel,
 } from "./financeUtils";
+import PaymentPixModal from "./PaymentPixModal";
 
 export default function InvoiceRow({
   invoice,
   payment,
   billingType,
+  onPaymentApproved,
 }) {
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const canPay = ["pending", "processing", "overdue"].includes(invoice.status);
   const dueDate =
     invoice.dueDate ??
     invoice.due_date;
@@ -99,14 +105,34 @@ export default function InvoiceRow({
         </p>
       </div>
 
-      <span
-        className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${
-          statusStyles[invoice.status] ||
-          "bg-slate-100 text-slate-600"
-        }`}
-      >
-        {getInvoiceStatusLabel(invoice.status)}
-      </span>
+      <div className="flex items-center justify-between gap-3 md:justify-end">
+        <span
+          className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${
+            statusStyles[invoice.status] ||
+            "bg-slate-100 text-slate-600"
+          }`}
+        >
+          {getInvoiceStatusLabel(invoice.status)}
+        </span>
+
+        {canPay && (
+          <button
+            type="button"
+            onClick={() => setShowPaymentModal(true)}
+            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+          >
+            Pagar
+          </button>
+        )}
+      </div>
+
+      {showPaymentModal && (
+        <PaymentPixModal
+          invoice={invoice}
+          onClose={() => setShowPaymentModal(false)}
+          onApproved={onPaymentApproved}
+        />
+      )}
     </div>
   );
 }

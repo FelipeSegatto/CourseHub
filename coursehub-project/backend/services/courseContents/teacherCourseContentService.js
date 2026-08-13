@@ -12,7 +12,55 @@ const {
   withContentScopeFieldsBothCasing,
 } = require("./courseContentScopeService");
 
+const { withTransaction } = require("../../utils/dbTransaction");
+const { datesRepresentSameInstant } = require("../../utils/appConfig");
+const { createNotificationEvent } = require("../notifications/notificationService");
+const {
+  resolveActiveStudentsForCourseOrClass,
+} = require("../notifications/notificationRecipientResolvers");
+
 const ALLOWED_STATUSES = ["active", "inactive", "draft", "archived"];
+
+/**
+ * Shared by every learning.content.* event -- same shape as
+ * teacherActivityService's notifyActivityEvent. A course/class with
+ * no actively-enrolled students is normal, not an error.
+ */
+async function notifyContentEvent(
+  db,
+  connection,
+  type,
+  { contentId, contentType, title, dueDate, courseId, courseName, classId, teacherUserId }
+) {
+  const recipients = await resolveActiveStudentsForCourseOrClass(connection, {
+    courseId,
+    classId,
+  });
+
+  if (recipients.length === 0) {
+    return;
+  }
+
+  await createNotificationEvent(db, {
+    type,
+    sourceType: "course_content",
+    sourceId: contentId,
+    actorUserId: teacherUserId,
+    courseId,
+    classId,
+    context: {
+      contentId,
+      contentTitle: title,
+      contentType,
+      courseId,
+      courseName,
+      dueDate,
+      classId,
+    },
+    recipients,
+    connection,
+  });
+}
 
 function normalizePositiveId(value) {
   const normalized = Number(value);
@@ -369,70 +417,84 @@ function normalizeContentPayload(payload) {
  * (classId null) ou exclusivo de uma turma daquele mesmo curso.
  */
 async function createCourseContent(db, { userId, payload }) {
-  const runner = db.promise();
-  const teacherId = await resolveTeacherId(runner, userId);
-
   const normalized = normalizeContentPayload(payload);
 
-  await assertCourseBelongsToTeacher(runner, {
-    courseId: normalized.courseId,
-    teacherId,
-  });
+  return withTransaction(db, async (connection) => {
+    const teacherId = await resolveTeacherId(connection, userId);
 
-  if (normalized.classId !== null) {
-    await assertClassBelongsToCourseAndTeacher(runner, {
-      classId: normalized.classId,
+    const course = await assertCourseBelongsToTeacher(connection, {
       courseId: normalized.courseId,
       teacherId,
     });
-  }
 
-  const [result] = await runner.execute(
-    `
-      INSERT INTO course_contents
-      (
-        course_id,
-        class_id,
-        title,
-        description,
-        type,
-        content_url,
-        content_text,
-        order_index,
-        is_required,
-        status,
-        due_date
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-    [
-      normalized.courseId,
-      normalized.classId,
-      normalized.title,
-      normalized.description,
-      normalized.type,
-      normalized.contentUrl,
-      normalized.contentText,
-      normalized.orderIndex,
-      normalized.isRequired ? 1 : 0,
-      normalized.status,
-      normalized.dueDate,
-    ]
-  );
+    if (normalized.classId !== null) {
+      await assertClassBelongsToCourseAndTeacher(connection, {
+        classId: normalized.classId,
+        courseId: normalized.courseId,
+        teacherId,
+      });
+    }
 
-  return withContentScopeFieldsBothCasing({
-    id: result.insertId,
-    course_id: normalized.courseId,
-    title: normalized.title,
-    description: normalized.description,
-    type: normalized.type,
-    content_url: normalized.contentUrl,
-    content_text: normalized.contentText,
-    order_index: normalized.orderIndex,
-    is_required: normalized.isRequired,
-    status: normalized.status,
-    due_date: normalized.dueDate,
-  }, { classId: normalized.classId, className: null });
+    const [result] = await connection.execute(
+      `
+        INSERT INTO course_contents
+        (
+          course_id,
+          class_id,
+          title,
+          description,
+          type,
+          content_url,
+          content_text,
+          order_index,
+          is_required,
+          status,
+          due_date
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        normalized.courseId,
+        normalized.classId,
+        normalized.title,
+        normalized.description,
+        normalized.type,
+        normalized.contentUrl,
+        normalized.contentText,
+        normalized.orderIndex,
+        normalized.isRequired ? 1 : 0,
+        normalized.status,
+        normalized.dueDate,
+      ]
+    );
+
+    if (normalized.status === "active") {
+      await notifyContentEvent(db, connection, "learning.content.published", {
+        contentId: result.insertId,
+        contentType: normalized.type,
+        title: normalized.title,
+        dueDate: normalized.dueDate,
+        courseId: normalized.courseId,
+        courseName: course.name,
+        classId: normalized.classId,
+        teacherUserId: userId,
+      });
+    }
+
+    return withContentScopeFieldsBothCasing({
+      id: result.insertId,
+      course_id: normalized.courseId,
+      title: normalized.title,
+      description: normalized.description,
+      type: normalized.type,
+      content_url: normalized.contentUrl,
+      content_text: normalized.contentText,
+      order_index: normalized.orderIndex,
+      is_required: normalized.isRequired,
+      status: normalized.status,
+      due_date: normalized.dueDate,
+    }, { classId: normalized.classId, className: null });
+  });
 }
 
 /**
@@ -440,9 +502,6 @@ async function createCourseContent(db, { userId, payload }) {
  * entre geral/turma ou entre turmas do mesmo curso.
  */
 async function updateCourseContent(db, { userId, contentId, payload }) {
-  const runner = db.promise();
-  const teacherId = await resolveTeacherId(runner, userId);
-
   const normalizedContentId = normalizePositiveId(contentId);
 
   if (!normalizedContentId) {
@@ -451,121 +510,190 @@ async function updateCourseContent(db, { userId, contentId, payload }) {
 
   const normalized = normalizeContentPayload(payload);
 
-  await assertContentOwnedByTeacher(runner, {
-    contentId: normalizedContentId,
-    teacherId,
-  });
+  return withTransaction(db, async (connection) => {
+    const teacherId = await resolveTeacherId(connection, userId);
 
-  await assertCourseBelongsToTeacher(runner, {
-    courseId: normalized.courseId,
-    teacherId,
-  });
+    const previousContent = await assertContentOwnedByTeacher(connection, {
+      contentId: normalizedContentId,
+      teacherId,
+    });
 
-  if (normalized.classId !== null) {
-    await assertClassBelongsToCourseAndTeacher(runner, {
-      classId: normalized.classId,
+    const course = await assertCourseBelongsToTeacher(connection, {
       courseId: normalized.courseId,
       teacherId,
     });
-  }
 
-  const [result] = await runner.execute(
-    `
-      UPDATE course_contents
-      SET
-        course_id = ?,
-        class_id = ?,
-        title = ?,
-        description = ?,
-        type = ?,
-        content_url = ?,
-        content_text = ?,
-        order_index = ?,
-        is_required = ?,
-        status = ?,
-        due_date = ?,
-        updated_at = NOW()
-      WHERE id = ?
-    `,
-    [
-      normalized.courseId,
-      normalized.classId,
-      normalized.title,
-      normalized.description,
-      normalized.type,
-      normalized.contentUrl,
-      normalized.contentText,
-      normalized.orderIndex,
-      normalized.isRequired ? 1 : 0,
-      normalized.status,
-      normalized.dueDate,
-      normalizedContentId,
-    ]
-  );
+    if (normalized.classId !== null) {
+      await assertClassBelongsToCourseAndTeacher(connection, {
+        classId: normalized.classId,
+        courseId: normalized.courseId,
+        teacherId,
+      });
+    }
 
-  if (result.affectedRows === 0) {
-    throw createServiceError("Conteúdo não encontrado.", 404);
-  }
+    const [result] = await connection.execute(
+      `
+        UPDATE course_contents
+        SET
+          course_id = ?,
+          class_id = ?,
+          title = ?,
+          description = ?,
+          type = ?,
+          content_url = ?,
+          content_text = ?,
+          order_index = ?,
+          is_required = ?,
+          status = ?,
+          due_date = ?,
+          updated_at = NOW()
+        WHERE id = ?
+      `,
+      [
+        normalized.courseId,
+        normalized.classId,
+        normalized.title,
+        normalized.description,
+        normalized.type,
+        normalized.contentUrl,
+        normalized.contentText,
+        normalized.orderIndex,
+        normalized.isRequired ? 1 : 0,
+        normalized.status,
+        normalized.dueDate,
+        normalizedContentId,
+      ]
+    );
 
-  return withContentScopeFieldsBothCasing({
-    id: normalizedContentId,
-    course_id: normalized.courseId,
-    title: normalized.title,
-    description: normalized.description,
-    type: normalized.type,
-    content_url: normalized.contentUrl,
-    content_text: normalized.contentText,
-    order_index: normalized.orderIndex,
-    is_required: normalized.isRequired,
-    status: normalized.status,
-    due_date: normalized.dueDate,
-  }, { classId: normalized.classId, className: null });
+    if (result.affectedRows === 0) {
+      throw createServiceError("Conteúdo não encontrado.", 404);
+    }
+
+    const previousClassId =
+      previousContent.class_id === null ? null : Number(previousContent.class_id);
+    const scopeChanged = previousClassId !== normalized.classId;
+    const dueDateChanged = !datesRepresentSameInstant(previousContent.due_date, normalized.dueDate);
+
+    if (previousContent.status === "draft" && normalized.status === "active") {
+      await notifyContentEvent(db, connection, "learning.content.published", {
+        contentId: normalizedContentId,
+        contentType: normalized.type,
+        title: normalized.title,
+        dueDate: normalized.dueDate,
+        courseId: normalized.courseId,
+        courseName: course.name,
+        classId: normalized.classId,
+        teacherUserId: userId,
+      });
+    } else if (
+      previousContent.status === "active" &&
+      normalized.status === "active" &&
+      (dueDateChanged || scopeChanged)
+    ) {
+      await notifyContentEvent(db, connection, "learning.content.changed", {
+        contentId: normalizedContentId,
+        contentType: normalized.type,
+        title: normalized.title,
+        dueDate: normalized.dueDate,
+        courseId: normalized.courseId,
+        courseName: course.name,
+        classId: normalized.classId,
+        teacherUserId: userId,
+      });
+    } else if (previousContent.status === "active" && normalized.status !== "active") {
+      await notifyContentEvent(db, connection, "learning.content.cancelled", {
+        contentId: normalizedContentId,
+        contentType: normalized.type,
+        title: normalized.title,
+        dueDate: normalized.dueDate,
+        courseId: normalized.courseId,
+        courseName: course.name,
+        classId: normalized.classId,
+        teacherUserId: userId,
+      });
+    }
+
+    return withContentScopeFieldsBothCasing({
+      id: normalizedContentId,
+      course_id: normalized.courseId,
+      title: normalized.title,
+      description: normalized.description,
+      type: normalized.type,
+      content_url: normalized.contentUrl,
+      content_text: normalized.contentText,
+      order_index: normalized.orderIndex,
+      is_required: normalized.isRequired,
+      status: normalized.status,
+      due_date: normalized.dueDate,
+    }, { classId: normalized.classId, className: null });
+  });
 }
 
 /**
  * Arquiva (soft delete) um conteúdo do professor.
  */
 async function archiveCourseContent(db, { userId, contentId }) {
-  const runner = db.promise();
-  const teacherId = await resolveTeacherId(runner, userId);
-
   const normalizedContentId = normalizePositiveId(contentId);
 
   if (!normalizedContentId) {
     throw createServiceError("ID do conteúdo inválido.", 400);
   }
 
-  const content = await assertContentOwnedByTeacher(runner, {
-    contentId: normalizedContentId,
-    teacherId,
-  });
+  return withTransaction(db, async (connection) => {
+    const teacherId = await resolveTeacherId(connection, userId);
 
-  if (content.status === "archived") {
-    throw createServiceError("Este conteúdo já está arquivado.", 409);
-  }
+    const content = await assertContentOwnedByTeacher(connection, {
+      contentId: normalizedContentId,
+      teacherId,
+    });
 
-  const [result] = await runner.execute(
-    `
-      UPDATE course_contents
-      SET
-        status = 'archived',
-        updated_at = NOW()
-      WHERE id = ?
-    `,
-    [normalizedContentId]
-  );
+    if (content.status === "archived") {
+      throw createServiceError("Este conteúdo já está arquivado.", 409);
+    }
 
-  if (result.affectedRows === 0) {
-    throw createServiceError(
-      "Não foi possível localizar o conteúdo para arquivamento.",
-      404
+    const wasActive = content.status === "active";
+
+    const [result] = await connection.execute(
+      `
+        UPDATE course_contents
+        SET
+          status = 'archived',
+          updated_at = NOW()
+        WHERE id = ?
+      `,
+      [normalizedContentId]
     );
-  }
 
-  return {
-    id: normalizedContentId,
-    status: "archived",
-  };
+    if (result.affectedRows === 0) {
+      throw createServiceError(
+        "Não foi possível localizar o conteúdo para arquivamento.",
+        404
+      );
+    }
+
+    if (wasActive) {
+      const course = await assertCourseBelongsToTeacher(connection, {
+        courseId: content.course_id,
+        teacherId,
+      });
+
+      await notifyContentEvent(db, connection, "learning.content.cancelled", {
+        contentId: normalizedContentId,
+        contentType: content.type,
+        title: content.title,
+        dueDate: content.due_date,
+        courseId: content.course_id,
+        courseName: course.name,
+        classId: content.class_id,
+        teacherUserId: userId,
+      });
+    }
+
+    return {
+      id: normalizedContentId,
+      status: "archived",
+    };
+  });
 }
 
 module.exports = {

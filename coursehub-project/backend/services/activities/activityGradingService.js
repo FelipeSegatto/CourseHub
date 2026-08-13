@@ -1,5 +1,7 @@
 const { createServiceError } = require("../classes/classAccessService");
 const { validateStudentActivityScope } = require("./activityScopeService");
+const { createNotificationEvent } = require("../notifications/notificationService");
+const { resolveStudentOwner } = require("../notifications/notificationRecipientResolvers");
 
 function normalizePositiveId(value) {
   const normalized = Number(value);
@@ -14,11 +16,21 @@ function normalizePositiveId(value) {
  * gradeSubmission (correção por questão) e quickGradeSubmission
  * (sobrescrita direta do total). Mantém uma única nota por envio
  * (uk_grade_submission) e por aluno/atividade (uk_grade_student_activity).
+ *
+ * Lê o valor anterior ANTES do upsert e devolve se nota/feedback
+ * realmente mudaram -- "nova comunicação somente quando nota ou
+ * feedback realmente mudar" é decisão do chamador (ele decide se
+ * notifica), esta função só fornece o fato.
  */
 async function upsertGradeRecord(
   connection,
   { submissionId, studentId, courseId, activityId, teacherId, title, score, maxScore, feedback }
 ) {
+  const [existingRows] = await connection.query(
+    `SELECT score, feedback FROM grades WHERE submission_id = ? LIMIT 1`,
+    [submissionId]
+  );
+
   await connection.query(
     `
       INSERT INTO grades
@@ -56,6 +68,52 @@ async function upsertGradeRecord(
     `,
     [submissionId, studentId, courseId, activityId, teacherId, title, score, maxScore, feedback]
   );
+
+  const previous = existingRows[0] || null;
+
+  const changed =
+    !previous ||
+    Number(previous.score) !== Number(score) ||
+    (previous.feedback || null) !== (feedback || null);
+
+  return { isNewGrade: !previous, changed };
+}
+
+/**
+ * Fires learning.grade.published to the student who owns the grade,
+ * inside the caller's own transaction. No-op if the student/user is
+ * inactive (resolveStudentOwner returns null) -- never an error.
+ */
+async function notifyGradePublished(
+  db,
+  connection,
+  { submissionId, studentId, activityId, activityKind, title, score, maxScore, feedback, courseId, courseName }
+) {
+  const recipient = await resolveStudentOwner(connection, { studentId });
+
+  if (!recipient) {
+    return;
+  }
+
+  await createNotificationEvent(db, {
+    type: "learning.grade.published",
+    sourceType: "grade",
+    sourceId: submissionId,
+    courseId,
+    context: {
+      submissionId,
+      activityId,
+      activityTitle: title,
+      activityKind,
+      score,
+      maxScore,
+      feedback,
+      courseId,
+      courseName,
+    },
+    recipients: [recipient],
+    connection,
+  });
 }
 
 /**
@@ -102,6 +160,8 @@ async function gradeSubmission(
           a.title AS activity_title,
           a.activity_kind,
           a.max_score,
+
+          c.name AS course_name,
 
           t.id AS teacher_id
 
@@ -376,7 +436,7 @@ async function gradeSubmission(
       );
     }
 
-    await upsertGradeRecord(connection, {
+    const { changed } = await upsertGradeRecord(connection, {
       submissionId: normalizedSubmissionId,
       studentId: submission.student_id,
       courseId: submission.course_id,
@@ -387,6 +447,21 @@ async function gradeSubmission(
       maxScore: activityMaxScore,
       feedback: normalizedGeneralFeedback,
     });
+
+    if (changed) {
+      await notifyGradePublished(db, connection, {
+        submissionId: normalizedSubmissionId,
+        studentId: submission.student_id,
+        activityId: submission.activity_id,
+        activityKind: submission.activity_kind,
+        title: submission.activity_title,
+        score: totalScore,
+        maxScore: activityMaxScore,
+        feedback: normalizedGeneralFeedback,
+        courseId: submission.course_id,
+        courseName: submission.course_name,
+      });
+    }
 
     await connection.commit();
 
@@ -473,6 +548,8 @@ async function quickGradeSubmission(db, { userId, submissionId, score, feedback 
           a.activity_kind,
           a.max_score,
 
+          c.name AS course_name,
+
           t.id AS teacher_id
 
         FROM submissions s
@@ -554,7 +631,7 @@ async function quickGradeSubmission(db, { userId, submissionId, score, feedback 
       [normalizedScore, normalizedFeedback, submission.teacher_id, normalizedSubmissionId]
     );
 
-    await upsertGradeRecord(connection, {
+    const { changed } = await upsertGradeRecord(connection, {
       submissionId: normalizedSubmissionId,
       studentId: submission.student_id,
       courseId: submission.course_id,
@@ -565,6 +642,21 @@ async function quickGradeSubmission(db, { userId, submissionId, score, feedback 
       maxScore: activityMaxScore,
       feedback: normalizedFeedback,
     });
+
+    if (changed) {
+      await notifyGradePublished(db, connection, {
+        submissionId: normalizedSubmissionId,
+        studentId: submission.student_id,
+        activityId: submission.activity_id,
+        activityKind: submission.activity_kind,
+        title: submission.activity_title,
+        score: normalizedScore,
+        maxScore: activityMaxScore,
+        feedback: normalizedFeedback,
+        courseId: submission.course_id,
+        courseName: submission.course_name,
+      });
+    }
 
     await connection.commit();
 
@@ -701,4 +793,5 @@ module.exports = {
   gradeSubmission,
   quickGradeSubmission,
   getStudentGrades,
+  notifyGradePublished,
 };

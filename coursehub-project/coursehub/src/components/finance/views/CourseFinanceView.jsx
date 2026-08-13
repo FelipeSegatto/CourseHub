@@ -12,6 +12,7 @@ import {
 
 export default function CourseFinanceView({
   courseData,
+  onPaymentApproved,
 }) {
   if (!courseData?.contract) {
     return (
@@ -81,6 +82,7 @@ export default function CourseFinanceView({
               featuredInvoice.course_name ||
               course?.name,
           }}
+          onPaymentApproved={onPaymentApproved}
         />
       )}
 
@@ -96,6 +98,7 @@ export default function CourseFinanceView({
             courseData.contract?.billingType ??
             courseData.contract?.billing_type
         }
+        onPaymentApproved={onPaymentApproved}
       />
 
       <PaymentHistorySection payments={payments} />

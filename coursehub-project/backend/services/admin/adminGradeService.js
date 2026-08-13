@@ -1,3 +1,6 @@
+const { withTransaction } = require("../../utils/dbTransaction");
+const { notifyGradePublished } = require("../activities/activityGradingService");
+
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -218,13 +221,20 @@ async function adjustGrade(db, id, { score, reason }, actingUserId) {
     throw createServiceError("Informe o motivo do ajuste.", 400);
   }
 
-  const connection = await db.promise().getConnection();
-
-  try {
-    await connection.beginTransaction();
-
+  await withTransaction(db, async (connection) => {
     const [rows] = await connection.query(
-      `SELECT id, score, max_score, submission_id FROM grades WHERE id = ? FOR UPDATE`,
+      `
+        SELECT
+          g.id, g.score, g.max_score, g.feedback, g.submission_id,
+          g.student_id, g.activity_id, g.course_id,
+          a.activity_kind, a.title AS activity_title,
+          c.name AS course_name
+        FROM grades g
+        INNER JOIN activities a ON a.id = g.activity_id
+        INNER JOIN courses c ON c.id = g.course_id
+        WHERE g.id = ?
+        FOR UPDATE
+      `,
       [gradeId]
     );
 
@@ -240,6 +250,8 @@ async function adjustGrade(db, id, { score, reason }, actingUserId) {
         400
       );
     }
+
+    const scoreChanged = Number(grade.score) !== normalizedScore;
 
     await connection.query(
       `
@@ -260,15 +272,26 @@ async function adjustGrade(db, id, { score, reason }, actingUserId) {
       [normalizedScore, grade.submission_id]
     );
 
-    await connection.commit();
+    if (scoreChanged) {
+      await notifyGradePublished(db, connection, {
+        submissionId: grade.submission_id,
+        studentId: grade.student_id,
+        activityId: grade.activity_id,
+        activityKind: grade.activity_kind,
+        title: grade.activity_title,
+        score: normalizedScore,
+        maxScore: grade.max_score,
+        feedback: grade.feedback,
+        courseId: grade.course_id,
+        courseName: grade.course_name,
+      });
+    }
+  });
 
-    return getGradeById(db, gradeId);
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
-  }
+  // Read via the pool, after withTransaction has committed -- doing
+  // this inside the callback would read stale pre-commit data
+  // through a different connection.
+  return getGradeById(db, gradeId);
 }
 
 module.exports = {

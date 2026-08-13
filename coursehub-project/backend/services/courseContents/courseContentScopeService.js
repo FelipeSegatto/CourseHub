@@ -75,7 +75,8 @@ async function assertContentOwnedByTeacher(runner, { contentId, teacherId }) {
         cc.class_id,
         cc.title,
         cc.type,
-        cc.status
+        cc.status,
+        cc.due_date
 
       FROM course_contents cc
 

@@ -30,6 +30,7 @@ import ProgressoAluno from "../pages/aluno/ProgressoAluno";
 import FinanceiroAluno from "../pages/aluno/FinanceiroAluno";
 import StudentActivityRunner from "../pages/aluno/StudentActivityRunner";
 import CalendarioAluno from "../pages/aluno/CalendarioAluno";
+import ChatAluno from "../pages/aluno/ChatAluno";
 
 import HomeAdmin from "../pages/admin/HomeAdmin";
 import DashboardAdmin from "../pages/admin/DashboardAdmin";
@@ -51,6 +52,10 @@ import FinancialDashboard from "../pages/admin/financial/FinancialDashboard";
 import CalendarioAdmin from "../pages/admin/CalendarioAdmin";
 import GradesAdmin from "../pages/admin/GradesAdmin";
 import AttendanceAdmin from "../pages/admin/AttendanceAdmin";
+import NotificacoesAdmin from "../pages/admin/NotificacoesAdmin";
+import ChatAdmin from "../pages/admin/ChatAdmin";
+import ModeracaoAdmin from "../pages/admin/ModeracaoAdmin";
+import SystemHealthAdmin from "../pages/admin/SystemHealthAdmin";
 
 import HomeProfessor from "../pages/professor/HomeProfessor";
 import DashboardProfessor from "../pages/professor/DashboardProfessor";
@@ -66,6 +71,8 @@ import AttendanceProfessor from "../pages/professor/AttendanceProfessor";
 import AttendanceHistoryProfessor from "../pages/professor/AttendanceHistoryProfessor";
 import GradesProfessor from "../pages/professor/GradesProfessor";
 import CalendarioProfessor from "../pages/professor/CalendarioProfessor";
+import NotificacoesProfessor from "../pages/professor/NotificacoesProfessor";
+import ChatProfessor from "../pages/professor/ChatProfessor";
 
 
 
@@ -210,6 +217,10 @@ export const router = createBrowserRouter([
               {
                 path: "notificacoes",
                 element: <NotificacoesAluno />,
+              },
+              {
+                path: "chat",
+                element: <ChatAluno />,
               },
 
               // ============================
@@ -369,6 +380,22 @@ export const router = createBrowserRouter([
                 element: <CalendarioAdmin />,
               },
               {
+                path: "notificacoes",
+                element: <NotificacoesAdmin />,
+              },
+              {
+                path: "chat",
+                element: <ChatAdmin />,
+              },
+              {
+                path: "moderacao",
+                element: <ModeracaoAdmin />,
+              },
+              {
+                path: "sistema",
+                element: <SystemHealthAdmin />,
+              },
+              {
                 path: "perfil",
                 element: <UserProfile />,
               },
@@ -508,6 +535,14 @@ export const router = createBrowserRouter([
               {
                 path: "calendario",
                 element: <CalendarioProfessor />,
+              },
+              {
+                path: "notificacoes",
+                element: <NotificacoesProfessor />,
+              },
+              {
+                path: "chat",
+                element: <ChatProfessor />,
               },
               {
                 path: "perfil",

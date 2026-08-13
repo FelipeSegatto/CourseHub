@@ -6,6 +6,10 @@ const {
   createFinancialEvent,
 } = require("./financialEventService");
 
+const { withTransaction } = require("../../utils/dbTransaction");
+const { notifyInvoiceChanged } = require("./financialNotificationService");
+const { formatDateOnly } = require("../../utils/appConfig");
+
 async function changeInvoiceDueDate(
   db,
   {
@@ -43,11 +47,7 @@ async function changeInvoiceDueDate(
     throw new Error("Invalid due date format. Use YYYY-MM-DD.");
   }
 
-  const connection = await db.promise().getConnection();
-
-  try {
-    await connection.beginTransaction();
-
+  return withTransaction(db, async (connection) => {
     const [invoices] = await connection.execute(
       `
         SELECT
@@ -55,10 +55,18 @@ async function changeInvoiceDueDate(
           i.financial_contract_id,
           i.due_date,
           i.status,
-          fc.enrollment_id
+          i.description,
+          fc.enrollment_id,
+          en.student_id,
+          en.course_id,
+          c.name AS course_name
         FROM invoices i
         INNER JOIN financial_contracts fc
           ON fc.id = i.financial_contract_id
+        INNER JOIN enrollments en
+          ON en.id = fc.enrollment_id
+        INNER JOIN courses c
+          ON c.id = en.course_id
         WHERE i.id = ?
         FOR UPDATE
       `,
@@ -166,7 +174,16 @@ async function changeInvoiceDueDate(
       invoice.financial_contract_id
     );
 
-    await connection.commit();
+    await notifyInvoiceChanged(db, connection, {
+      invoiceId: normalizedInvoiceId,
+      invoiceDescription: invoice.description,
+      changeType: "due_date",
+      previousValue: formatDateOnly(previousDueDate),
+      newValue: dueDate,
+      studentId: invoice.student_id,
+      courseId: invoice.course_id,
+      courseName: invoice.course_name,
+    });
 
     return {
       invoiceId: normalizedInvoiceId,
@@ -174,20 +191,7 @@ async function changeInvoiceDueDate(
       dueDate,
       status: nextStatus,
     };
-  } catch (error) {
-    try {
-      await connection.rollback();
-    } catch (rollbackError) {
-      console.error(
-        "Erro ao desfazer transação financeira:",
-        rollbackError
-      );
-    }
-
-    throw error;
-  } finally {
-    connection.release();
-  }
+  });
 }
 
 module.exports = {

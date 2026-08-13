@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   AlertCircle,
   CalendarDays,
@@ -10,13 +11,17 @@ import {
   formatDate,
   getInvoiceStatusLabel,
 } from "./financeUtils";
+import PaymentPixModal from "./PaymentPixModal";
 
-export default function FeaturedInvoiceCard({ invoice }) {
+export default function FeaturedInvoiceCard({ invoice, onPaymentApproved }) {
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+
   if (!invoice) {
     return null;
   }
 
   const isOverdue = invoice.status === "overdue";
+  const canPay = ["pending", "processing", "overdue"].includes(invoice.status);
 
   const courseName =
     invoice.courseName ||
@@ -113,9 +118,11 @@ export default function FeaturedInvoiceCard({ invoice }) {
 
           <button
             type="button"
+            onClick={() => canPay && setShowPaymentModal(true)}
+            disabled={!canPay}
             className={`
               inline-flex items-center gap-2 rounded-xl px-4 py-2.5
-              text-sm font-semibold transition
+              text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60
               ${
                 isOverdue
                   ? "bg-red-600 text-white hover:bg-red-700"
@@ -123,11 +130,19 @@ export default function FeaturedInvoiceCard({ invoice }) {
               }
             `}
           >
-            Ver cobrança
+            Pagar com Pix
             <ChevronRight size={17} />
           </button>
         </div>
       </div>
+
+      {showPaymentModal && (
+        <PaymentPixModal
+          invoice={invoice}
+          onClose={() => setShowPaymentModal(false)}
+          onApproved={onPaymentApproved}
+        />
+      )}
     </section>
   );
 }

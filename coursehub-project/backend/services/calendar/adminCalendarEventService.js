@@ -1,4 +1,7 @@
 const { aggregateCalendarEvents } = require("./calendarAggregationService");
+const { withTransaction } = require("../../utils/dbTransaction");
+const { createNotificationEvent } = require("../notifications/notificationService");
+const { resolveCalendarAudience } = require("../notifications/notificationRecipientResolvers");
 
 const ALLOWED_EVENT_TYPES = [
   "holiday",
@@ -117,6 +120,54 @@ async function assertScopeCoherence(runner, { scopeType, courseId, classId }) {
   }
 }
 
+/**
+ * Fires calendar.event.published/changed/cancelled to the audience
+ * resolved from the event's own scope_type, inside the caller's own
+ * transaction. No-op if the scope resolves to zero eligible
+ * recipients (e.g. a course with no active enrollments) --
+ * createNotificationEvent already handles an empty recipients array
+ * as a silent no-op.
+ */
+async function notifyCalendarEvent(db, connection, type, event) {
+  const recipients = await resolveCalendarAudience(connection, {
+    scopeType: event.scope_type,
+    courseId: event.course_id,
+    classId: event.class_id,
+  });
+
+  if (recipients.length === 0) {
+    return;
+  }
+
+  await createNotificationEvent(db, {
+    type,
+    sourceType: "calendar_event",
+    sourceId: event.id,
+    courseId: event.course_id,
+    context: {
+      eventId: event.id,
+      eventTitle: event.title,
+      startDate: event.start_date,
+      endDate: event.end_date,
+      scopeType: event.scope_type,
+    },
+    recipients,
+    connection,
+  });
+}
+
+function hasRelevantCalendarChange(previous, next) {
+  return (
+    String(previous.start_date) !== String(next.start_date) ||
+    String(previous.end_date) !== String(next.end_date) ||
+    previous.start_time !== next.start_time ||
+    previous.end_time !== next.end_time ||
+    previous.scope_type !== next.scope_type ||
+    Number(previous.course_id) !== Number(next.course_id) ||
+    Number(previous.class_id) !== Number(next.class_id)
+  );
+}
+
 async function getEventRowById(runner, id) {
   const [rows] = await runner.execute(
     `
@@ -158,48 +209,55 @@ async function getEventById(db, { id }) {
 async function createEvent(db, { userId, payload }) {
   validateEventPayload(payload);
 
-  const runner = db.promise();
   const courseId = normalizePositiveId(payload.course_id);
   const classId = normalizePositiveId(payload.class_id);
 
-  await assertScopeCoherence(runner, {
-    scopeType: payload.scope_type,
-    courseId,
-    classId,
-  });
-
-  const allDay = payload.all_day === undefined ? true : Boolean(payload.all_day);
-
-  const [result] = await runner.execute(
-    `
-      INSERT INTO academic_calendar_events
-      (
-        event_type, title, description, start_date, end_date,
-        all_day, start_time, end_time, scope_type, course_id, class_id,
-        status, created_by_user_id, created_at, updated_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, NOW(), NOW())
-    `,
-    [
-      payload.event_type,
-      payload.title.trim(),
-      payload.description?.trim() || null,
-      payload.start_date,
-      payload.end_date || null,
-      allDay ? 1 : 0,
-      allDay ? null : payload.start_time || null,
-      allDay ? null : payload.end_time || null,
-      payload.scope_type,
+  return withTransaction(db, async (connection) => {
+    await assertScopeCoherence(connection, {
+      scopeType: payload.scope_type,
       courseId,
       classId,
-      userId,
-    ]
-  );
+    });
 
-  return {
-    message: "Evento criado com sucesso.",
-    event: await getEventRowById(runner, result.insertId),
-  };
+    const allDay = payload.all_day === undefined ? true : Boolean(payload.all_day);
+
+    const [result] = await connection.execute(
+      `
+        INSERT INTO academic_calendar_events
+        (
+          event_type, title, description, start_date, end_date,
+          all_day, start_time, end_time, scope_type, course_id, class_id,
+          status, created_by_user_id, created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, NOW(), NOW())
+      `,
+      [
+        payload.event_type,
+        payload.title.trim(),
+        payload.description?.trim() || null,
+        payload.start_date,
+        payload.end_date || null,
+        allDay ? 1 : 0,
+        allDay ? null : payload.start_time || null,
+        allDay ? null : payload.end_time || null,
+        payload.scope_type,
+        courseId,
+        classId,
+        userId,
+      ]
+    );
+
+    const event = await getEventRowById(connection, result.insertId);
+
+    // A calendar event has no draft state -- creating it already is
+    // the "publish" moment, same as class_sessions.
+    await notifyCalendarEvent(db, connection, "calendar.event.published", event);
+
+    return {
+      message: "Evento criado com sucesso.",
+      event,
+    };
+  });
 }
 
 async function updateEvent(db, { id, payload }) {
@@ -211,66 +269,73 @@ async function updateEvent(db, { id, payload }) {
 
   validateEventPayload(payload);
 
-  const runner = db.promise();
-  const existing = await getEventRowById(runner, normalizedId);
-
-  if (!existing) {
-    throw createServiceError("Evento não encontrado.", 404);
-  }
-
   const courseId = normalizePositiveId(payload.course_id);
   const classId = normalizePositiveId(payload.class_id);
 
-  await assertScopeCoherence(runner, {
-    scopeType: payload.scope_type,
-    courseId,
-    classId,
-  });
+  return withTransaction(db, async (connection) => {
+    const existing = await getEventRowById(connection, normalizedId);
 
-  const allDay = payload.all_day === undefined ? true : Boolean(payload.all_day);
+    if (!existing) {
+      throw createServiceError("Evento não encontrado.", 404);
+    }
 
-  const [result] = await runner.execute(
-    `
-      UPDATE academic_calendar_events
-      SET
-        event_type = ?,
-        title = ?,
-        description = ?,
-        start_date = ?,
-        end_date = ?,
-        all_day = ?,
-        start_time = ?,
-        end_time = ?,
-        scope_type = ?,
-        course_id = ?,
-        class_id = ?,
-        updated_at = NOW()
-      WHERE id = ?
-    `,
-    [
-      payload.event_type,
-      payload.title.trim(),
-      payload.description?.trim() || null,
-      payload.start_date,
-      payload.end_date || null,
-      allDay ? 1 : 0,
-      allDay ? null : payload.start_time || null,
-      allDay ? null : payload.end_time || null,
-      payload.scope_type,
+    await assertScopeCoherence(connection, {
+      scopeType: payload.scope_type,
       courseId,
       classId,
-      normalizedId,
-    ]
-  );
+    });
 
-  if (result.affectedRows === 0) {
-    throw createServiceError("Não foi possível atualizar o evento.", 404);
-  }
+    const allDay = payload.all_day === undefined ? true : Boolean(payload.all_day);
 
-  return {
-    message: "Evento atualizado com sucesso.",
-    event: await getEventRowById(runner, normalizedId),
-  };
+    const [result] = await connection.execute(
+      `
+        UPDATE academic_calendar_events
+        SET
+          event_type = ?,
+          title = ?,
+          description = ?,
+          start_date = ?,
+          end_date = ?,
+          all_day = ?,
+          start_time = ?,
+          end_time = ?,
+          scope_type = ?,
+          course_id = ?,
+          class_id = ?,
+          updated_at = NOW()
+        WHERE id = ?
+      `,
+      [
+        payload.event_type,
+        payload.title.trim(),
+        payload.description?.trim() || null,
+        payload.start_date,
+        payload.end_date || null,
+        allDay ? 1 : 0,
+        allDay ? null : payload.start_time || null,
+        allDay ? null : payload.end_time || null,
+        payload.scope_type,
+        courseId,
+        classId,
+        normalizedId,
+      ]
+    );
+
+    if (result.affectedRows === 0) {
+      throw createServiceError("Não foi possível atualizar o evento.", 404);
+    }
+
+    const event = await getEventRowById(connection, normalizedId);
+
+    if (hasRelevantCalendarChange(existing, event)) {
+      await notifyCalendarEvent(db, connection, "calendar.event.changed", event);
+    }
+
+    return {
+      message: "Evento atualizado com sucesso.",
+      event,
+    };
+  });
 }
 
 /**
@@ -284,30 +349,35 @@ async function cancelEvent(db, { id }) {
     throw createServiceError("ID do evento inválido.", 400);
   }
 
-  const runner = db.promise();
-  const existing = await getEventRowById(runner, normalizedId);
+  return withTransaction(db, async (connection) => {
+    const existing = await getEventRowById(connection, normalizedId);
 
-  if (!existing) {
-    throw createServiceError("Evento não encontrado.", 404);
-  }
+    if (!existing) {
+      throw createServiceError("Evento não encontrado.", 404);
+    }
 
-  if (existing.status === "cancelled") {
-    throw createServiceError("Este evento já está cancelado.", 409);
-  }
+    if (existing.status === "cancelled") {
+      throw createServiceError("Este evento já está cancelado.", 409);
+    }
 
-  await runner.execute(
-    `
-      UPDATE academic_calendar_events
-      SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
-      WHERE id = ?
-    `,
-    [normalizedId]
-  );
+    await connection.execute(
+      `
+        UPDATE academic_calendar_events
+        SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+        WHERE id = ?
+      `,
+      [normalizedId]
+    );
 
-  return {
-    message: "Evento cancelado com sucesso.",
-    event: await getEventRowById(runner, normalizedId),
-  };
+    const event = await getEventRowById(connection, normalizedId);
+
+    await notifyCalendarEvent(db, connection, "calendar.event.cancelled", event);
+
+    return {
+      message: "Evento cancelado com sucesso.",
+      event,
+    };
+  });
 }
 
 /**

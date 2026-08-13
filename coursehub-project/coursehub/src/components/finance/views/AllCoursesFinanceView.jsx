@@ -7,6 +7,7 @@ export default function AllCoursesFinanceView({
   overdueInvoice,
   nextInvoice,
   contracts = [],
+  onPaymentApproved,
 }) {
   const featuredInvoice =
     overdueInvoice || nextInvoice || null;
@@ -16,7 +17,7 @@ export default function AllCoursesFinanceView({
       <FinanceSummaryCards summary={summary} />
 
       {featuredInvoice && (
-        <FeaturedInvoiceCard invoice={featuredInvoice} />
+        <FeaturedInvoiceCard invoice={featuredInvoice} onPaymentApproved={onPaymentApproved} />
       )}
 
       <ContractSection contracts={contracts} />

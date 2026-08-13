@@ -6,6 +6,10 @@ const {
   createFinancialEvent,
 } = require("./financialEventService");
 
+const { withTransaction } = require("../../utils/dbTransaction");
+const { notifyPaymentRefunded } = require("./financialNotificationService");
+const { resolveGatewayByName } = require("../paymentGateway/paymentGatewayFactory");
+
 /**
  * Cria um erro de negócio com status HTTP.
  */
@@ -97,11 +101,7 @@ async function refundPayment(
     );
   }
 
-  const connection = await db.promise().getConnection();
-
-  try {
-    await connection.beginTransaction();
-
+  return withTransaction(db, async (connection) => {
     const [payments] = await connection.execute(
       `
         SELECT
@@ -119,12 +119,20 @@ async function refundPayment(
           i.financial_contract_id,
           i.status AS invoice_status,
           i.paid_at AS invoice_paid_at,
-          fc.enrollment_id
+          i.description AS invoice_description,
+          fc.enrollment_id,
+          en.student_id,
+          en.course_id,
+          c.name AS course_name
         FROM payments p
         INNER JOIN invoices i
           ON i.id = p.invoice_id
         INNER JOIN financial_contracts fc
           ON fc.id = i.financial_contract_id
+        INNER JOIN enrollments en
+          ON en.id = fc.enrollment_id
+        INNER JOIN courses c
+          ON c.id = en.course_id
         WHERE p.id = ?
         FOR UPDATE
       `,
@@ -168,6 +176,37 @@ async function refundPayment(
       );
     }
 
+    // Dinheiro de verdade só volta através de quem de fato o
+    // processou. Um pagamento admin_manual nunca tocou um gateway
+    // (seu gatewayPaymentId não significa nada para nenhum provider),
+    // então só os pagamentos com source === "gateway" (simulated ou
+    // mercado_pago) precisam dessa ida e volta extra -- ver
+    // docs/features/payment-gateway.md#reembolso.
+    if (payment.source === "gateway") {
+      const gatewayInstance = resolveGatewayByName(payment.gateway);
+
+      // O lock da linha é deliberadamente mantido durante esta
+      // chamada. Reembolso é uma operação de baixo volume, restrita
+      // a admin (diferente da criação de pagamento, voltada ao
+      // aluno e mantida fora de qualquer lock) -- serializar nesta
+      // linha durante uma chamada HTTP com timeout limitado é a
+      // forma mais simples de garantir que uma requisição de
+      // reembolso duplicada nunca consiga competir com o provider
+      // concorrentemente, e isso não custa nada mensurável no volume
+      // real desta operação.
+      const gatewayRefundResult = await gatewayInstance.refundPayment({
+        gatewayPaymentId: payment.gateway_payment_id,
+        amount: Number(payment.amount),
+      });
+
+      if (gatewayRefundResult.status !== "refunded") {
+        throw createServiceError(
+          "O provedor de pagamento recusou o reembolso. O pagamento permanece aprovado.",
+          502
+        );
+      }
+    }
+
     const refundDate = getCurrentMysqlDateTime();
     const normalizedReason = reason.trim();
 
@@ -178,7 +217,8 @@ async function refundPayment(
           status = 'refunded',
           refunded_at = ?,
           refund_reason = ?,
-          refunded_by_user_id = ?
+          refunded_by_user_id = ?,
+          last_synced_at = NOW()
         WHERE id = ?
       `,
       [
@@ -187,6 +227,14 @@ async function refundPayment(
         actorUserId,
         normalizedPaymentId,
       ]
+    );
+
+    await connection.execute(
+      `
+        INSERT INTO payment_events (payment_id, event_type, previous_status, new_status, source, payload)
+        VALUES (?, 'payment_refunded', ?, 'refunded', 'admin', ?)
+      `,
+      [normalizedPaymentId, payment.status, JSON.stringify({ reason: normalizedReason })]
     );
 
     await connection.execute(
@@ -238,7 +286,16 @@ async function refundPayment(
       payment.financial_contract_id
     );
 
-    await connection.commit();
+    await notifyPaymentRefunded(db, connection, {
+      paymentId: normalizedPaymentId,
+      invoiceId: payment.invoice_id,
+      invoiceDescription: payment.invoice_description,
+      amount: Number(payment.amount).toFixed(2),
+      reason: normalizedReason,
+      studentId: payment.student_id,
+      courseId: payment.course_id,
+      courseName: payment.course_name,
+    });
 
     return {
       paymentId: normalizedPaymentId,
@@ -254,20 +311,7 @@ async function refundPayment(
       refundedAt: refundDate,
       refundReason: normalizedReason,
     };
-  } catch (error) {
-    try {
-      await connection.rollback();
-    } catch (rollbackError) {
-      console.error(
-        "Erro ao desfazer a transação de reembolso:",
-        rollbackError
-      );
-    }
-
-    throw error;
-  } finally {
-    connection.release();
-  }
+  });
 }
 
 module.exports = {

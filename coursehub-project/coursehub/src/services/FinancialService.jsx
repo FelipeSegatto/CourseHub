@@ -188,3 +188,34 @@ export async function refundPayment(
     }
   );
 }
+
+/**
+ * Cria (ou reaproveita uma já existente e pendente) uma tentativa de
+ * pagamento PIX para uma fatura que pertence ao aluno autenticado.
+ * Só paymentMethod é enviado -- invoiceId vem da URL, o valor é lido
+ * do banco de dados pelo backend, nunca a partir desta chamada.
+ */
+export async function createInvoicePayment(invoiceId, paymentMethod) {
+  if (!invoiceId) {
+    throw new Error("O identificador da fatura é obrigatório.");
+  }
+
+  return apiFetch(
+    `/api/student/finance/invoices/${invoiceId}/payments`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ paymentMethod }),
+    }
+  );
+}
+
+export async function getInvoicePayment(paymentId) {
+  if (!paymentId) {
+    throw new Error("O identificador do pagamento é obrigatório.");
+  }
+
+  return apiFetch(`/api/student/finance/payments/${paymentId}`);
+}

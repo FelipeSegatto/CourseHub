@@ -1,7 +1,10 @@
 {
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test",
+    "worker:notifications": "node workers/notificationEmailWorker.js",
+    "worker:reminders": "node workers/scheduledRemindersWorker.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -10,7 +13,9 @@
     "dotenv": "^17.4.2",
     "express": "^4.18.2",
     "express-rate-limit": "^8.6.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
+    "mercadopago": "^3.4.0",
     "mysql2": "^3.9.1",
     "nodemailer": "^9.0.3"
   },
