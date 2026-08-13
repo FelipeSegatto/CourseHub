@@ -448,13 +448,6 @@ function AdminCreateEditModal({
       ) {
         return "Carga horária inválida.";
       }
-
-      if (
-        form.price !== "" &&
-        Number(form.price) < 0
-      ) {
-        return "Preço inválido.";
-      }
     }
 
     return "";
@@ -1039,36 +1032,25 @@ function CourseFields({
         />
       </label>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <label className={labelClass}>
-          Carga horária
+      <label className={labelClass}>
+        Carga horária
 
-          <input
-            type="number"
-            name="workload_hours"
-            value={formData.workload_hours}
-            onChange={handleChange}
-            min="0"
-            placeholder="Ex: 40"
-            className={inputClass}
-          />
-        </label>
+        <input
+          type="number"
+          name="workload_hours"
+          value={formData.workload_hours}
+          onChange={handleChange}
+          min="0"
+          placeholder="Ex: 40"
+          className={inputClass}
+        />
+      </label>
 
-        <label className={labelClass}>
-          Preço
-
-          <input
-            type="number"
-            name="price"
-            value={formData.price}
-            onChange={handleChange}
-            min="0"
-            step="0.01"
-            placeholder="Ex: 297"
-            className={inputClass}
-          />
-        </label>
-      </div>
+      <p className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        O preço do curso agora é definido pelos planos comerciais associados a ele, em{" "}
+        <strong>Financeiro → Planos comerciais</strong>. Este formulário não define mais
+        valores.
+      </p>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className={labelClass}>

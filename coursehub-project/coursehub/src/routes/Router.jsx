@@ -49,6 +49,7 @@ import FinancialContractsDetails from "../pages/admin/financial/FinancialContrac
 import FinancialInvoices from "../pages/admin/financial/FinancialInvoices";
 import FinancialInvoicesDetails from "../pages/admin/financial/FinancialInvoicesDetails";
 import FinancialDashboard from "../pages/admin/financial/FinancialDashboard";
+import PricingPlansAdmin from "../pages/admin/PricingPlansAdmin";
 import CalendarioAdmin from "../pages/admin/CalendarioAdmin";
 import GradesAdmin from "../pages/admin/GradesAdmin";
 import AttendanceAdmin from "../pages/admin/AttendanceAdmin";
@@ -370,6 +371,10 @@ export const router = createBrowserRouter([
               {
                 path: "financeiro/cobrancas/:cobrancaId",
                 element: <FinancialInvoicesDetails />,
+              },
+              {
+                path: "financeiro/planos",
+                element: <PricingPlansAdmin />,
               },
               {
                 path: "emissao",

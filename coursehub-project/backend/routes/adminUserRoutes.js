@@ -6,7 +6,7 @@ const authorizeRoles = require("../middlewares/authorizeRoles");
 const {
   listUsers,
   getUserById,
-  createAdminUser,
+  createUser,
   updateUser,
   updateUserStatus,
   updateUserRole,
@@ -69,8 +69,10 @@ router.get(
 
 /**
  * POST /api/admin/users
- * Cria contas de administrador. Alunos/professores usam os fluxos
- * já existentes em /api/admin/students e /api/admin/teachers.
+ * Cria um usuário do papel solicitado (admin, teacher ou student) --
+ * o service decide o fluxo transacional correto para cada um. Alunos
+ * e professores também continuam disponíveis via /api/admin/students
+ * e /api/admin/teachers (mesmo service por baixo, sem duplicação).
  */
 router.post(
   "/admin/users",
@@ -78,14 +80,14 @@ router.post(
   authorizeRoles("admin"),
   async (req, res) => {
     try {
-      const user = await createAdminUser(db, req.body);
+      const user = await createUser(db, req.body);
 
       return res.status(201).json({
-        message: "Administrador cadastrado com sucesso.",
+        message: "Usuário cadastrado com sucesso.",
         user,
       });
     } catch (error) {
-      return handleServiceError(res, error, "Erro ao cadastrar administrador.");
+      return handleServiceError(res, error, "Erro ao cadastrar usuário.");
     }
   }
 );

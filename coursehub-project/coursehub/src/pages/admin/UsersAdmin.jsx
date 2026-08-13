@@ -251,8 +251,8 @@ export default function UsersAdmin() {
     <>
       <AdminManagementPage
         title="Gerenciamento de usuários"
-        description="Identidade de autenticação: papel, status e credenciais. Dados acadêmicos/profissionais continuam em Alunos e Professores."
-        createButtonText="+ Novo administrador"
+        description="Cadastre administradores, professores ou alunos e gerencie papel, status e credenciais. Edição detalhada de dados acadêmicos/profissionais continua em Alunos e Professores."
+        createButtonText="+ Novo usuário"
         onCreateClick={handleCreateClick}
         stats={stats}
         tableTitle="Lista de usuários"
@@ -509,13 +509,24 @@ export default function UsersAdmin() {
                 onChange={(event) => setRoleSelection(event.target.value)}
                 className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               >
-                {ROLE_OPTIONS.map((option) => (
+                {/* Professor/Aluno nunca aparecem aqui -- converter para
+                    esses papéis exigiria criar o cadastro acadêmico/
+                    profissional correspondente, e este fluxo isolado de
+                    troca de papel não suporta isso (o backend também
+                    rejeita, esta é só a camada visual). */}
+                {ROLE_OPTIONS.filter((option) => option.value === "admin").map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
               </select>
             </label>
+
+            <p className="mt-3 text-xs text-gray-500">
+              Conversão para professor ou aluno não é suportada por aqui — exigiria criar o
+              cadastro acadêmico/profissional correspondente. Para isso, cadastre um novo usuário
+              com o papel desejado.
+            </p>
 
             <div className="mt-6 flex justify-end gap-3">
               <button

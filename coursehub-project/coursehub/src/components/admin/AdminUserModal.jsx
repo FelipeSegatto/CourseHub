@@ -1,5 +1,30 @@
 import { useState } from "react";
-import { createAdminUser, updateUser } from "../../services/AdminUserService";
+import { createUser, updateUser } from "../../services/AdminUserService";
+
+// manager/staff existem no enum do banco, mas não têm suporte
+// funcional completo ainda -- nunca expostos aqui, só os três papéis
+// com fluxo de criação real (ver adminUserService#createUser).
+const ROLE_OPTIONS = [
+  { value: "student", label: "Aluno" },
+  { value: "teacher", label: "Professor" },
+  { value: "admin", label: "Administrador" },
+];
+
+const INITIAL_FORM = {
+  name: "",
+  email: "",
+  gender: "Masculino",
+  password: "",
+  confirmPassword: "",
+  status: "active",
+  // Campos específicos de professor
+  specialty: "",
+  cpf: "",
+  phone: "",
+  // Campos específicos de aluno (cpf/phone compartilhados com professor)
+  birth_date: "",
+  address: "",
+};
 
 function AdminUserModal({ mode = "create", initialData = null, handleCloseModal, onSuccess }) {
   const isEditMode = mode === "edit";
@@ -7,14 +32,18 @@ function AdminUserModal({ mode = "create", initialData = null, handleCloseModal,
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [role, setRole] = useState("student");
+
   const [formData, setFormData] = useState({
+    ...INITIAL_FORM,
     name: initialData?.name || "",
     email: initialData?.email || "",
     gender: initialData?.gender || "Masculino",
-    password: "",
-    confirmPassword: "",
     status: initialData?.status || "active",
   });
+
+  const isTeacherRole = role === "teacher";
+  const isStudentRole = role === "student";
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -32,6 +61,10 @@ function AdminUserModal({ mode = "create", initialData = null, handleCloseModal,
     }
 
     if (!isEditMode) {
+      if (!ROLE_OPTIONS.some((option) => option.value === role)) {
+        return "Selecione o papel do novo usuário.";
+      }
+
       if (!formData.password || !formData.confirmPassword) {
         return "Senha e confirmação de senha são obrigatórias.";
       }
@@ -43,9 +76,47 @@ function AdminUserModal({ mode = "create", initialData = null, handleCloseModal,
       if (formData.password.length < 6) {
         return "A senha deve ter pelo menos 6 caracteres.";
       }
+
+      if (isStudentRole && (!formData.birth_date || !formData.cpf.trim() || !formData.phone.trim())) {
+        return "Data de nascimento, CPF e telefone são obrigatórios para alunos.";
+      }
     }
 
     return "";
+  }
+
+  function buildCreatePayload() {
+    const basePayload = {
+      role,
+      name: formData.name.trim(),
+      email: formData.email.trim(),
+      password: formData.password,
+      status: formData.status,
+    };
+
+    if (role === "admin") {
+      return basePayload;
+    }
+
+    if (role === "teacher") {
+      return {
+        ...basePayload,
+        gender: formData.gender,
+        specialty: formData.specialty.trim() || null,
+        cpf: formData.cpf.trim() || null,
+        phone: formData.phone.trim() || null,
+      };
+    }
+
+    // student
+    return {
+      ...basePayload,
+      gender: formData.gender,
+      birth_date: formData.birth_date,
+      cpf: formData.cpf.trim(),
+      phone: formData.phone.trim(),
+      address: formData.address.trim() || null,
+    };
   }
 
   async function handleSubmit(event) {
@@ -71,12 +142,7 @@ function AdminUserModal({ mode = "create", initialData = null, handleCloseModal,
             email: formData.email.trim(),
             gender: formData.gender,
           })
-        : await createAdminUser({
-            name: formData.name.trim(),
-            email: formData.email.trim(),
-            password: formData.password,
-            status: formData.status,
-          });
+        : await createUser(buildCreatePayload());
 
       await onSuccess?.(result);
     } catch (requestError) {
@@ -105,13 +171,13 @@ function AdminUserModal({ mode = "create", initialData = null, handleCloseModal,
 
         <div className="shrink-0 border-b border-gray-200 px-6 py-5 pr-14">
           <h2 className="text-xl font-bold text-gray-900">
-            {isEditMode ? "Editar usuário" : "Cadastrar administrador"}
+            {isEditMode ? "Editar usuário" : "Cadastrar usuário"}
           </h2>
 
           <p className="mt-1 text-sm text-gray-500">
             {isEditMode
               ? "Altera apenas os dados básicos de identidade — status, papel e senha são alterados pelas ações da tabela."
-              : "Este formulário cria contas de administrador. Para alunos ou professores, use as páginas Alunos/Professores."}
+              : "Escolha o papel do novo usuário: aluno, professor ou administrador. Cada um cria o cadastro completo correspondente."}
           </p>
         </div>
 
@@ -123,6 +189,23 @@ function AdminUserModal({ mode = "create", initialData = null, handleCloseModal,
             <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
               {error}
             </p>
+          )}
+
+          {!isEditMode && (
+            <label className={labelClass}>
+              Papel
+              <select
+                value={role}
+                onChange={(event) => setRole(event.target.value)}
+                className={inputClass}
+              >
+                {ROLE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
 
           <label className={labelClass}>
@@ -194,6 +277,90 @@ function AdminUserModal({ mode = "create", initialData = null, handleCloseModal,
                 </label>
               </div>
 
+              {(isTeacherRole || isStudentRole) && (
+                <label className={labelClass}>
+                  Gênero
+                  <select
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleChange}
+                    className={inputClass}
+                  >
+                    <option value="Masculino">Masculino</option>
+                    <option value="Feminino">Feminino</option>
+                    <option value="Outro">Outro</option>
+                  </select>
+                </label>
+              )}
+
+              {isStudentRole && (
+                <label className={labelClass}>
+                  Data de nascimento
+                  <input
+                    type="date"
+                    name="birth_date"
+                    value={formData.birth_date}
+                    onChange={handleChange}
+                    required
+                    className={inputClass}
+                  />
+                </label>
+              )}
+
+              {isTeacherRole && (
+                <label className={labelClass}>
+                  Especialidade
+                  <input
+                    name="specialty"
+                    value={formData.specialty}
+                    onChange={handleChange}
+                    placeholder="Ex: Front-end, UX/UI, Banco de Dados"
+                    className={inputClass}
+                  />
+                </label>
+              )}
+
+              {(isTeacherRole || isStudentRole) && (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <label className={labelClass}>
+                    CPF
+                    <input
+                      name="cpf"
+                      value={formData.cpf}
+                      onChange={handleChange}
+                      required={isStudentRole}
+                      placeholder="000.000.000-00"
+                      className={inputClass}
+                    />
+                  </label>
+
+                  <label className={labelClass}>
+                    Telefone
+                    <input
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      required={isStudentRole}
+                      placeholder="(00) 00000-0000"
+                      className={inputClass}
+                    />
+                  </label>
+                </div>
+              )}
+
+              {isStudentRole && (
+                <label className={labelClass}>
+                  Endereço
+                  <input
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    placeholder="Ex: Arapiraca - AL"
+                    className={inputClass}
+                  />
+                </label>
+              )}
+
               <label className={labelClass}>
                 Status inicial
                 <select
@@ -224,7 +391,7 @@ function AdminUserModal({ mode = "create", initialData = null, handleCloseModal,
               disabled={loading}
               className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-blue-700 hover:shadow-lg disabled:cursor-not-allowed disabled:bg-blue-300"
             >
-              {loading ? "Salvando..." : isEditMode ? "Salvar alterações" : "Salvar administrador"}
+              {loading ? "Salvando..." : isEditMode ? "Salvar alterações" : "Salvar usuário"}
             </button>
           </div>
         </form>

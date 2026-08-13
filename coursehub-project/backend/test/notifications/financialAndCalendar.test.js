@@ -508,17 +508,6 @@ test("institutional-scope calendar event reaches active students and active teac
     class_id: null,
   });
 
-  const [[studentCountRows], [teacherCountRows]] = await Promise.all([
-    db.promise().query(
-      "SELECT COUNT(*) AS total FROM students s INNER JOIN users u ON u.id = s.user_id WHERE s.status = 'active' AND u.status = 'active'"
-    ),
-    db.promise().query(
-      "SELECT COUNT(*) AS total FROM teachers t INNER JOIN users u ON u.id = t.user_id WHERE t.status = 'active' AND u.status = 'active'"
-    ),
-  ]);
-
-  const expectedTotal = Number(studentCountRows[0].total) + Number(teacherCountRows[0].total);
-
   const [recipientRows] = await db.promise().query(
     `
       SELECT nr.user_id
@@ -529,7 +518,44 @@ test("institutional-scope calendar event reaches active students and active teac
     [event.id]
   );
 
-  assert.equal(recipientRows.length, expectedTotal);
+  const recipientIds = recipientRows.map((row) => row.user_id).sort((a, b) => a - b);
+
+  // Institutional scope is the one notification audience that spans
+  // every active student AND every active teacher system-wide -- so,
+  // unlike the course/class-scope tests above (narrow to one fixture),
+  // it's exposed to any other concurrently-running test file that
+  // legitimately creates/deletes a real active student or teacher
+  // (e.g. adminUserCreation.test.js exercising the admin user-creation
+  // flow). A single query taken after event creation can genuinely
+  // disagree with the recipient list that was fixed at creation time
+  // by a few milliseconds of unrelated, real activity elsewhere --
+  // not a bug in the recipient resolver itself. Retrying a few times
+  // lets that transient window pass; a real regression in the
+  // resolver would never converge and would still fail here.
+  let expectedIds = [];
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const [[studentRows], [teacherRows]] = await Promise.all([
+      db.promise().query(
+        "SELECT u.id AS user_id FROM students s INNER JOIN users u ON u.id = s.user_id WHERE s.status = 'active' AND u.status = 'active'"
+      ),
+      db.promise().query(
+        "SELECT u.id AS user_id FROM teachers t INNER JOIN users u ON u.id = t.user_id WHERE t.status = 'active' AND u.status = 'active'"
+      ),
+    ]);
+
+    expectedIds = [...studentRows, ...teacherRows]
+      .map((row) => row.user_id)
+      .sort((a, b) => a - b);
+
+    if (JSON.stringify(expectedIds) === JSON.stringify(recipientIds)) {
+      break;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+
+  assert.deepEqual(recipientIds, expectedIds);
 });
 
 test("updateEvent with a real date change fires calendar.event.changed", async () => {

@@ -8,6 +8,28 @@ import AdminTable from "../../components/admin/AdminTable";
 import AdminStatusFilter from "../../components/admin/AdminStatusFilter";
 import StatusBadge from "../../components/ui/StatusBadge";
 
+function formatCurrency(value) {
+  return Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+/** course_pricing_plans é a única fonte de preço -- nunca course.price. */
+function PricingCell({ pricing }) {
+  if (!pricing?.hasActivePlans) {
+    return <span className="text-gray-400">Consulte os valores</span>;
+  }
+
+  return (
+    <div>
+      <p className="font-medium text-gray-900">A partir de {formatCurrency(pricing.startingPrice)}</p>
+      {pricing.monthlyPaymentFrom !== null && (
+        <p className="text-xs text-gray-500">
+          Mensalidades a partir de {formatCurrency(pricing.monthlyPaymentFrom)}
+        </p>
+      )}
+    </div>
+  );
+}
+
 const courseStatusOptions = [
   { value: "", label: "Todos" },
   { value: "active", label: "Ativos" },
@@ -253,6 +275,10 @@ export default function CourseAdmin() {
       label: "Carga horária",
     },
     {
+      key: "pricing",
+      label: "Preço",
+    },
+    {
       key: "status",
       label: "Status",
     },
@@ -331,6 +357,10 @@ export default function CourseAdmin() {
                   {course.workload_hours
                     ? `${course.workload_hours}h`
                     : "-"}
+                </td>
+
+                <td className="py-5 text-sm">
+                  <PricingCell pricing={course.pricing} />
                 </td>
 
                 <td className="py-5">

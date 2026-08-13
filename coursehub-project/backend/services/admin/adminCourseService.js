@@ -1,3 +1,9 @@
+const {
+  attachPricingToCourses,
+  getPricingSummaryForCourse,
+  listActivePlansForCourse,
+} = require("../courses/coursePricingService");
+
 const ALLOWED_COURSE_STATUSES = ["active", "inactive", "draft", "archived"];
 
 function createServiceError(message, statusCode) {
@@ -39,7 +45,7 @@ async function listCourses(db) {
   const [courses] = await db.promise().query(
     `
       SELECT
-        c.id, c.name, c.category, c.nivel, c.status, c.workload_hours, c.price,
+        c.id, c.name, c.category, c.nivel, c.status, c.workload_hours,
         t.name AS teacher_name,
         COUNT(DISTINCT e.student_id) AS total_students,
         COUNT(DISTINCT cc.id) AS total_contents
@@ -47,12 +53,15 @@ async function listCourses(db) {
       LEFT JOIN teachers t ON t.id = c.teacher_id
       LEFT JOIN enrollments e ON e.course_id = c.id
       LEFT JOIN course_contents cc ON cc.course_id = c.id
-      GROUP BY c.id, c.name, c.category, c.nivel, c.status, c.workload_hours, c.price, t.name
+      GROUP BY c.id, c.name, c.category, c.nivel, c.status, c.workload_hours, t.name
       ORDER BY c.name ASC
     `
   );
 
-  return courses;
+  // pricing é anexado em lote (uma única query agrupada para todos os
+  // cursos desta página) -- courses.price nunca é lido aqui, ver
+  // coursePricingService.
+  return attachPricingToCourses(db, courses);
 }
 
 /**
@@ -84,7 +93,16 @@ async function getCourseById(db, id) {
     throw createServiceError("Curso não encontrado.", 404);
   }
 
-  return courseRows[0];
+  // `price` continua sendo devolvido aqui só para o formulário
+  // administrativo conseguir reenviar o valor inalterado no PUT (o
+  // campo não é mais editável na UI, ver AdminCreateEditModal) --
+  // nunca é usado como preço comercial. `pricing` é a fonte oficial,
+  // usada por quem exibe preço de fato (listagem admin, páginas
+  // públicas).
+  return {
+    ...courseRows[0],
+    pricing: await getPricingSummaryForCourse(db, normalizedCourseId),
+  };
 }
 
 /**
@@ -356,30 +374,13 @@ async function deleteCourse(db, id) {
 /**
  * Lista os planos de preço ATIVOS de um curso — usado pela criação
  * de matrícula para o admin escolher qual plano gera o contrato
- * financeiro. Não há tela de gestão de planos nesta fase; isto é
- * só leitura do que já existe.
+ * financeiro. Delegado ao serviço compartilhado (coursePricingService)
+ * -- a página de gestão de planos comerciais e a rota pública
+ * equivalente reaproveitam a mesma consulta, nunca uma segunda
+ * implementação da regra.
  */
 async function listActivePricingPlansByCourse(db, courseId) {
-  const normalizedCourseId = Number(courseId);
-
-  if (!Number.isInteger(normalizedCourseId) || normalizedCourseId <= 0) {
-    throw createServiceError("ID do curso inválido.", 400);
-  }
-
-  const [rows] = await db.promise().query(
-    `
-      SELECT
-        id, course_id, name, description, billing_type, total_amount,
-        monthly_payment_count, monthly_payment_amount, max_card_installments,
-        accepts_pix, accepts_boleto, accepts_credit_card, status
-      FROM course_pricing_plans
-      WHERE course_id = ? AND status = 'active'
-      ORDER BY total_amount ASC
-    `,
-    [normalizedCourseId]
-  );
-
-  return rows;
+  return listActivePlansForCourse(db, courseId);
 }
 
 module.exports = {

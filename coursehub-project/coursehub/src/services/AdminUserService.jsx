@@ -26,7 +26,8 @@ export async function getUserById(userId) {
   return apiFetch(`/api/admin/users/${userId}`);
 }
 
-export async function createAdminUser(payload) {
+/** Cria um usuário do papel informado em payload.role (admin, teacher ou student). */
+export async function createUser(payload) {
   return apiFetch("/api/admin/users", {
     method: "POST",
     body: JSON.stringify(payload),

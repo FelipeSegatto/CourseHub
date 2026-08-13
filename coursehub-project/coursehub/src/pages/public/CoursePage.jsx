@@ -3,12 +3,30 @@ import { Link, useParams } from "react-router-dom";
 
 const API_URL = "http://localhost:3001";
 
+function formatCurrency(value) {
+  return Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+const BILLING_TYPE_LABEL = {
+  one_time: "Pagamento único",
+  monthly_plan: "Plano mensal",
+};
+
+const PAYMENT_METHOD_LABEL = {
+  acceptsPix: "Pix",
+  acceptsBoleto: "Boleto",
+  acceptsCreditCard: "Cartão de crédito",
+};
+
 export default function CoursePage() {
   const { id } = useParams();
 
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [pricingPlans, setPricingPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(false);
 
   useEffect(() => {
     let componenteMontado = true;
@@ -79,6 +97,43 @@ export default function CoursePage() {
     };
   }, [id]);
 
+  useEffect(() => {
+    let componenteMontado = true;
+
+    async function fetchPlanos() {
+      if (!id) {
+        return;
+      }
+
+      try {
+        setPlansLoading(true);
+
+        const response = await fetch(`${API_URL}/api/courses/${id}/pricing-plans`);
+        const data = response.ok ? await response.json() : [];
+
+        if (componenteMontado) {
+          setPricingPlans(Array.isArray(data) ? data : []);
+        }
+      } catch (fetchError) {
+        console.error("Erro ao buscar planos do curso:", fetchError);
+
+        if (componenteMontado) {
+          setPricingPlans([]);
+        }
+      } finally {
+        if (componenteMontado) {
+          setPlansLoading(false);
+        }
+      }
+    }
+
+    fetchPlanos();
+
+    return () => {
+      componenteMontado = false;
+    };
+  }, [id]);
+
   if (loading) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-12">
@@ -120,7 +175,7 @@ export default function CoursePage() {
         ? course.syllabus
         : [];
 
-  const price = Number(course.price || 0);
+  const pricing = course.pricing;
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
@@ -201,12 +256,23 @@ export default function CoursePage() {
           Investimento
         </p>
 
-        <strong className="mt-2 block text-3xl text-gray-900">
-          {price.toLocaleString("pt-BR", {
-            style: "currency",
-            currency: "BRL",
-          })}
-        </strong>
+        {pricing?.hasActivePlans ? (
+          <>
+            <strong className="mt-2 block text-3xl text-gray-900">
+              Curso a partir de {formatCurrency(pricing.startingPrice)}
+            </strong>
+
+            {pricing.monthlyPaymentFrom !== null && (
+              <p className="mt-1 text-sm text-gray-500">
+                Mensalidades a partir de {formatCurrency(pricing.monthlyPaymentFrom)}
+              </p>
+            )}
+          </>
+        ) : (
+          <strong className="mt-2 block text-3xl text-gray-900">
+            Consulte os valores
+          </strong>
+        )}
 
         <button
           type="button"
@@ -215,6 +281,57 @@ export default function CoursePage() {
           Comprar curso
         </button>
       </div>
+
+      {!plansLoading && pricingPlans.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-2xl font-bold text-gray-900">
+            Formas de pagamento
+          </h2>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {pricingPlans.map((plan) => {
+              const methods = Object.entries(PAYMENT_METHOD_LABEL)
+                .filter(([key]) => plan[key])
+                .map(([, label]) => label);
+
+              return (
+                <div
+                  key={plan.id}
+                  className="rounded-2xl border border-gray-200 bg-white p-5"
+                >
+                  <p className="text-sm font-semibold text-blue-600">
+                    {BILLING_TYPE_LABEL[plan.billingType] || plan.billingType}
+                  </p>
+
+                  <h3 className="mt-1 text-lg font-bold text-gray-900">
+                    {plan.name}
+                  </h3>
+
+                  {plan.description && (
+                    <p className="mt-1 text-sm text-gray-500">{plan.description}</p>
+                  )}
+
+                  <p className="mt-3 text-xl font-bold text-gray-900">
+                    {formatCurrency(plan.totalAmount)}
+                  </p>
+
+                  {plan.billingType === "monthly_plan" && plan.monthlyPaymentCount && (
+                    <p className="text-sm text-gray-500">
+                      {plan.monthlyPaymentCount}x de {formatCurrency(plan.monthlyPaymentAmount)}
+                    </p>
+                  )}
+
+                  {methods.length > 0 && (
+                    <p className="mt-3 text-xs text-gray-400">
+                      Aceita: {methods.join(", ")}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </main>
   );
 }
