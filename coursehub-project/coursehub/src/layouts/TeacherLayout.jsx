@@ -1,10 +1,10 @@
-import NavbarProfessor from "../components/NavbarProfessor";
+import NavbarTeacher from "../components/NavbarTeacher";
 import { Outlet } from "react-router-dom";
 
 export default function TeacherLayout() {
   return (
     <div>
-      <NavbarProfessor />
+      <NavbarTeacher />
       <main className="p-6">
             <Outlet />
        

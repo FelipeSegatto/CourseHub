@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../services/APIService";
 
-import AdminManagementPage from "../../components/admin/AdminManagementPage";
+import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminCreateEditModal from "../../components/admin/AdminCreateEditModal";
 import DeleteConfirmModal from "../../components/admin/AdminDeleteModal";
 import AdminTable from "../../components/admin/AdminTable";
@@ -128,14 +128,9 @@ const filteredStudents = useMemo(() => {
       onClick: handleCreateClick,
     },
     {
-      title: "Gerenciar acessos",
-      description: "Edite status, bloqueios e dados cadastrais.",
-      onClick: () => {},
-    },
-    {
       title: "Acompanhar matrículas",
       description: "Veja os cursos vinculados aos alunos.",
-      onClick: () => {},
+      to: "/admin/matriculas",
     },
   ];
 
@@ -150,7 +145,8 @@ const filteredStudents = useMemo(() => {
 
   return (
     <>
-      <AdminManagementPage
+      <ManagementPageShell
+        backTo="/admin/dashboard-admin"
         title="Gerenciamento de Alunos"
         description="Acompanhe alunos cadastrados, cursos, status e progresso."
         createButtonText="+ Novo Aluno"
@@ -227,7 +223,7 @@ const filteredStudents = useMemo(() => {
             )}
           />
         )}
-      </AdminManagementPage>
+      </ManagementPageShell>
 
       {modalOpen && (
         <AdminCreateEditModal

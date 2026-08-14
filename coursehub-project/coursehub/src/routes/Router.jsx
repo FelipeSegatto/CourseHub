@@ -11,7 +11,7 @@ import SignUpPage from "../pages/auth/SignUpPage";
 import ProfileSecurity from "../pages/profile/ProfileSecurity";
 import ForgotPassword from "../pages/auth/ForgotPassword";
 import ResetPassword from "../pages/auth/ResetPassword";
-import AtivarConta from "../pages/auth/AtivarConta";
+import ActivateAccount from "../pages/auth/ActivateAccount";
 
 import HomePage from "../pages/public/HomePage";
 import DashboardPage from "../pages/public/DashboardPage";
@@ -19,19 +19,19 @@ import AboutPage from "../pages/public/AboutPage";
 import CoursesPage from "../pages/public/CoursesPage";
 import CoursePage from "../pages/public/CoursePage";
 
-import HomeAluno from "../pages/aluno/HomeAluno";
-import DashboardAluno from "../pages/aluno/DashboardAluno";
-import DashboardConteudo from "../pages/aluno/CoursePlayer";
-import CourseAluno from "../pages/aluno/CourseAluno";
-import AtividadesAluno from "../pages/aluno/AtividadesAluno";
-import NotificacoesAluno from "../pages/aluno/NotificacoesAluno";
-import AvaliacoesAluno from "../pages/aluno/AvaliacoesAluno";
-import NotasAluno from "../pages/aluno/NotasAluno";
-import ProgressoAluno from "../pages/aluno/ProgressoAluno";
-import FinanceiroAluno from "../pages/aluno/FinanceiroAluno";
-import StudentActivityRunner from "../pages/aluno/StudentActivityRunner";
-import CalendarioAluno from "../pages/aluno/CalendarioAluno";
-import ChatAluno from "../pages/aluno/ChatAluno";
+import StudentHome from "../pages/student/StudentHome";
+import StudentDashboard from "../pages/student/StudentDashboard";
+import CoursePlayer from "../pages/student/CoursePlayer";
+import StudentCourses from "../pages/student/StudentCourses";
+import StudentActivities from "../pages/student/StudentActivities";
+import StudentNotifications from "../pages/student/StudentNotifications";
+import StudentAssessments from "../pages/student/StudentAssessments";
+import StudentGrades from "../pages/student/StudentGrades";
+import StudentProgress from "../pages/student/StudentProgress";
+import StudentFinance from "../pages/student/StudentFinance";
+import StudentActivityRunner from "../pages/student/StudentActivityRunner";
+import StudentCalendar from "../pages/student/StudentCalendar";
+import StudentChat from "../pages/student/StudentChat";
 
 import HomeAdmin from "../pages/admin/HomeAdmin";
 import DashboardAdmin from "../pages/admin/DashboardAdmin";
@@ -44,37 +44,37 @@ import EnrollmentsAdmin from "../pages/admin/EnrollmentsAdmin";
 import MaterialsAdmin from "../pages/admin/MaterialsAdmin";
 import ActivitiesAdmin from "../pages/admin/ActivitiesAdmin";
 import AssessmentsAdmin from "../pages/admin/AssessmentsAdmin";
-import EmissaoAdmin from "../pages/admin/EmissaoAdmin";
+import CertificatesAdmin from "../pages/admin/CertificatesAdmin";
 import FinancialContractsAdmin from "../pages/admin/financial/FinancialContractsAdmin";
 import FinancialContractsDetails from "../pages/admin/financial/FinancialContractsDetails";
-import FinancialInvoices from "../pages/admin/financial/FinancialInvoices";
+import FinancialInvoicesAdmin from "../pages/admin/financial/FinancialInvoicesAdmin";
 import FinancialInvoicesDetails from "../pages/admin/financial/FinancialInvoicesDetails";
 import FinancialDashboard from "../pages/admin/financial/FinancialDashboard";
 import PricingPlansAdmin from "../pages/admin/PricingPlansAdmin";
-import CalendarioAdmin from "../pages/admin/CalendarioAdmin";
+import CalendarAdmin from "../pages/admin/CalendarAdmin";
 import GradesAdmin from "../pages/admin/GradesAdmin";
 import AttendanceAdmin from "../pages/admin/AttendanceAdmin";
-import NotificacoesAdmin from "../pages/admin/NotificacoesAdmin";
+import NotificationsAdmin from "../pages/admin/NotificationsAdmin";
 import ChatAdmin from "../pages/admin/ChatAdmin";
-import ModeracaoAdmin from "../pages/admin/ModeracaoAdmin";
+import ModerationAdmin from "../pages/admin/ModerationAdmin";
 import SystemHealthAdmin from "../pages/admin/SystemHealthAdmin";
 
-import HomeProfessor from "../pages/professor/HomeProfessor";
-import DashboardProfessor from "../pages/professor/DashboardProfessor";
-import MyClassesProfessor from "../pages/professor/MyClassesProfessor";
-import ClassDetailsProfessor from "../pages/professor/ClassDetailsProfessor";
-import MaterialProfessor from "../pages/professor/MaterialProfessor";
-import MaterialPlayer from "../pages/professor/MaterialPlayer";
-import TasksProfessor from "../pages/professor/TasksProfessor";
-import ExamProfessor from "../pages/professor/ExamProfessor";
-import ActivitySubmissionsProfessor from "../pages/professor/ActivitySubmissionProfessor";
-import SubmissionReviewProfessor from "../pages/professor/SubmissionReviewProfessor";
-import AttendanceProfessor from "../pages/professor/AttendanceProfessor";
-import AttendanceHistoryProfessor from "../pages/professor/AttendanceHistoryProfessor";
-import GradesProfessor from "../pages/professor/GradesProfessor";
-import CalendarioProfessor from "../pages/professor/CalendarioProfessor";
-import NotificacoesProfessor from "../pages/professor/NotificacoesProfessor";
-import ChatProfessor from "../pages/professor/ChatProfessor";
+import TeacherHome from "../pages/teacher/TeacherHome";
+import TeacherDashboard from "../pages/teacher/TeacherDashboard";
+import TeacherClasses from "../pages/teacher/TeacherClasses";
+import TeacherClassDetails from "../pages/teacher/TeacherClassDetails";
+import TeacherMaterials from "../pages/teacher/TeacherMaterials";
+import MaterialPlayer from "../pages/teacher/MaterialPlayer";
+import TeacherActivities from "../pages/teacher/TeacherActivities";
+import TeacherAssessments from "../pages/teacher/TeacherAssessments";
+import TeacherActivitySubmissions from "../pages/teacher/TeacherActivitySubmissions";
+import TeacherSubmissionReview from "../pages/teacher/TeacherSubmissionReview";
+import TeacherAttendance from "../pages/teacher/TeacherAttendance";
+import TeacherAttendanceHistory from "../pages/teacher/TeacherAttendanceHistory";
+import TeacherGrades from "../pages/teacher/TeacherGrades";
+import TeacherCalendar from "../pages/teacher/TeacherCalendar";
+import TeacherNotifications from "../pages/teacher/TeacherNotifications";
+import TeacherChat from "../pages/teacher/TeacherChat";
 
 
 
@@ -175,7 +175,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "/ativar-conta",
-        element: <AtivarConta />,
+        element: <ActivateAccount />,
       },
     ],
   },
@@ -202,31 +202,31 @@ export const router = createBrowserRouter([
             children: [
               {
                 index: true,
-                element: <HomeAluno />,
+                element: <StudentHome />,
               },
               {
                 path: "dashboard-aluno",
-                element: <DashboardAluno />,
+                element: <StudentDashboard />,
               },
               {
                 path: "dashboard-aluno/courses/:id",
-                element: <DashboardConteudo />,
+                element: <CoursePlayer />,
               },
               {
                 path: "meus-cursos",
-                element: <CourseAluno />,
+                element: <StudentCourses />,
               },
               {
                 path: "financeiro",
-                element: <FinanceiroAluno />,
+                element: <StudentFinance />,
               },
               {
                 path: "notificacoes",
-                element: <NotificacoesAluno />,
+                element: <StudentNotifications />,
               },
               {
                 path: "chat",
-                element: <ChatAluno />,
+                element: <StudentChat />,
               },
 
               // ============================
@@ -235,7 +235,7 @@ export const router = createBrowserRouter([
 
               {
                 path: "atividades",
-                element: <AtividadesAluno />,
+                element: <StudentActivities />,
               },
               {
                 path: "atividades/:activityId",
@@ -250,7 +250,7 @@ export const router = createBrowserRouter([
 
               {
                 path: "avaliacoes",
-                element: <AvaliacoesAluno />,
+                element: <StudentAssessments />,
               },
               {
                 path: "avaliacoes/:activityId",
@@ -260,15 +260,15 @@ export const router = createBrowserRouter([
               },
               {
                 path: "notas",
-                element: <NotasAluno />,
+                element: <StudentGrades />,
               },
               {
                 path: "progresso",
-                element: <ProgressoAluno />,
+                element: <StudentProgress />,
               },
               {
                 path: "calendario",
-                element: <CalendarioAluno />,
+                element: <StudentCalendar />,
               },
               {
                 path: "perfil",
@@ -371,7 +371,7 @@ export const router = createBrowserRouter([
               },
               {
                 path: "financeiro/cobrancas",
-                element: <FinancialInvoices />,
+                element: <FinancialInvoicesAdmin />,
               },
               {
                 path: "financeiro/cobrancas/:cobrancaId",
@@ -383,15 +383,15 @@ export const router = createBrowserRouter([
               },
               {
                 path: "emissao",
-                element: <EmissaoAdmin />,
+                element: <CertificatesAdmin />,
               },
               {
                 path: "calendario",
-                element: <CalendarioAdmin />,
+                element: <CalendarAdmin />,
               },
               {
                 path: "notificacoes",
-                element: <NotificacoesAdmin />,
+                element: <NotificationsAdmin />,
               },
               {
                 path: "chat",
@@ -399,7 +399,7 @@ export const router = createBrowserRouter([
               },
               {
                 path: "moderacao",
-                element: <ModeracaoAdmin />,
+                element: <ModerationAdmin />,
               },
               {
                 path: "sistema",
@@ -442,12 +442,12 @@ export const router = createBrowserRouter([
             children: [
               {
                 index: true,
-                element: <HomeProfessor />,
+                element: <TeacherHome />,
               },
               {
                 path: "dashboard-professor",
                 element: (
-                  <DashboardProfessor />
+                  <TeacherDashboard />
                 ),
               },
 
@@ -458,25 +458,25 @@ export const router = createBrowserRouter([
               {
                 path: "minhas-turmas",
                 element: (
-                  <MyClassesProfessor />
+                  <TeacherClasses />
                 ),
               },
               {
                 path: "turmas/:classId",
                 element: (
-                  <ClassDetailsProfessor />
+                  <TeacherClassDetails />
                 ),
               },
               {
                 path: "turmas/:classId/frequencia",
                 element: (
-                  <AttendanceProfessor />
+                  <TeacherAttendance />
                 ),
               },
               {
                 path: "frequencia",
                 element: (
-                  <AttendanceHistoryProfessor />
+                  <TeacherAttendanceHistory />
                 ),
               },
 
@@ -486,12 +486,12 @@ export const router = createBrowserRouter([
 
               {
                 path: "atividades",
-                element: <TasksProfessor />,
+                element: <TeacherActivities />,
               },
               {
                 path: "atividades/:activityId/envios",
                 element: (
-                  <ActivitySubmissionsProfessor />
+                  <TeacherActivitySubmissions />
                 ),
               },
 
@@ -501,12 +501,12 @@ export const router = createBrowserRouter([
 
               {
                 path: "avaliacoes",
-                element: <ExamProfessor />,
+                element: <TeacherAssessments />,
               },
               {
                 path: "avaliacoes/:activityId/envios",
                 element: (
-                  <ActivitySubmissionsProfessor />
+                  <TeacherActivitySubmissions />
                 ),
               },
 
@@ -517,7 +517,7 @@ export const router = createBrowserRouter([
               {
                 path: "envios/:submissionId/corrigir",
                 element: (
-                  <SubmissionReviewProfessor />
+                  <TeacherSubmissionReview />
                 ),
               },
 
@@ -527,7 +527,7 @@ export const router = createBrowserRouter([
 
               {
                 path: "materiais",
-                element: <MaterialProfessor />,
+                element: <TeacherMaterials />,
               },
               {
                 path: "turmas/:classId/materiais",
@@ -540,19 +540,19 @@ export const router = createBrowserRouter([
 
               {
                 path: "notas",
-                element: <GradesProfessor />,
+                element: <TeacherGrades />,
               },
               {
                 path: "calendario",
-                element: <CalendarioProfessor />,
+                element: <TeacherCalendar />,
               },
               {
                 path: "notificacoes",
-                element: <NotificacoesProfessor />,
+                element: <TeacherNotifications />,
               },
               {
                 path: "chat",
-                element: <ChatProfessor />,
+                element: <TeacherChat />,
               },
               {
                 path: "perfil",

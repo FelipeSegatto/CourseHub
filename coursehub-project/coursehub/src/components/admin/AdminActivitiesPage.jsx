@@ -3,7 +3,7 @@ import { apiFetch } from "../../services/APIService";
 import { createAdminActivityService } from "../../services/AdminActivityService";
 import { listClasses } from "../../services/AdminClassService";
 
-import AdminManagementPage from "./AdminManagementPage";
+import ManagementPageShell from "../ui/ManagementPageShell";
 import ActivityModal from "../teachers/ActivityModal";
 import AdminTable from "./AdminTable";
 import StatusBadge from "../ui/StatusBadge";
@@ -327,7 +327,8 @@ export default function AdminActivitiesPage({ activityKind }) {
 
   return (
     <>
-      <AdminManagementPage
+      <ManagementPageShell
+        backTo="/admin/dashboard-admin"
         title={isExam ? "Gerenciamento de avaliações" : "Gerenciamento de atividades"}
         description={
           isExam
@@ -573,7 +574,7 @@ export default function AdminActivitiesPage({ activityKind }) {
             )}
           </>
         )}
-      </AdminManagementPage>
+      </ManagementPageShell>
 
       {modalOpen && (
         <ActivityModal

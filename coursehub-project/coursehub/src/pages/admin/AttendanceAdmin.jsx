@@ -3,7 +3,7 @@ import { apiFetch } from "../../services/APIService";
 import { AdminAttendanceService } from "../../services/AdminAttendanceService";
 import { listClasses } from "../../services/AdminClassService";
 
-import AdminManagementPage from "../../components/admin/AdminManagementPage";
+import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
 import { formatDisplayDate } from "../../utils/dateUtils";
@@ -213,7 +213,8 @@ export default function AttendanceAdmin() {
 
   return (
     <>
-      <AdminManagementPage
+      <ManagementPageShell
+        backTo="/admin/dashboard-admin"
         title="Frequência dos alunos"
         description="Presenças já lançadas pelos professores, com opção de ajuste administrativo auditado."
         stats={stats}
@@ -387,7 +388,7 @@ export default function AttendanceAdmin() {
             )}
           </>
         )}
-      </AdminManagementPage>
+      </ManagementPageShell>
 
       {adjustTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">

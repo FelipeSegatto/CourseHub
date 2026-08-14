@@ -9,7 +9,7 @@ import {
 } from "../../services/AdminEnrollmentService";
 import { listClasses } from "../../services/AdminClassService";
 
-import AdminManagementPage from "../../components/admin/AdminManagementPage";
+import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminEnrollmentModal from "../../components/admin/AdminEnrollmentModal";
 import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
@@ -269,7 +269,8 @@ export default function EnrollmentsAdmin() {
 
   return (
     <>
-      <AdminManagementPage
+      <ManagementPageShell
+        backTo="/admin/dashboard-admin"
         title="Gerenciamento de matrículas"
         description="Matricule alunos em cursos e turmas, acompanhe status e contratos financeiros gerados."
         createButtonText="+ Nova matrícula"
@@ -497,7 +498,7 @@ export default function EnrollmentsAdmin() {
             )}
           </>
         )}
-      </AdminManagementPage>
+      </ManagementPageShell>
 
       {modalOpen && (
         <AdminEnrollmentModal
