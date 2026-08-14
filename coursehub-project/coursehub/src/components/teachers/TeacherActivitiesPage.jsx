@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
 
-import TeacherManagementPage from "./TeacherManagementPage";
+import ManagementPageShell from "../ui/ManagementPageShell";
 import ActivityModal from "./ActivityModal";
 import DeleteModal from "./DeleteModal";
 import TeacherTable from "./TeacherTable";
@@ -381,20 +381,12 @@ export default function TeacherActivitiesPage({
       onClick: handleCreateClick,
     },
     {
-      title: "Revisar entregas",
-      description:
-        activityKind === "exam"
-          ? "Acompanhe avaliações enviadas e pendentes de correção."
-          : "Acompanhe atividades enviadas e pendentes de correção.",
-      onClick: () => {},
-    },
-    {
       title: "Acompanhar desempenho",
       description:
         activityKind === "exam"
           ? "Veja notas e desempenho dos alunos nas avaliações."
           : "Veja notas e progresso dos alunos nas atividades.",
-      onClick: () => {},
+      to: "/professor/notas",
     },
   ];
 
@@ -414,7 +406,8 @@ export default function TeacherActivitiesPage({
 
   return (
     <>
-      <TeacherManagementPage
+      <ManagementPageShell
+        backTo="/professor/dashboard-professor"
         title={pageTitle}
         description={pageDescription}
         createButtonText={createButtonText}
@@ -532,7 +525,7 @@ export default function TeacherActivitiesPage({
             )}
           />
         )}
-      </TeacherManagementPage>
+      </ManagementPageShell>
 
       {modalOpen && (
         <ActivityModal

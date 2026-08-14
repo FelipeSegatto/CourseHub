@@ -9,7 +9,7 @@ import {
   softDeleteUser,
 } from "../../services/AdminUserService";
 
-import AdminManagementPage from "../../components/admin/AdminManagementPage";
+import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminUserModal from "../../components/admin/AdminUserModal";
 import DeleteConfirmModal from "../../components/admin/AdminDeleteModal";
 import AdminTable from "../../components/admin/AdminTable";
@@ -249,7 +249,8 @@ export default function UsersAdmin() {
 
   return (
     <>
-      <AdminManagementPage
+      <ManagementPageShell
+        backTo="/admin/dashboard-admin"
         title="Gerenciamento de usuários"
         description="Cadastre administradores, professores ou alunos e gerencie papel, status e credenciais. Edição detalhada de dados acadêmicos/profissionais continua em Alunos e Professores."
         createButtonText="+ Novo usuário"
@@ -465,7 +466,7 @@ export default function UsersAdmin() {
             )}
           </>
         )}
-      </AdminManagementPage>
+      </ManagementPageShell>
 
       {modalOpen && (
         <AdminUserModal

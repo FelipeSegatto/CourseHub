@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../services/APIService";
 
-import AdminManagementPage from "../../components/admin/AdminManagementPage";
+import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminCreateEditModal from "../../components/admin/AdminCreateEditModal";
 import DeleteConfirmModal from "../../components/admin/AdminDeleteModal";
 import AdminTable from "../../components/admin/AdminTable";
@@ -130,14 +130,10 @@ export default function TeachersAdmin() {
       onClick: handleCreateClick,
     },
     {
-      title: "Gerenciar acessos",
-      description: "Edite status, bloqueios e dados cadastrais.",
-      onClick: () => {},
-    },
-    {
       title: "Acompanhar métricas do professor",
       description: "Veja o desempenho dos cursos vinculados aos professores.",
-      onClick: () => {},
+      disabled: true,
+      disabledReason: "Funcionalidade em desenvolvimento.",
     },
   ];
 
@@ -152,7 +148,8 @@ export default function TeachersAdmin() {
 
   return (
     <>
-      <AdminManagementPage
+      <ManagementPageShell
+        backTo="/admin/dashboard-admin"
         title="Gerenciamento de professores"
         description="Acompanhe professores cadastrados, cursos, status e progresso."
         createButtonText="+ Novo professor"
@@ -229,7 +226,7 @@ export default function TeachersAdmin() {
             )}
           />
         )}
-      </AdminManagementPage>
+      </ManagementPageShell>
 
       {modalOpen && (
         <AdminCreateEditModal

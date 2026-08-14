@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../services/APIService";
 
-import AdminManagementPage from "../../components/admin/AdminManagementPage";
+import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminCreateEditModal from "../../components/admin/AdminCreateEditModal";
 import DeleteConfirmModal from "../../components/admin/AdminDeleteModal";
 import AdminTable from "../../components/admin/AdminTable";
@@ -290,7 +290,8 @@ export default function CourseAdmin() {
 
   return (
     <>
-      <AdminManagementPage
+      <ManagementPageShell
+        backTo="/admin/dashboard-admin"
         title="Gerenciamento de cursos"
         description="Acompanhe cursos cadastrados, turmas e outras métricas."
         createButtonText="+ Novo curso"
@@ -403,7 +404,7 @@ export default function CourseAdmin() {
             )}
           />
         )}
-      </AdminManagementPage>
+      </ManagementPageShell>
 
       {modalOpen && (
         <AdminCreateEditModal

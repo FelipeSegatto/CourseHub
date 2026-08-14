@@ -9,7 +9,7 @@ import {
 } from "../../services/AdminContentService";
 import { listClasses } from "../../services/AdminClassService";
 
-import AdminManagementPage from "../../components/admin/AdminManagementPage";
+import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminContentModal from "../../components/admin/AdminContentModal";
 import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
@@ -288,7 +288,8 @@ export default function MaterialsAdmin() {
 
   return (
     <>
-      <AdminManagementPage
+      <ManagementPageShell
+        backTo="/admin/dashboard-admin"
         title="Gerenciamento de materiais"
         description="Vídeos, PDFs, textos e aulas ao vivo — gerais do curso ou exclusivos de uma turma."
         createButtonText="+ Novo material"
@@ -500,7 +501,7 @@ export default function MaterialsAdmin() {
             )}
           </>
         )}
-      </AdminManagementPage>
+      </ManagementPageShell>
 
       {modalOpen && (
         <AdminContentModal

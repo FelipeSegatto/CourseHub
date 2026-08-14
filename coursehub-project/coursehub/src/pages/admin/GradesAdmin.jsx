@@ -3,7 +3,7 @@ import { apiFetch } from "../../services/APIService";
 import { AdminGradeService } from "../../services/AdminGradeService";
 import { listClasses } from "../../services/AdminClassService";
 
-import AdminManagementPage from "../../components/admin/AdminManagementPage";
+import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminTable from "../../components/admin/AdminTable";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
@@ -222,7 +222,8 @@ export default function GradesAdmin() {
 
   return (
     <>
-      <AdminManagementPage
+      <ManagementPageShell
+        backTo="/admin/dashboard-admin"
         title="Notas dos alunos"
         description="Notas já lançadas pelos professores, com opção de ajuste administrativo auditado."
         stats={stats}
@@ -397,7 +398,7 @@ export default function GradesAdmin() {
             )}
           </>
         )}
-      </AdminManagementPage>
+      </ManagementPageShell>
 
       {adjustTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">

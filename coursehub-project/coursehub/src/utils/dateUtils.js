@@ -2,7 +2,7 @@
  * Utilitários de data compartilhados pelo módulo de calendário.
  *
  * O padrão aqui replica o parsing defensivo que já existia (isolado)
- * em pages/professor/AttendanceProfessor.jsx: strings "YYYY-MM-DD"
+ * em pages/teacher/TeacherAttendance.jsx: strings "YYYY-MM-DD"
  * nunca passam por `new Date(string)` diretamente — isso faz o
  * JavaScript interpretar como UTC meia-noite, que em fusos
  * negativos (Brasil) desloca a data pro dia anterior ao formatar.

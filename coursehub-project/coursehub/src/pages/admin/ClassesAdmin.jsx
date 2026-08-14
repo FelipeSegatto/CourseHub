@@ -8,7 +8,7 @@ import {
   deleteClass,
 } from "../../services/AdminClassService";
 
-import AdminManagementPage from "../../components/admin/AdminManagementPage";
+import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminClassModal from "../../components/admin/AdminClassModal";
 import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
@@ -257,7 +257,8 @@ export default function ClassesAdmin() {
 
   return (
     <>
-      <AdminManagementPage
+      <ManagementPageShell
+        backTo="/admin/dashboard-admin"
         title="Gerenciamento de turmas"
         description="Acompanhe turmas cadastradas, professores responsáveis e matrículas ativas."
         createButtonText="+ Nova turma"
@@ -446,7 +447,7 @@ export default function ClassesAdmin() {
             )}
           </>
         )}
-      </AdminManagementPage>
+      </ManagementPageShell>
 
       {modalOpen && (
         <AdminClassModal

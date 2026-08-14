@@ -7,7 +7,7 @@ import {
   deletePricingPlan,
 } from "../../services/AdminPricingPlanService";
 
-import AdminManagementPage from "../../components/admin/AdminManagementPage";
+import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import PricingPlanModal from "../../components/admin/PricingPlanModal";
 import DeleteConfirmModal from "../../components/admin/AdminDeleteModal";
 import AdminTable from "../../components/admin/AdminTable";
@@ -211,7 +211,8 @@ export default function PricingPlansAdmin() {
 
   return (
     <>
-      <AdminManagementPage
+      <ManagementPageShell
+        backTo="/admin/dashboard-admin"
         title="Planos comerciais"
         description="Gerencie os planos de preço associados a cada curso. Editar um plano afeta somente contratos futuros."
         createButtonText="+ Novo plano"
@@ -398,7 +399,7 @@ export default function PricingPlansAdmin() {
             )}
           </>
         )}
-      </AdminManagementPage>
+      </ManagementPageShell>
 
       {modalOpen && (
         <PricingPlanModal

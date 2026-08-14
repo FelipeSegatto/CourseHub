@@ -7,7 +7,7 @@ import {
   sendContractInvoice,
 } from "../../../services/FinancialService";
 
-import AdminManagementPage from "../../../components/admin/AdminManagementPage";
+import ManagementPageShell from "../../../components/ui/ManagementPageShell";
 import AdminTable from "../../../components/admin/AdminTable";
 import DeleteConfirmModal from "../../../components/admin/AdminDeleteModal";
 import StatusBadge from "../../../components/ui/StatusBadge";
@@ -164,7 +164,8 @@ export default function FinancialContractsAdmin() {
 
   return (
     <>
-      <AdminManagementPage
+      <ManagementPageShell
+        backTo="/admin/dashboard-admin"
         title="Contratos financeiros"
         description="Contratação administrativa: aluno, contratante, cobrança e ativação de matrícula após pagamento confirmado."
         createButtonText="+ Novo contrato"
@@ -327,7 +328,7 @@ export default function FinancialContractsAdmin() {
             )}
           </>
         )}
-      </AdminManagementPage>
+      </ManagementPageShell>
 
       {createModalOpen && (
         <ContractCreationModal
