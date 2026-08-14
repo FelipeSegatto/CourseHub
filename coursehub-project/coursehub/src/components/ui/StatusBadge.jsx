@@ -33,6 +33,16 @@ function StatusBadge({
       className: "bg-yellow-100 text-yellow-700",
     },
 
+    pending_payment: {
+      text: "Aguardando pagamento",
+      className: "bg-yellow-100 text-yellow-700",
+    },
+
+    pending_activation: {
+      text: "Aguardando ativação",
+      className: "bg-yellow-100 text-yellow-700",
+    },
+
     overdue: {
       text: "Atrasada",
       className: "bg-red-100 text-red-700",

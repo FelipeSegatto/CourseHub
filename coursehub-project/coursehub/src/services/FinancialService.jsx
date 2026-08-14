@@ -45,6 +45,34 @@ export async function getFinancialContractDetails(contractId) {
   );
 }
 
+export async function createFinancialContract(payload) {
+  return apiFetch("/api/admin/financial/contracts", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function cancelFinancialContract(contractId, payload) {
+  if (!contractId) {
+    throw new Error("O identificador do contrato financeiro é obrigatório.");
+  }
+
+  return apiFetch(`/api/admin/financial/contracts/${contractId}/cancel`, {
+    method: "POST",
+    body: JSON.stringify(payload || {}),
+  });
+}
+
+export async function sendContractInvoice(contractId) {
+  if (!contractId) {
+    throw new Error("O identificador do contrato financeiro é obrigatório.");
+  }
+
+  return apiFetch(`/api/admin/financial/contracts/${contractId}/send-invoice`, {
+    method: "POST",
+  });
+}
+
 export async function getFinancialContractEvents(contractId) {
   if (!contractId) {
     throw new Error(

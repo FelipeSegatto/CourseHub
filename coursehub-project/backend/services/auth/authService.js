@@ -55,6 +55,15 @@ async function login(db, { email, password }) {
     throw createServiceError("Conta inativa ou bloqueada.", 403);
   }
 
+  // Defesa em profundidade: uma conta 'pending_activation' já é
+  // barrada acima antes de chegar aqui (é a única que nasce com
+  // password_hash NULL), mas nunca confia nisso silenciosamente --
+  // bcrypt.compare com hash nulo lançaria um erro genérico em vez de
+  // "credenciais inválidas".
+  if (!user.password_hash) {
+    throw createServiceError("E-mail ou senha inválidos.", 401);
+  }
+
   const passwordMatches = await bcrypt.compare(password, user.password_hash);
 
   if (!passwordMatches) {

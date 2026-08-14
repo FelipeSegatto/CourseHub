@@ -72,6 +72,7 @@ const adminActivityRoutes = require("./routes/adminActivityRoutes");
 const adminGradeRoutes = require("./routes/adminGradeRoutes");
 const adminAttendanceRoutes = require("./routes/adminAttendanceRoutes");
 const adminFinancialRoutes = require("./routes/adminFinancialRoutes");
+const adminContractingPartyRoutes = require("./routes/adminContractingPartyRoutes");
 const adminCalendarRoutes = require("./routes/adminCalendarRoutes");
 const adminDashboardRoutes = require("./routes/adminDashboardRoutes");
 
@@ -168,6 +169,7 @@ app.use("/api", adminActivityRoutes);
 app.use("/api", adminGradeRoutes);
 app.use("/api", adminAttendanceRoutes);
 app.use("/api/admin/financial", adminFinancialRoutes);
+app.use("/api", adminContractingPartyRoutes);
 app.use("/api/admin/calendar", adminCalendarRoutes);
 app.use("/api", adminDashboardRoutes);
 

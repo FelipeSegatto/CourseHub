@@ -90,6 +90,7 @@ async function listFinancialContracts(
     (normalizedPage - 1) * normalizedLimit;
 
   const allowedStatuses = [
+    "pending_payment",
     "active",
     "completed",
     "cancelled",
@@ -174,10 +175,18 @@ async function listFinancialContracts(
         fc.plan_name LIKE ?
         OR CAST(fc.id AS CHAR) LIKE ?
         OR CAST(fc.enrollment_id AS CHAR) LIKE ?
+        OR s.name LIKE ?
+        OR s.cpf LIKE ?
+        OR cp.name LIKE ?
+        OR cp.document_number LIKE ?
       )
     `);
 
     queryParameters.push(
+      searchPattern,
+      searchPattern,
+      searchPattern,
+      searchPattern,
       searchPattern,
       searchPattern,
       searchPattern
@@ -201,6 +210,8 @@ async function listFinancialContracts(
           SELECT
             COUNT(*) AS total
           FROM financial_contracts fc
+          LEFT JOIN students s ON s.id = fc.student_id
+          LEFT JOIN contracting_parties cp ON cp.id = fc.contracting_party_id
           ${whereClause}
         `,
         queryParameters
@@ -216,6 +227,13 @@ async function listFinancialContracts(
           SELECT
             fc.id,
             fc.enrollment_id,
+            fc.student_id,
+            fc.course_id,
+            fc.contracting_party_id,
+            fc.origin,
+            s.name AS student_name,
+            co.name AS course_name,
+            cp.name AS contracting_party_name,
             fc.pricing_plan_id,
             fc.billing_type,
             fc.plan_name,
@@ -305,12 +323,22 @@ async function listFinancialContracts(
 
           LEFT JOIN invoices i
             ON i.financial_contract_id = fc.id
+          LEFT JOIN students s ON s.id = fc.student_id
+          LEFT JOIN courses co ON co.id = fc.course_id
+          LEFT JOIN contracting_parties cp ON cp.id = fc.contracting_party_id
 
           ${whereClause}
 
           GROUP BY
             fc.id,
             fc.enrollment_id,
+            fc.student_id,
+            fc.course_id,
+            fc.contracting_party_id,
+            fc.origin,
+            s.name,
+            co.name,
+            cp.name,
             fc.pricing_plan_id,
             fc.billing_type,
             fc.plan_name,
@@ -346,6 +374,20 @@ async function listFinancialContracts(
 
           enrollmentId:
             contract.enrollment_id,
+
+          student: contract.student_id
+            ? { id: contract.student_id, name: contract.student_name }
+            : null,
+
+          course: contract.course_id
+            ? { id: contract.course_id, name: contract.course_name }
+            : null,
+
+          contractingParty: contract.contracting_party_id
+            ? { id: contract.contracting_party_id, name: contract.contracting_party_name }
+            : null,
+
+          origin: contract.origin,
 
           pricingPlanId:
             contract.pricing_plan_id,
@@ -484,22 +526,42 @@ async function getFinancialContractDetails(
       await connection.execute(
         `
           SELECT
-            id,
-            enrollment_id,
-            pricing_plan_id,
-            billing_type,
-            plan_name,
-            total_amount,
-            monthly_payment_count,
-            monthly_payment_amount,
-            status,
-            start_date,
-            completed_at,
-            cancelled_at,
-            created_at,
-            updated_at
-          FROM financial_contracts
-          WHERE id = ?
+            fc.id,
+            fc.enrollment_id,
+            fc.student_id,
+            fc.course_id,
+            fc.contracting_party_id,
+            fc.created_by_user_id,
+            fc.origin,
+            fc.activation_invoice_id,
+            fc.activated_at,
+            fc.contracting_party_name,
+            fc.contracting_party_document,
+            fc.contracting_party_email,
+            fc.contracting_party_phone,
+            fc.contracting_party_address,
+            fc.pricing_plan_id,
+            fc.billing_type,
+            fc.plan_name,
+            fc.total_amount,
+            fc.monthly_payment_count,
+            fc.monthly_payment_amount,
+            fc.status,
+            fc.start_date,
+            fc.completed_at,
+            fc.cancelled_at,
+            fc.created_at,
+            fc.updated_at,
+            s.name AS student_name,
+            s.registration_number AS student_registration_number,
+            co.name AS course_name,
+            cp.name AS contracting_party_current_name,
+            cp.email AS contracting_party_current_email
+          FROM financial_contracts fc
+          LEFT JOIN students s ON s.id = fc.student_id
+          LEFT JOIN courses co ON co.id = fc.course_id
+          LEFT JOIN contracting_parties cp ON cp.id = fc.contracting_party_id
+          WHERE fc.id = ?
           LIMIT 1
         `,
         [normalizedContractId]
@@ -670,6 +732,34 @@ async function getFinancialContractDetails(
         id: contract.id,
         enrollmentId:
           contract.enrollment_id,
+        student: contract.student_id
+          ? {
+              id: contract.student_id,
+              name: contract.student_name,
+              registrationNumber: contract.student_registration_number,
+            }
+          : null,
+        course: contract.course_id
+          ? { id: contract.course_id, name: contract.course_name }
+          : null,
+        contractingParty: contract.contracting_party_id
+          ? {
+              id: contract.contracting_party_id,
+              currentName: contract.contracting_party_current_name,
+              currentEmail: contract.contracting_party_current_email,
+            }
+          : null,
+        contractingPartySnapshot: {
+          name: contract.contracting_party_name,
+          document: contract.contracting_party_document,
+          email: contract.contracting_party_email,
+          phone: contract.contracting_party_phone,
+          address: parseJsonValue(contract.contracting_party_address),
+        },
+        createdByUserId: contract.created_by_user_id,
+        origin: contract.origin,
+        activationInvoiceId: contract.activation_invoice_id,
+        activatedAt: contract.activated_at,
         pricingPlanId:
           contract.pricing_plan_id,
         billingType:

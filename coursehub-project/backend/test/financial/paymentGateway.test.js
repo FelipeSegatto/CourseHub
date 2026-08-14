@@ -15,6 +15,9 @@ const { processGatewayPaymentUpdate } = require("../../services/financial/paymen
 const simulatedGateway = require("../../services/paymentGateway/simulatedGateway");
 const mercadoPagoGateway = require("../../services/paymentGateway/mercadoPagoGateway");
 const { WebhookSignatureValidator } = require("mercadopago");
+const {
+  findOrCreateSelfContractingPartyForStudent,
+} = require("../../services/financial/contractingPartyService");
 
 // Disjunto dos fixtures financeiros já usados em outros arquivos
 // desta suíte: financialAndCalendar.test.js usa aluno 61/curso 1,
@@ -91,13 +94,26 @@ before(async () => {
 
   const enrollmentId = enrollmentResult.insertId;
 
+  const contractingPartyId = await findOrCreateSelfContractingPartyForStudent(db.promise(), {
+    studentId: STUDENT_ID,
+  });
+
+  // status = 'active' (not 'pending_payment') on purpose: this suite
+  // exercises ongoing payment/gateway plumbing against an already
+  // established contract, not the initial contract-activation
+  // lifecycle (that has its own dedicated suite, see
+  // test/financial/contractingFlow.test.js). A 'pending_payment'
+  // contract only leaves that status via activateContractFromPaidInvoice
+  // matching its specific activation_invoice_id, which doesn't apply
+  // to this fixture's many ad-hoc invoices/payments.
   const [contractResult] = await db.promise().query(
     `
       INSERT INTO financial_contracts
-        (enrollment_id, pricing_plan_id, billing_type, plan_name, total_amount, status, start_date, created_at, updated_at)
-      VALUES (?, ?, 'one_time', 'TEST PAYMENT GATEWAY PLAN', 1490.00, 'pending', CURDATE(), NOW(), NOW())
+        (enrollment_id, student_id, course_id, contracting_party_id, origin,
+         pricing_plan_id, billing_type, plan_name, total_amount, status, start_date, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'admin', ?, 'one_time', 'TEST PAYMENT GATEWAY PLAN', 1490.00, 'active', CURDATE(), NOW(), NOW())
     `,
-    [enrollmentId, PRICING_PLAN_ID]
+    [enrollmentId, STUDENT_ID, FIN_COURSE_ID, contractingPartyId, PRICING_PLAN_ID]
   );
 
   financialContractId = contractResult.insertId;

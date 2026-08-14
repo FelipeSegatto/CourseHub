@@ -14,6 +14,7 @@ import {
   getFinancialContractDetails,
   getFinancialContractEvents,
 } from "../../../services/FinancialService";
+import { API_URL } from "../../../services/APIService";
 
 import ContractStatusBadge from "../../../components/financial/ContractStatusBadge";
 import ContractInvoicesTable from "../../../components/financial/ContractInvoicesTable";
@@ -459,15 +460,26 @@ export default function FinancialContractsDetails() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              navigate("/admin/financeiro")
-            }
-            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
-          >
-            Dashboard financeiro
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <a
+              href={`${API_URL}/api/admin/financial/contracts/${contract.id}/terms-document`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              Ver termo do contrato
+            </a>
+
+            <button
+              type="button"
+              onClick={() =>
+                navigate("/admin/financeiro")
+              }
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              Dashboard financeiro
+            </button>
+          </div>
         </header>
 
         <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -4,6 +4,10 @@ const { recalculateFinancialContractStatus } = require("./contractFinancialServi
 const { createFinancialEvent } = require("./financialEventService");
 const { notifyPaymentApproved } = require("./financialNotificationService");
 const { resolveGatewayByName } = require("../paymentGateway/paymentGatewayFactory");
+const {
+  activateContractFromPaidInvoice,
+  dispatchActivationNotifications,
+} = require("./activateContractService");
 
 /**
  * O motor por trás TANTO da rota real de webhook do Mercado Pago
@@ -53,14 +57,12 @@ async function lockPaymentForProcessing(connection, paymentId) {
         p.external_reference, p.invoice_id,
         i.status AS invoice_status, i.amount AS invoice_amount, i.description AS invoice_description,
         i.financial_contract_id,
-        fc.enrollment_id,
-        en.student_id, en.course_id,
+        fc.enrollment_id, fc.student_id, fc.course_id,
         c.name AS course_name
       FROM payments p
       INNER JOIN invoices i ON i.id = p.invoice_id
       INNER JOIN financial_contracts fc ON fc.id = i.financial_contract_id
-      INNER JOIN enrollments en ON en.id = fc.enrollment_id
-      INNER JOIN courses c ON c.id = en.course_id
+      INNER JOIN courses c ON c.id = fc.course_id
       WHERE p.id = ?
       FOR UPDATE
     `,
@@ -178,7 +180,17 @@ async function applyApproval(db, connection, row, gatewayResult) {
     courseName: row.course_name,
   });
 
-  return { applied: true, reason: "approved" };
+  // Mesma regra central usada pelo pagamento manual do admin -- se
+  // esta é a fatura de ativação do contrato, cria a matrícula e ativa
+  // o contrato agora, dentro desta mesma transação. O convite de
+  // ativação (e-mail) só é despachado depois que o chamador confirmar
+  // o commit (ver processGatewayPaymentUpdate).
+  const activationResult = await activateContractFromPaidInvoice(db, row.invoice_id, {
+    connection,
+    source: "gateway",
+  });
+
+  return { applied: true, reason: "approved", activationResult };
 }
 
 /** Rejected/cancelled nunca tocam a fatura -- ela continua aberta para o aluno iniciar uma nova tentativa. */
@@ -305,7 +317,7 @@ async function processGatewayPaymentUpdate(db, { gateway, gatewayPaymentId, gate
   const gatewayInstance = resolveGatewayByName(gateway);
   const gatewayResult = await gatewayInstance.getPayment(gatewayPaymentId);
 
-  return withTransaction(db, async (connection) => {
+  const result = await withTransaction(db, async (connection) => {
     const row = await lockPaymentForProcessing(connection, paymentId);
 
     if (!row) {
@@ -417,6 +429,12 @@ async function processGatewayPaymentUpdate(db, { gateway, gatewayPaymentId, gate
         return { matched: true, applied: false, reason: "unsupported_target_status" };
     }
   });
+
+  if (result?.activationResult?.activated) {
+    await dispatchActivationNotifications(db, result.activationResult);
+  }
+
+  return result;
 }
 
 module.exports = {

@@ -10,6 +10,10 @@ const {
 
 const { withTransaction } = require("../../utils/dbTransaction");
 const { notifyPaymentApproved } = require("./financialNotificationService");
+const {
+  activateContractFromPaidInvoice,
+  dispatchActivationNotifications,
+} = require("./activateContractService");
 
 /**
  * Cria um erro com um código HTTP associado.
@@ -151,7 +155,7 @@ async function registerManualPayment(
     normalizePaymentDate(paymentDate) ||
     normalizePaymentDate(new Date());
 
-  return withTransaction(db, async (connection) => {
+  const result = await withTransaction(db, async (connection) => {
     const [invoices] = await connection.execute(
       `
         SELECT
@@ -162,16 +166,14 @@ async function registerManualPayment(
           i.paid_at,
           i.description,
           fc.enrollment_id,
-          en.student_id,
-          en.course_id,
+          fc.student_id,
+          fc.course_id,
           c.name AS course_name
         FROM invoices i
         INNER JOIN financial_contracts fc
           ON fc.id = i.financial_contract_id
-        INNER JOIN enrollments en
-          ON en.id = fc.enrollment_id
         INNER JOIN courses c
-          ON c.id = en.course_id
+          ON c.id = fc.course_id
         WHERE i.id = ?
         FOR UPDATE
       `,
@@ -361,6 +363,15 @@ async function registerManualPayment(
       courseName: invoice.course_name,
     });
 
+    // Mesma regra central usada pela aprovação via gateway -- se esta
+    // é a fatura de ativação do contrato, cria a matrícula e ativa o
+    // contrato agora, dentro desta mesma transação.
+    const activationResult = await activateContractFromPaidInvoice(
+      db,
+      normalizedInvoiceId,
+      { connection, source: "admin" }
+    );
+
     return {
       paymentId,
       invoiceId: normalizedInvoiceId,
@@ -371,8 +382,15 @@ async function registerManualPayment(
       paymentDate: normalizedPaymentDate,
       invoiceStatus: "paid",
       paymentStatus: "approved",
+      activationResult,
     };
   });
+
+  if (result?.activationResult?.activated) {
+    await dispatchActivationNotifications(db, result.activationResult);
+  }
+
+  return result;
 }
 
 module.exports = {

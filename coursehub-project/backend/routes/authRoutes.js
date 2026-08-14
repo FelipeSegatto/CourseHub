@@ -4,6 +4,7 @@ const db = require("../db");
 const {
   loginRateLimiter,
   forgotPasswordRateLimiter,
+  accountActivationRateLimiter,
 } = require("../middlewares/rateLimiters");
 
 const {
@@ -20,6 +21,11 @@ const {
   requestPasswordReset,
   resetPassword,
 } = require("../services/auth/authService");
+
+const {
+  validateActivationToken,
+  activateAccount,
+} = require("../services/auth/accountActivationService");
 
 const router = express.Router();
 
@@ -151,6 +157,50 @@ router.patch(
         message: error.statusCode
           ? error.message
           : "Erro interno ao redefinir a senha.",
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/auth/account-activation/validate?token=...
+ * Fluxo distinto de recuperação de senha -- só diz se o link ainda é
+ * utilizável, nunca a quem ele pertence.
+ */
+router.get(
+  "/auth/account-activation/validate",
+  accountActivationRateLimiter,
+  async (req, res) => {
+    try {
+      const result = await validateActivationToken(db, req.query.token);
+
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error("Erro ao validar token de ativação:", error);
+
+      return res.status(200).json({ valid: false });
+    }
+  }
+);
+
+/**
+ * POST /api/auth/account-activation
+ * Define a primeira senha e ativa a conta -- nunca envolve uma senha
+ * gerada pelo sistema.
+ */
+router.post(
+  "/auth/account-activation",
+  accountActivationRateLimiter,
+  async (req, res) => {
+    try {
+      const result = await activateAccount(db, req.body);
+
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error("Erro ao ativar conta:", error);
+
+      return res.status(error.statusCode || 500).json({
+        message: error.statusCode ? error.message : "Erro interno ao ativar a conta.",
       });
     }
   }

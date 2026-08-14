@@ -11,6 +11,7 @@ import SignUpPage from "../pages/auth/SignUpPage";
 import ProfileSecurity from "../pages/profile/ProfileSecurity";
 import ForgotPassword from "../pages/auth/ForgotPassword";
 import ResetPassword from "../pages/auth/ResetPassword";
+import AtivarConta from "../pages/auth/AtivarConta";
 
 import HomePage from "../pages/public/HomePage";
 import DashboardPage from "../pages/public/DashboardPage";
@@ -44,7 +45,7 @@ import MaterialsAdmin from "../pages/admin/MaterialsAdmin";
 import ActivitiesAdmin from "../pages/admin/ActivitiesAdmin";
 import AssessmentsAdmin from "../pages/admin/AssessmentsAdmin";
 import EmissaoAdmin from "../pages/admin/EmissaoAdmin";
-import FinancialContracts from "../pages/admin/financial/FinancialContracts";
+import FinancialContractsAdmin from "../pages/admin/financial/FinancialContractsAdmin";
 import FinancialContractsDetails from "../pages/admin/financial/FinancialContractsDetails";
 import FinancialInvoices from "../pages/admin/financial/FinancialInvoices";
 import FinancialInvoicesDetails from "../pages/admin/financial/FinancialInvoicesDetails";
@@ -171,6 +172,10 @@ export const router = createBrowserRouter([
       {
         path: "/redefinir-senha",
         element: <ResetPassword />,
+      },
+      {
+        path: "/ativar-conta",
+        element: <AtivarConta />,
       },
     ],
   },
@@ -358,7 +363,7 @@ export const router = createBrowserRouter([
               },
               {
                 path: "financeiro/contratos",
-                element: <FinancialContracts />,
+                element: <FinancialContractsAdmin />,
               },
               {
                 path: "financeiro/contratos/:contratoId",

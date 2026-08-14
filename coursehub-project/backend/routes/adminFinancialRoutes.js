@@ -37,6 +37,19 @@ const {
   "../services/financial/adminFinancialReadService"
 );
 
+const {
+  createStudentContractWithInitialInvoice,
+  resendContractBilling,
+} = require("../services/financial/contractCreationService");
+
+const {
+  cancelFinancialContract,
+} = require("../services/financial/contractCancellationService");
+
+const {
+  getContractTermsDocumentHtml,
+} = require("../services/financial/contractTermsDocumentService");
+
 const router = express.Router();
 
 router.patch(
@@ -340,6 +353,122 @@ router.get(
             error.message ||
             "Não foi possível consultar os eventos do contrato financeiro.",
         });
+    }
+  }
+);
+
+/**
+ * POST /api/admin/financial/contracts
+ * Fluxo central de contratação: aluno -> contratante -> contrato
+ * pending_payment -> primeira fatura. Nunca cria matrícula aqui.
+ */
+router.post(
+  "/contracts",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result = await createStudentContractWithInitialInvoice(
+        db,
+        req.body,
+        req.auth.userId
+      );
+
+      return res.status(201).json({
+        message: "Contrato criado com sucesso.",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Erro ao criar contrato:", error);
+
+      return res.status(error.statusCode || 500).json({
+        message: error.message || "Erro interno ao criar contrato.",
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/admin/financial/contracts/:contractId/cancel
+ */
+router.post(
+  "/contracts/:contractId/cancel",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result = await cancelFinancialContract(db, req.params.contractId, {
+        reason: req.body?.reason,
+        actorUserId: req.auth.userId,
+      });
+
+      return res.status(200).json({
+        message: "Contrato cancelado com sucesso.",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Erro ao cancelar contrato:", error);
+
+      return res.status(error.statusCode || 500).json({
+        message: error.message || "Erro interno ao cancelar contrato.",
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/admin/financial/contracts/:contractId/send-invoice
+ * Reenvia o e-mail de cobrança da fatura de ativação em aberto.
+ */
+router.post(
+  "/contracts/:contractId/send-invoice",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result = await resendContractBilling(
+        db,
+        req.params.contractId,
+        req.auth.userId
+      );
+
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error("Erro ao reenviar cobrança:", error);
+
+      return res.status(error.statusCode || 500).json({
+        message: error.message || "Erro interno ao reenviar cobrança.",
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/admin/financial/contracts/:contractId/terms-document
+ * Devolve o HTML congelado do contrato (nunca re-renderizado) --
+ * servido como documento navegável/imprimível, não como JSON.
+ */
+router.get(
+  "/contracts/:contractId/terms-document",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const html = await getContractTermsDocumentHtml(db, req.params.contractId);
+
+      res.set("Content-Type", "text/html; charset=utf-8");
+
+      return res.status(200).send(html);
+    } catch (error) {
+      console.error("Erro ao carregar documento do contrato:", error);
+
+      return res.status(error.statusCode || 500).send(
+        `<p style="font-family: sans-serif; padding: 40px;">${
+          error.statusCode
+            ? error.message
+            : "Erro interno ao carregar o documento do contrato."
+        }</p>`
+      );
     }
   }
 );

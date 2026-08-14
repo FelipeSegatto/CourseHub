@@ -2,6 +2,7 @@ const express = require("express");
 const db = require("../db");
 const authenticateToken = require("../middlewares/authenticateToken");
 const authorizeRoles = require("../middlewares/authorizeRoles");
+const { accountActivationInvitationRateLimiter } = require("../middlewares/rateLimiters");
 
 const {
   listUsers,
@@ -13,6 +14,11 @@ const {
   softDeleteUser,
   sendPasswordReset,
 } = require("../services/admin/adminUserService");
+
+const {
+  createAccountActivationInvitation,
+  resendActivationEmail,
+} = require("../services/auth/accountActivationService");
 
 const router = express.Router();
 
@@ -184,6 +190,62 @@ router.post(
         error,
         "Erro ao enviar recuperação de senha."
       );
+    }
+  }
+);
+
+/**
+ * POST /api/admin/users/:userId/resend-activation
+ * Alias simples (deliveryMethod fixo em 'email') do endpoint
+ * unificado abaixo -- mantido porque foi sugerido separadamente, mas
+ * nunca duplica a lógica.
+ */
+router.post(
+  "/admin/users/:userId/resend-activation",
+  authenticateToken,
+  authorizeRoles("admin"),
+  accountActivationInvitationRateLimiter,
+  async (req, res) => {
+    try {
+      const result = await resendActivationEmail(db, {
+        userId: req.params.userId,
+        actorUserId: req.auth.userId,
+      });
+
+      return res.status(200).json(result);
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao reenviar convite de ativação.");
+    }
+  }
+);
+
+/**
+ * POST /api/admin/users/:userId/account-activation-invitations
+ * Endpoint único do adendo: { deliveryMethod: "email" | "manual_link" }.
+ * O link bruto (manual_link) só existe nesta resposta -- nunca é
+ * logado, persistido em texto puro, ou recuperável depois.
+ * Cache-Control/Pragma evitam que a resposta fique em cache de
+ * proxy/navegador com o link dentro.
+ */
+router.post(
+  "/admin/users/:userId/account-activation-invitations",
+  authenticateToken,
+  authorizeRoles("admin"),
+  accountActivationInvitationRateLimiter,
+  async (req, res) => {
+    try {
+      const result = await createAccountActivationInvitation(db, {
+        userId: req.params.userId,
+        deliveryMethod: req.body?.deliveryMethod,
+        actorUserId: req.auth.userId,
+      });
+
+      res.set("Cache-Control", "no-store");
+      res.set("Pragma", "no-cache");
+
+      return res.status(201).json(result);
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao gerar convite de ativação.");
     }
   }
 );

@@ -1,16 +1,34 @@
 const EVENT_TYPE_LABELS = {
+  // Contratação e cobrança
   contract_created: "Contrato criado",
-  invoice_created: "Fatura criada",
-  due_date_changed: "Vencimento alterado",
-  amount_changed: "Valor alterado",
-  payment_registered: "Pagamento registrado",
-  manual_payment_registered:
-    "Pagamento manual registrado",
-  invoice_cancelled: "Fatura cancelada",
-  payment_refunded: "Pagamento reembolsado",
-  contract_completed: "Contrato concluído",
+  initial_invoice_created: "Fatura de ativação gerada",
   contract_cancelled: "Contrato cancelado",
-  status_changed: "Status alterado",
+  invoice_due_date_changed: "Vencimento da fatura alterado",
+  invoice_amount_changed: "Valor da fatura alterado",
+  invoice_cancelled: "Fatura cancelada",
+  invoice_marked_overdue: "Fatura marcada como atrasada",
+
+  // Pagamento e ativação
+  invoice_paid_manually: "Pagamento registrado manualmente",
+  invoice_paid: "Pagamento confirmado pelo gateway",
+  invoice_payment_confirmed: "Pagamento da fatura confirmado",
+  payment_approved_after_invoice_already_paid:
+    "Pagamento aprovado após fatura já paga (requer conciliação)",
+  payment_refunded: "Pagamento reembolsado",
+  payment_chargeback: "Chargeback recebido",
+  gateway_status_notified: "Notificação do gateway recebida",
+  contract_activated: "Contrato ativado",
+  enrollment_created: "Matrícula criada",
+  enrollment_locked_automatically: "Matrícula bloqueada automaticamente",
+
+  // Conta e acesso ao sistema
+  account_activated: "Conta ativada pelo aluno",
+  account_activation_invitation_created: "Convite de ativação enviado",
+  account_activation_invitation_resent: "Convite de ativação reenviado",
+  account_activation_manual_link_generated:
+    "Link de ativação gerado manualmente",
+  account_activation_previous_tokens_invalidated:
+    "Convites de ativação anteriores invalidados",
 };
 
 const SOURCE_LABELS = {
@@ -18,6 +36,68 @@ const SOURCE_LABELS = {
   admin: "Administrador",
   gateway: "Gateway",
   student: "Aluno",
+};
+
+// Chaves reais gravadas em financial_events.previous_value/new_value pelos
+// serviços do backend (ver services/financial e services/auth) -- cobre o
+// vocabulário inteiro usado hoje, não só o da contratação.
+const VALUE_KEY_LABELS = {
+  studentId: "Aluno",
+  courseId: "Curso",
+  courseName: "Curso",
+  contractingPartyId: "Contratante",
+  origin: "Origem",
+  amount: "Valor",
+  dueDate: "Vencimento",
+  deliveryMethod: "Canal de envio",
+  expiresAt: "Expira em",
+  status: "Status",
+  invoiceStatus: "Status da fatura",
+  paymentStatus: "Status do pagamento",
+  enrollmentStatus: "Status da matrícula",
+  lockReason: "Motivo do bloqueio",
+  paidAt: "Pago em",
+  cancelledAt: "Cancelado em",
+  refundedAt: "Reembolsado em",
+  refundReason: "Motivo do reembolso",
+  paymentMethod: "Forma de pagamento",
+  scholarshipType: "Tipo de bolsa",
+  justification: "Justificativa",
+  authorizedByUserId: "Autorizado por (usuário)",
+  validUntil: "Válido até",
+};
+
+// Valores de enum que também aparecem dentro desses blocos (status,
+// origem, forma de pagamento, canal de envio) -- traduzidos à parte da
+// chave, já que o mesmo valor ("admin", por exemplo) pode aparecer em
+// campos diferentes.
+const VALUE_ENUM_LABELS = {
+  pending_payment: "Aguardando pagamento",
+  pending: "Pendente",
+  processing: "Processando",
+  active: "Ativo",
+  overdue: "Atrasada",
+  completed: "Concluído",
+  cancelled: "Cancelado",
+  paid: "Paga",
+  refunded: "Reembolsado",
+  approved: "Aprovado",
+  chargeback: "Chargeback",
+  locked: "Bloqueada",
+  financial_overdue: "Inadimplência",
+  pix: "Pix",
+  boleto: "Boleto",
+  credit_card: "Cartão de crédito",
+  bank_transfer: "Transferência bancária",
+  cash: "Dinheiro",
+  other: "Outro",
+  email: "E-mail",
+  manual_link: "Link manual",
+  admin: "Comercial (admin)",
+  public_checkout: "Checkout público",
+  migration: "Migração",
+  scholarship: "Bolsa",
+  courtesy: "Cortesia",
 };
 
 function formatDateTime(value) {
@@ -56,6 +136,8 @@ function formatSource(source) {
   return SOURCE_LABELS[source] || source || "Origem desconhecida";
 }
 
+const ISO_DATETIME_PATTERN = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(\.\d+)?Z?)?$/;
+
 function formatPrimitiveValue(value) {
   if (value === null || value === undefined) {
     return "Não informado";
@@ -69,7 +151,26 @@ function formatPrimitiveValue(value) {
     return String(value);
   }
 
-  return String(value);
+  if (typeof value === "string" && ISO_DATETIME_PATTERN.test(value)) {
+    const hasTime = value.includes("T");
+
+    return hasTime
+      ? formatDateTime(value)
+      : new Intl.DateTimeFormat("pt-BR").format(new Date(`${value}T00:00:00`));
+  }
+
+  return VALUE_ENUM_LABELS[value] || String(value);
+}
+
+function formatValueKey(key) {
+  return (
+    VALUE_KEY_LABELS[key] ||
+    key
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replaceAll("_", " ")
+      .toLowerCase()
+      .replace(/^\w/, (letter) => letter.toUpperCase())
+  );
 }
 
 function ValueBlock({ title, value }) {
@@ -113,7 +214,7 @@ function ValueBlock({ title, value }) {
             className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-4"
           >
             <dt className="text-xs font-medium text-slate-500">
-              {key.replaceAll("_", " ")}
+              {formatValueKey(key)}
             </dt>
 
             <dd className="break-words text-sm text-slate-700 sm:text-right">
