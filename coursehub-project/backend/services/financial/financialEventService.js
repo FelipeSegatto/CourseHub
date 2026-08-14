@@ -1,7 +1,7 @@
 async function createFinancialEvent(
   connection,
   {
-    financialContractId,
+    financialContractId = null,
     invoiceId = null,
     paymentId = null,
     enrollmentId = null,
@@ -17,8 +17,16 @@ async function createFinancialEvent(
     throw new Error("A database connection is required.");
   }
 
-  if (!financialContractId) {
-    throw new Error("financialContractId is required.");
+  // Most events anchor on a contract, but account-activation events
+  // (invitation created/resent, manual link, account activated) are
+  // about a user's access and may only have an enrollmentId to
+  // anchor on (e.g. a scholarship enrollment with no
+  // financial_contract at all) -- at least one anchor is required,
+  // not specifically financialContractId.
+  if (!financialContractId && !invoiceId && !paymentId && !enrollmentId) {
+    throw new Error(
+      "At least one of financialContractId, invoiceId, paymentId or enrollmentId is required."
+    );
   }
 
   if (!eventType) {

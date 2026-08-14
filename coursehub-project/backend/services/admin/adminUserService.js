@@ -5,7 +5,12 @@ const { createStudent } = require("./adminStudentService");
 const { createTeacher } = require("./adminTeacherService");
 
 const ALLOWED_ROLES = ["admin", "teacher", "student"];
+// Nunca setável diretamente por criação/atualização administrativa
+// (só o fluxo de contratação/ativação entra e sai desse status) --
+// mas precisa aparecer como filtro de listagem, daí o vocabulário
+// separado abaixo.
 const ALLOWED_STATUSES = ["active", "inactive", "blocked"];
+const ALLOWED_STATUS_FILTERS = [...ALLOWED_STATUSES, "pending_activation"];
 const ALLOWED_LINKED_ENTITY_TYPES = ["student", "teacher", "none"];
 
 const DEFAULT_PAGE = 1;
@@ -86,7 +91,7 @@ function buildListFilters(filters) {
   }
 
   if (filters.status) {
-    if (!ALLOWED_STATUSES.includes(filters.status)) {
+    if (!ALLOWED_STATUS_FILTERS.includes(filters.status)) {
       throw createServiceError("Status inválido.", 400);
     }
 
@@ -557,4 +562,5 @@ module.exports = {
   countActiveAdmins,
   ALLOWED_ROLES,
   ALLOWED_STATUSES,
+  ALLOWED_STATUS_FILTERS,
 };

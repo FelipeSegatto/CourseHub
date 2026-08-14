@@ -1,3 +1,7 @@
+const {
+  findOrCreateSelfContractingPartyForStudent,
+} = require("../financial/contractingPartyService");
+
 const ALLOWED_ENROLLMENT_STATUSES = ["active", "inactive", "completed", "cancelled"];
 
 const DEFAULT_PAGE = 1;
@@ -310,17 +314,31 @@ async function createEnrollment(db, payload) {
 
     const enrollmentId = enrollmentResult.insertId;
 
+    // Fluxo legado (matrícula-primeiro): mantido por compatibilidade
+    // enquanto o admin ainda não migrou para o wizard de contratação
+    // (ver contractCreationService.js). status = 'active' porque a
+    // matrícula já nasce ativa aqui -- não existe uma fatura de
+    // ativação neste caminho para justificar 'pending_payment'.
+    const contractingPartyId = await findOrCreateSelfContractingPartyForStudent(connection, {
+      studentId,
+    });
+
     await connection.query(
       `
         INSERT INTO financial_contracts
-          (enrollment_id, pricing_plan_id, billing_type, plan_name, total_amount,
+          (enrollment_id, student_id, course_id, contracting_party_id, created_by_user_id, origin,
+           pricing_plan_id, billing_type, plan_name, total_amount,
            monthly_payment_count, monthly_payment_amount, max_card_installments,
-           accepts_pix, accepts_boleto, accepts_credit_card, status, start_date,
+           accepts_pix, accepts_boleto, accepts_credit_card, status, start_date, activated_at,
            created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', COALESCE(?, CURDATE()), NOW(), NOW())
+        VALUES (?, ?, ?, ?, ?, 'admin', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', COALESCE(?, CURDATE()), NOW(), NOW(), NOW())
       `,
       [
         enrollmentId,
+        studentId,
+        courseId,
+        contractingPartyId,
+        null,
         plan.id,
         plan.billing_type,
         plan.name,

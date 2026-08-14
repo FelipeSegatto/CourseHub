@@ -106,16 +106,14 @@ async function cancelInvoice(
           i.cancelled_at,
           i.description,
           fc.enrollment_id,
-          en.student_id,
-          en.course_id,
+          fc.student_id,
+          fc.course_id,
           c.name AS course_name
         FROM invoices i
         INNER JOIN financial_contracts fc
           ON fc.id = i.financial_contract_id
-        INNER JOIN enrollments en
-          ON en.id = fc.enrollment_id
         INNER JOIN courses c
-          ON c.id = en.course_id
+          ON c.id = fc.course_id
         WHERE i.id = ?
         FOR UPDATE
       `,

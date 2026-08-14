@@ -4,6 +4,7 @@ const { withTransaction } = require("../../utils/dbTransaction");
 const { getStudentIdByUserId, createServiceError } = require("../classes/classAccessService");
 const { assertValidTransition } = require("./paymentStateMachine");
 const { applyApproval } = require("./paymentProcessingService");
+const { dispatchActivationNotifications } = require("./activateContractService");
 const { getPaymentGateway, getPaymentGatewayName } = require("../paymentGateway/paymentGatewayFactory");
 const { buildExternalReference, buildIdempotencyKey } = require("../paymentGateway/paymentGatewayContract");
 
@@ -71,13 +72,17 @@ async function resolvePayer(connection, userId) {
 /**
  * Carrega a fatura que o aluno está tentando pagar E prova, na mesma
  * query, que ela pertence a ele -- a cadeia completa de propriedade
- * (usuário -> aluno -> matrícula -> contrato financeiro -> fatura)
- * se reduz a um join com `en.student_id = ?` na cláusula WHERE. Um
- * invoiceId que não bate (fatura de outro aluno, ou uma que não
- * existe) produz zero linhas nos dois casos, então o chamador não
- * consegue distinguir "não é sua" de "não existe" -- deliberado,
- * mesmo padrão do 404 usado no resto deste código para acesso
- * cross-tenant (ver assertParticipant no módulo de chat).
+ * (usuário -> aluno -> contrato financeiro -> fatura) se reduz a um
+ * join com `fc.student_id = ?` na cláusula WHERE. Deliberadamente
+ * usa fc.student_id (não en.student_id via enrollments) -- um
+ * contrato ainda em pending_payment não tem matrícula (enrollment_id
+ * NULL) até o pagamento ser confirmado, mas já pertence ao aluno e
+ * já pode receber pagamento. Um invoiceId que não bate (fatura de
+ * outro aluno, ou uma que não existe) produz zero linhas nos dois
+ * casos, então o chamador não consegue distinguir "não é sua" de
+ * "não existe" -- deliberado, mesmo padrão do 404 usado no resto
+ * deste código para acesso cross-tenant (ver assertParticipant no
+ * módulo de chat).
  */
 async function lockOwnedOpenInvoice(connection, { studentId, invoiceId }) {
   const [rows] = await connection.execute(
@@ -87,8 +92,7 @@ async function lockOwnedOpenInvoice(connection, { studentId, invoiceId }) {
         fc.enrollment_id
       FROM invoices i
       INNER JOIN financial_contracts fc ON fc.id = i.financial_contract_id
-      INNER JOIN enrollments en ON en.id = fc.enrollment_id
-      WHERE i.id = ? AND en.student_id = ?
+      WHERE i.id = ? AND fc.student_id = ?
       FOR UPDATE
     `,
     [invoiceId, studentId]
@@ -240,7 +244,7 @@ async function createInvoicePayment(db, { userId, invoiceId, paymentMethod }) {
     throw createServiceError("Não foi possível criar o pagamento. Tente novamente em instantes.", 502);
   }
 
-  await withTransaction(db, async (connection) => {
+  const activationResult = await withTransaction(db, async (connection) => {
     const [rows] = await connection.execute(
       `
         SELECT
@@ -248,13 +252,12 @@ async function createInvoicePayment(db, { userId, invoiceId, paymentMethod }) {
           i.status AS invoice_status, i.amount AS invoice_amount, i.description AS invoice_description,
           i.financial_contract_id,
           fc.enrollment_id,
-          en.student_id, en.course_id,
+          fc.student_id, fc.course_id,
           c.name AS course_name
         FROM payments p
         INNER JOIN invoices i ON i.id = p.invoice_id
         INNER JOIN financial_contracts fc ON fc.id = i.financial_contract_id
-        INNER JOIN enrollments en ON en.id = fc.enrollment_id
-        INNER JOIN courses c ON c.id = en.course_id
+        INNER JOIN courses c ON c.id = fc.course_id
         WHERE p.id = ?
         FOR UPDATE
       `,
@@ -264,7 +267,7 @@ async function createInvoicePayment(db, { userId, invoiceId, paymentMethod }) {
     const row = rows[0];
 
     if (!row) {
-      return;
+      return null;
     }
 
     assertValidTransition(row.status, gatewayResult.status);
@@ -310,11 +313,19 @@ async function createInvoicePayment(db, { userId, invoiceId, paymentMethod }) {
     // Um gateway pode aprovar um pagamento instantaneamente mesmo
     // para métodos normalmente assíncronos -- reaproveita exatamente
     // a mesma lógica de aprovação que o webhook usa em vez de
-    // duplicá-la aqui.
+    // duplicá-la aqui (isso já inclui a ativação do contrato, quando
+    // esta é a fatura de ativação).
     if (gatewayResult.status === "approved") {
-      await applyApproval(db, connection, row, gatewayResult);
+      const result = await applyApproval(db, connection, row, gatewayResult);
+      return result.activationResult || null;
     }
+
+    return null;
   });
+
+  if (activationResult?.activated) {
+    await dispatchActivationNotifications(db, activationResult);
+  }
 
   return toPaymentDto(await fetchOwnedPayment(db, { studentId, paymentId }));
 }
@@ -333,8 +344,7 @@ async function fetchOwnedPayment(db, { studentId, paymentId }) {
       FROM payments p
       INNER JOIN invoices i ON i.id = p.invoice_id
       INNER JOIN financial_contracts fc ON fc.id = i.financial_contract_id
-      INNER JOIN enrollments en ON en.id = fc.enrollment_id
-      WHERE p.id = ? AND en.student_id = ?
+      WHERE p.id = ? AND fc.student_id = ?
       LIMIT 1
     `,
     [paymentId, studentId]

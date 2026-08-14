@@ -26,7 +26,12 @@ async function recalculateFinancialContractStatus(
 
   const currentContract = contracts[0];
 
-  if (currentContract.status === "cancelled") {
+  // 'pending_payment' contracts are only ever moved to 'active' by
+  // activateContractFromPaidInvoice (it also creates the enrollment
+  // at the same time) -- recalculating from invoice states alone
+  // here would wrongly mark a contract 'completed'/'active' from its
+  // very first invoice being paid, before the enrollment exists.
+  if (currentContract.status === "cancelled" || currentContract.status === "pending_payment") {
     return currentContract.status;
   }
 

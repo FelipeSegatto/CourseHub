@@ -13,6 +13,9 @@ const {
   processCollectionAction,
 } = require("../../services/financial/invoiceCollectionActionService");
 const { cancelInvoice } = require("../../services/financial/invoiceCancellationService");
+const {
+  findOrCreateSelfContractingPartyForStudent,
+} = require("../../services/financial/contractingPartyService");
 
 // Eighth disjoint fixture: student 59 (user 81), course 4, pricing
 // plan 3. Chosen outside every combination already claimed by
@@ -81,13 +84,21 @@ before(async () => {
 
   enrollmentId = enrollmentResult.insertId;
 
+  const contractingPartyId = await findOrCreateSelfContractingPartyForStudent(db.promise(), {
+    studentId: STUDENT_ID,
+  });
+
+  // status = 'active' (not 'pending_payment'): this suite tests
+  // overdue/collection/lock mechanics on an established contract, not
+  // the contract-activation lifecycle.
   const [contractResult] = await db.promise().query(
     `
       INSERT INTO financial_contracts
-        (enrollment_id, pricing_plan_id, billing_type, plan_name, total_amount, status, start_date, created_at, updated_at)
-      VALUES (?, ?, 'one_time', 'TEST ETAPA5F PLAN', 1960.00, 'pending', CURDATE(), NOW(), NOW())
+        (enrollment_id, student_id, course_id, contracting_party_id, origin,
+         pricing_plan_id, billing_type, plan_name, total_amount, status, start_date, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'admin', ?, 'one_time', 'TEST ETAPA5F PLAN', 1960.00, 'active', CURDATE(), NOW(), NOW())
     `,
-    [enrollmentId, PRICING_PLAN_ID]
+    [enrollmentId, STUDENT_ID, FIN_COURSE_ID, contractingPartyId, PRICING_PLAN_ID]
   );
 
   financialContractId = contractResult.insertId;

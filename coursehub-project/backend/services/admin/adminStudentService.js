@@ -76,12 +76,33 @@ async function getStudentById(db, id) {
 /**
  * Cadastra um novo aluno: cria o usuário de autenticação e o
  * perfil acadêmico em uma única transação.
+ *
+ * `options.connection` permite rodar dentro de uma transação já
+ * aberta pelo chamador (ex: createStudentContractWithInitialInvoice)
+ * -- quando presente, esta função nunca chama
+ * beginTransaction/commit/rollback/release, o chamador é dono da
+ * transação.
+ *
+ * `options.allowNullPassword` cobre o fluxo de contratação
+ * administrativa: um aluno novo criado ali nasce sem senha
+ * (password_hash NULL) e com users.status = 'pending_activation' --
+ * nunca uma senha gerada/enviada por e-mail. O status do aluno em si
+ * (students.status) continua o normal ('active'), só o acesso à
+ * conta fica pendente até a ativação (ver accountActivationService).
  */
-async function createStudent(db, payload) {
+async function createStudent(db, payload, options = {}) {
+  const { connection: externalConnection, allowNullPassword = false } = options;
+
   const { name, email, password, gender, birth_date, cpf, phone, address, status } =
     payload;
 
-  if (!name?.trim() || !email?.trim() || !password) {
+  if (!name?.trim() || !email?.trim()) {
+    throw createServiceError("Nome e e-mail são obrigatórios.", 400);
+  }
+
+  const usingNullPassword = allowNullPassword && !password;
+
+  if (!usingNullPassword && !password) {
     throw createServiceError("Nome, e-mail e senha são obrigatórios.", 400);
   }
 
@@ -98,14 +119,21 @@ async function createStudent(db, payload) {
     throw createServiceError("Status do aluno inválido.", 400);
   }
 
-  // O usuário de autenticação só possui active/inactive.
-  const normalizedUserStatus =
-    normalizedStudentStatus === "active" ? "active" : "inactive";
+  // O usuário de autenticação normalmente só possui active/inactive;
+  // pending_activation é exclusivo do fluxo sem senha.
+  const normalizedUserStatus = usingNullPassword
+    ? "pending_activation"
+    : normalizedStudentStatus === "active"
+      ? "active"
+      : "inactive";
 
-  const connection = await db.promise().getConnection();
+  const ownsConnection = !externalConnection;
+  const connection = externalConnection || (await db.promise().getConnection());
 
   try {
-    await connection.beginTransaction();
+    if (ownsConnection) {
+      await connection.beginTransaction();
+    }
 
     const [existingUserRows] = await connection.query(
       `SELECT id FROM users WHERE email = ? LIMIT 1`,
@@ -116,7 +144,7 @@ async function createStudent(db, payload) {
       throw createServiceError("Este e-mail já está cadastrado.", 409);
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = usingNullPassword ? null : await bcrypt.hash(password, 10);
 
     const [userResult] = await connection.query(
       `
@@ -151,7 +179,9 @@ async function createStudent(db, payload) {
       ]
     );
 
-    await connection.commit();
+    if (ownsConnection) {
+      await connection.commit();
+    }
 
     return {
       id: studentResult.insertId,
@@ -160,9 +190,12 @@ async function createStudent(db, payload) {
       email: email.trim(),
       registration_number: registrationNumber,
       status: normalizedStudentStatus,
+      user_status: normalizedUserStatus,
     };
   } catch (error) {
-    await connection.rollback();
+    if (ownsConnection) {
+      await connection.rollback();
+    }
 
     if (error.code === "ER_DUP_ENTRY") {
       throw createServiceError(
@@ -173,7 +206,9 @@ async function createStudent(db, payload) {
 
     throw error;
   } finally {
-    connection.release();
+    if (ownsConnection) {
+      connection.release();
+    }
   }
 }
 

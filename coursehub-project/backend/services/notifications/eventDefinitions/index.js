@@ -30,3 +30,6 @@ require("./financialInvoiceOverdueChargeWarning");
 require("./financialEnrollmentLockWarning");
 require("./financialEnrollmentLocked");
 require("./chatMessageReceived");
+require("./financialContractBillingCreated");
+require("./accountActivationInvitationCreated");
+require("./accountActivationAlreadyActiveNotice");

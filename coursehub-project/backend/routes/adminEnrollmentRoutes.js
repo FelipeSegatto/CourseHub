@@ -13,6 +13,12 @@ const {
   changeEnrollmentClass,
 } = require("../services/admin/adminEnrollmentService");
 
+const {
+  registerExternalPayment,
+  registerScholarshipEnrollment,
+  registerMigratedEnrollment,
+} = require("../services/admin/adminManualEnrollmentService");
+
 const router = express.Router();
 
 function handleServiceError(res, error, fallbackMessage) {
@@ -84,6 +90,69 @@ router.post(
       });
     } catch (error) {
       return handleServiceError(res, error, "Erro ao cadastrar matrícula.");
+    }
+  }
+);
+
+/**
+ * POST /api/admin/enrollments/manual
+ * Origens manuais: "external_payment" (pagamento externo já
+ * realizado) ou "scholarship" (bolsa/cortesia integral -- payload.scholarshipType
+ * define scholarship|courtesy). Bolsa PARCIAL não usa esta rota --
+ * usa o fluxo comercial padrão (POST /api/admin/financial/contracts) com desconto.
+ */
+router.post(
+  "/admin/enrollments/manual",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const { manualOrigin, ...payload } = req.body || {};
+
+      if (manualOrigin === "external_payment") {
+        const result = await registerExternalPayment(db, payload, req.auth.userId);
+
+        return res.status(201).json({
+          message: "Pagamento externo registrado e matrícula processada.",
+          data: result,
+        });
+      }
+
+      if (manualOrigin === "scholarship") {
+        const result = await registerScholarshipEnrollment(db, payload, req.auth.userId);
+
+        return res.status(201).json({
+          message: "Matrícula por bolsa/cortesia criada com sucesso.",
+          data: result,
+        });
+      }
+
+      return res.status(400).json({
+        message: "manualOrigin inválido. Utilize external_payment ou scholarship.",
+      });
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao registrar matrícula manual.");
+    }
+  }
+);
+
+/**
+ * POST /api/admin/enrollments/migration
+ */
+router.post(
+  "/admin/enrollments/migration",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result = await registerMigratedEnrollment(db, req.body, req.auth.userId);
+
+      return res.status(201).json({
+        message: "Matrícula importada com sucesso.",
+        data: result,
+      });
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao importar matrícula.");
     }
   }
 );

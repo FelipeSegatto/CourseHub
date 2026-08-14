@@ -104,6 +104,40 @@ const chatReportRateLimiter = rateLimit({
   },
 });
 
+/**
+ * Limita as rotas públicas de ativação de conta (validar token,
+ * ativar): 8 a cada 15 minutos por IP. Mesma motivação de
+ * forgotPasswordRateLimiter -- evita força bruta contra o token
+ * opaco e martelar o endpoint de validação.
+ */
+const accountActivationRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.",
+  },
+});
+
+/**
+ * Limita a ação administrativa de reenviar convite/gerar link de
+ * ativação: 5 a cada 10 minutos por admin. Cada chamada invalida o
+ * token anterior -- sem um limite aqui, um admin (ou uma sessão
+ * comprometida) poderia invalidar repetidamente o link que acabou de
+ * ser entregue ao aluno.
+ */
+const accountActivationInvitationRateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.auth?.userId ? String(req.auth.userId) : ipKeyGenerator(req.ip)),
+  message: {
+    message: "Muitos convites gerados em pouco tempo. Aguarde um instante antes de tentar novamente.",
+  },
+});
+
 module.exports = {
   loginRateLimiter,
   forgotPasswordRateLimiter,
@@ -111,4 +145,6 @@ module.exports = {
   chatConversationOpenRateLimiter,
   chatReportRateLimiter,
   paymentCreateRateLimiter,
+  accountActivationRateLimiter,
+  accountActivationInvitationRateLimiter,
 };

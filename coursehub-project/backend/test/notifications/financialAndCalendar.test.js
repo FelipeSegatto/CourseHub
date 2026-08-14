@@ -13,6 +13,9 @@ const { cancelInvoice } = require("../../services/financial/invoiceCancellationS
 const { registerManualPayment } = require("../../services/financial/paymentService");
 const { refundPayment } = require("../../services/financial/paymentRefundService");
 const { createEvent, updateEvent, cancelEvent } = require("../../services/calendar/adminCalendarEventService");
+const {
+  findOrCreateSelfContractingPartyForStudent,
+} = require("../../services/financial/contractingPartyService");
 
 // Financial fixture: a disposable enrollment + financial_contract
 // created directly via SQL (no service in the codebase creates
@@ -98,13 +101,22 @@ before(async () => {
 
   const enrollmentId = enrollmentResult.insertId;
 
+  const contractingPartyId = await findOrCreateSelfContractingPartyForStudent(db.promise(), {
+    studentId: STUDENT_ID,
+  });
+
+  // status = 'active' (not 'pending_payment'): this suite tests
+  // ongoing invoice/payment operations on an established contract,
+  // not the contract-activation lifecycle (see
+  // test/financial/contractingFlow.test.js for that).
   const [contractResult] = await db.promise().query(
     `
       INSERT INTO financial_contracts
-        (enrollment_id, pricing_plan_id, billing_type, plan_name, total_amount, status, start_date, created_at, updated_at)
-      VALUES (?, ?, 'one_time', 'TEST ETAPA5E PLAN', 1490.00, 'pending', CURDATE(), NOW(), NOW())
+        (enrollment_id, student_id, course_id, contracting_party_id, origin,
+         pricing_plan_id, billing_type, plan_name, total_amount, status, start_date, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'admin', ?, 'one_time', 'TEST ETAPA5E PLAN', 1490.00, 'active', CURDATE(), NOW(), NOW())
     `,
-    [enrollmentId, PRICING_PLAN_ID]
+    [enrollmentId, STUDENT_ID, FIN_COURSE_ID, contractingPartyId, PRICING_PLAN_ID]
   );
 
   financialContractId = contractResult.insertId;

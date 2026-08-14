@@ -12,30 +12,49 @@ function createServiceError(message, statusCode) {
   return error;
 }
 
+/**
+ * A recipient is either a system user ({ userId, email, ... }) or an
+ * external contact with no CourseHub account ({ external: true,
+ * email, name }) -- e.g. a contracting party billing email. External
+ * recipients are deduplicated by email instead of userId, since they
+ * have no id of their own.
+ */
 function normalizeRecipients(recipients) {
   if (!Array.isArray(recipients) || recipients.length === 0) {
     throw createServiceError("At least one recipient is required.", 400);
   }
 
-  const byUserId = new Map();
+  const byKey = new Map();
 
   for (const recipient of recipients) {
-    const userId = Number(recipient?.userId);
+    if (!recipient?.email) {
+      throw createServiceError("Every recipient requires a resolved email.", 400);
+    }
+
+    if (recipient.external) {
+      const key = `external:${recipient.email}`;
+
+      if (!byKey.has(key)) {
+        byKey.set(key, { ...recipient, userId: null, external: true });
+      }
+
+      continue;
+    }
+
+    const userId = Number(recipient.userId);
 
     if (!Number.isInteger(userId) || userId <= 0) {
       throw createServiceError("Every recipient requires a valid userId.", 400);
     }
 
-    if (!recipient.email) {
-      throw createServiceError(`Recipient ${userId} is missing a resolved email.`, 400);
-    }
+    const key = `user:${userId}`;
 
-    if (!byUserId.has(userId)) {
-      byUserId.set(userId, { ...recipient, userId });
+    if (!byKey.has(key)) {
+      byKey.set(key, { ...recipient, userId, external: false });
     }
   }
 
-  return Array.from(byUserId.values());
+  return Array.from(byKey.values());
 }
 
 /**
@@ -207,21 +226,31 @@ async function createNotificationEvent(
       const [recipientResult] = await connection.query(
         `
           INSERT INTO notification_recipients
-          (notification_id, user_id, action_path, created_at)
-          VALUES (?, ?, ?, NOW())
+          (notification_id, user_id, external_name, external_email, action_path, created_at)
+          VALUES (?, ?, ?, ?, ?, NOW())
         `,
-        [notificationId, recipient.userId, actionPath]
+        [
+          notificationId,
+          recipient.external ? null : recipient.userId,
+          recipient.external ? recipient.name || null : null,
+          recipient.external ? recipient.email : null,
+          actionPath,
+        ]
       );
 
       const recipientId = recipientResult.insertId;
 
       recipientIds.push(recipientId);
 
-      const { eligible, skipReason } = await resolveEmailEligibility(connection, {
-        userId: recipient.userId,
-        category: definition.category,
-        emailPolicy: definition.emailPolicy,
-      });
+      // External recipients have no account to hold a preference
+      // against -- they are always essential (no opt-out concept).
+      const { eligible, skipReason } = recipient.external
+        ? { eligible: true, skipReason: null }
+        : await resolveEmailEligibility(connection, {
+            userId: recipient.userId,
+            category: definition.category,
+            emailPolicy: definition.emailPolicy,
+          });
 
       // next_attempt_at uses MySQL's own NOW() (via IF), not a JS
       // Date parameter: mysql2 rounds a Date's milliseconds to the
