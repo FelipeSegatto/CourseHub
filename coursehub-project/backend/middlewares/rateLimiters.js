@@ -279,6 +279,23 @@ const documentDownloadRateLimiter = rateLimit({
   },
 });
 
+/**
+ * Limita a rota pública de verificação de documento por código: 20 a
+ * cada 15 minutos por IP -- sem autenticação (qualquer pessoa pode
+ * verificar um certificado/declaração), então só IP faz sentido.
+ * Generoso o bastante para alguém verificando alguns documentos
+ * legítimos, mas limita força bruta contra o código opaco.
+ */
+const documentVerificationRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: "Muitas tentativas de verificação. Aguarde alguns minutos antes de tentar novamente.",
+  },
+});
+
 module.exports = {
   loginRateLimiter,
   forgotPasswordRateLimiter,
@@ -296,4 +313,5 @@ module.exports = {
   checkoutContractSubmitRateLimiter,
   documentGenerationRequestRateLimiter,
   documentDownloadRateLimiter,
+  documentVerificationRateLimiter,
 };

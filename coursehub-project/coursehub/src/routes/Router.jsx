@@ -25,6 +25,7 @@ import VerifyCheckoutEmail from "../pages/public/checkout/VerifyCheckoutEmail";
 import PublicCheckoutWizard from "../pages/public/checkout/PublicCheckoutWizard";
 import CheckoutProcessing from "../pages/public/checkout/CheckoutProcessing";
 import CheckoutResult from "../pages/public/checkout/CheckoutResult";
+import VerifyDocument from "../pages/public/VerifyDocument";
 
 import StudentHome from "../pages/student/StudentHome";
 import StudentDashboard from "../pages/student/StudentDashboard";
@@ -36,6 +37,7 @@ import StudentAssessments from "../pages/student/StudentAssessments";
 import StudentGrades from "../pages/student/StudentGrades";
 import StudentProgress from "../pages/student/StudentProgress";
 import StudentFinance from "../pages/student/StudentFinance";
+import StudentDocuments from "../pages/student/StudentDocuments";
 import StudentCoursePurchase from "../pages/student/StudentCoursePurchase";
 import StudentActivityRunner from "../pages/student/StudentActivityRunner";
 import StudentCalendar from "../pages/student/StudentCalendar";
@@ -80,6 +82,7 @@ import TeacherSubmissionReview from "../pages/teacher/TeacherSubmissionReview";
 import TeacherAttendance from "../pages/teacher/TeacherAttendance";
 import TeacherAttendanceHistory from "../pages/teacher/TeacherAttendanceHistory";
 import TeacherGrades from "../pages/teacher/TeacherGrades";
+import TeacherEligibility from "../pages/teacher/TeacherEligibility";
 import TeacherCalendar from "../pages/teacher/TeacherCalendar";
 import TeacherNotifications from "../pages/teacher/TeacherNotifications";
 import TeacherChat from "../pages/teacher/TeacherChat";
@@ -189,6 +192,18 @@ export const router = createBrowserRouter([
         path: "checkout/resultado",
         element: <CheckoutResult />,
       },
+
+      // ============================
+      // VERIFICAÇÃO PÚBLICA DE DOCUMENTOS
+      // ============================
+      {
+        path: "documentos/verificar",
+        element: <VerifyDocument />,
+      },
+      {
+        path: "documentos/verificar/:code",
+        element: <VerifyDocument />,
+      },
     ],
   },
 
@@ -272,6 +287,10 @@ export const router = createBrowserRouter([
               {
                 path: "financeiro/comprar/:courseId",
                 element: <StudentCoursePurchase />,
+              },
+              {
+                path: "documentos",
+                element: <StudentDocuments />,
               },
               {
                 path: "notificacoes",
@@ -594,6 +613,10 @@ export const router = createBrowserRouter([
               {
                 path: "notas",
                 element: <TeacherGrades />,
+              },
+              {
+                path: "elegibilidade",
+                element: <TeacherEligibility />,
               },
               {
                 path: "calendario",
