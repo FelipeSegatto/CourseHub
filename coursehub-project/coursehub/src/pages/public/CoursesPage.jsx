@@ -37,6 +37,7 @@ export default function CoursesPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
+    
       <h1 className="text-4xl font-bold text-gray-900">
         Encontre o curso que você procura
       </h1>
@@ -50,11 +51,13 @@ export default function CoursesPage() {
           Nenhum curso encontrado.
         </p>
       ) : (
-        <section className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <section className="grid auto-rows-fr grid-cols-1 items-stretch gap-6 md:grid-cols-2 xl:grid-cols-3 bg-gradient-to-br from-blue-50 via-white to-grey-200 min-h-screen">
           {courses.map((course) => (
             <CardCourses key={course.id} course={course} />
           ))}
+        
         </section>
+        
       )}
     </main>
   );

@@ -18,6 +18,13 @@ import DashboardPage from "../pages/public/DashboardPage";
 import AboutPage from "../pages/public/AboutPage";
 import CoursesPage from "../pages/public/CoursesPage";
 import CoursePage from "../pages/public/CoursePage";
+import InvoicePaymentLink from "../pages/public/InvoicePaymentLink";
+import TermsOfUse from "../pages/public/TermsOfUse";
+import PrivacyPolicy from "../pages/public/PrivacyPolicy";
+import VerifyCheckoutEmail from "../pages/public/checkout/VerifyCheckoutEmail";
+import PublicCheckoutWizard from "../pages/public/checkout/PublicCheckoutWizard";
+import CheckoutProcessing from "../pages/public/checkout/CheckoutProcessing";
+import CheckoutResult from "../pages/public/checkout/CheckoutResult";
 
 import StudentHome from "../pages/student/StudentHome";
 import StudentDashboard from "../pages/student/StudentDashboard";
@@ -29,6 +36,7 @@ import StudentAssessments from "../pages/student/StudentAssessments";
 import StudentGrades from "../pages/student/StudentGrades";
 import StudentProgress from "../pages/student/StudentProgress";
 import StudentFinance from "../pages/student/StudentFinance";
+import StudentCoursePurchase from "../pages/student/StudentCoursePurchase";
 import StudentActivityRunner from "../pages/student/StudentActivityRunner";
 import StudentCalendar from "../pages/student/StudentCalendar";
 import StudentChat from "../pages/student/StudentChat";
@@ -140,6 +148,47 @@ export const router = createBrowserRouter([
         path:"portal",
         element: <DashboardPage />,
       },
+
+      // ============================
+      // PAGAMENTO PRIVADO DE FATURA
+      // Link seguro por token -- sem login, uma única invoice.
+      // ============================
+      {
+        path: "pagamento/fatura",
+        element: <InvoicePaymentLink />,
+      },
+
+      // ============================
+      // TERMOS E PRIVACIDADE
+      // ============================
+      {
+        path: "termos-de-uso",
+        element: <TermsOfUse />,
+      },
+      {
+        path: "politica-de-privacidade",
+        element: <PrivacyPolicy />,
+      },
+
+      // ============================
+      // CHECKOUT PÚBLICO
+      // ============================
+      {
+        path: "checkout/verificar-email",
+        element: <VerifyCheckoutEmail />,
+      },
+      {
+        path: "checkout/curso/:courseId",
+        element: <PublicCheckoutWizard />,
+      },
+      {
+        path: "checkout/processando",
+        element: <CheckoutProcessing />,
+      },
+      {
+        path: "checkout/resultado",
+        element: <CheckoutResult />,
+      },
     ],
   },
 
@@ -219,6 +268,10 @@ export const router = createBrowserRouter([
               {
                 path: "financeiro",
                 element: <StudentFinance />,
+              },
+              {
+                path: "financeiro/comprar/:courseId",
+                element: <StudentCoursePurchase />,
               },
               {
                 path: "notificacoes",

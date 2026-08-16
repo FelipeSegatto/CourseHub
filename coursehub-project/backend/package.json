@@ -4,7 +4,8 @@
     "start": "node server.js",
     "test": "node --test",
     "worker:notifications": "node workers/notificationEmailWorker.js",
-    "worker:reminders": "node workers/scheduledRemindersWorker.js"
+    "worker:reminders": "node workers/scheduledRemindersWorker.js",
+    "worker:documents": "node workers/documentGenerationWorker.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -17,9 +18,13 @@
     "jsonwebtoken": "^9.0.3",
     "mercadopago": "^3.4.0",
     "mysql2": "^3.9.1",
-    "nodemailer": "^9.0.3"
+    "nodemailer": "^9.0.3",
+    "puppeteer": "25.7.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"
+  },
+  "allowScripts": {
+    "puppeteer@25.7.0": true
   }
 }

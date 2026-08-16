@@ -33,3 +33,6 @@ require("./chatMessageReceived");
 require("./financialContractBillingCreated");
 require("./accountActivationInvitationCreated");
 require("./accountActivationAlreadyActiveNotice");
+require("./checkoutEmailVerificationRequested");
+require("./financialInvoicePaymentLinkShared");
+require("./financialDocumentReady");

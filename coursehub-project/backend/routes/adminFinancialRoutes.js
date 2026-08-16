@@ -2,6 +2,7 @@ const express = require("express");
 const db = require("../db");
 const authenticateToken = require("../middlewares/authenticateToken");
 const authorizeRoles = require("../middlewares/authorizeRoles");
+const { invoicePaymentLinkAdminRateLimiter } = require("../middlewares/rateLimiters");
 
 const {
   changeInvoiceDueDate,
@@ -50,7 +51,67 @@ const {
   getContractTermsDocumentHtml,
 } = require("../services/financial/contractTermsDocumentService");
 
+const {
+  shareInvoicePaymentLink,
+} = require("../services/financial/invoicePaymentAccessService");
+
+const {
+  requestContractDocument,
+  getContractDocumentStatus,
+  getContractDocumentFile,
+} = require("../services/financial/financialContractDocumentService");
+
+const {
+  requestInvoiceCopyDocument,
+  getInvoiceCopyDocumentStatus,
+  getInvoiceCopyDocumentFile,
+} = require("../services/financial/invoiceCopyDocumentService");
+
+const {
+  requestPaymentReceipt,
+  getPaymentReceiptStatus,
+  getPaymentReceiptFile,
+} = require("../services/financial/paymentReceiptDocumentService");
+
+const { mountDocumentAccessRoutes } = require("./helpers/documentAccessRoutes");
+
 const router = express.Router();
+
+const adminAccessContext = async () => ({ scope: "admin" });
+const adminAuthMiddlewares = [authenticateToken, authorizeRoles("admin")];
+
+mountDocumentAccessRoutes(router, {
+  routePath: "/contracts/:contractId/document",
+  subjectParam: "contractId",
+  subjectServiceKey: "contractId",
+  authMiddlewares: adminAuthMiddlewares,
+  resolveAccessContext: adminAccessContext,
+  requestDocument: requestContractDocument,
+  getDocumentStatus: getContractDocumentStatus,
+  getDocumentFile: getContractDocumentFile,
+});
+
+mountDocumentAccessRoutes(router, {
+  routePath: "/invoices/:invoiceId/document",
+  subjectParam: "invoiceId",
+  subjectServiceKey: "invoiceId",
+  authMiddlewares: adminAuthMiddlewares,
+  resolveAccessContext: adminAccessContext,
+  requestDocument: requestInvoiceCopyDocument,
+  getDocumentStatus: getInvoiceCopyDocumentStatus,
+  getDocumentFile: getInvoiceCopyDocumentFile,
+});
+
+mountDocumentAccessRoutes(router, {
+  routePath: "/payments/:paymentId/receipt",
+  subjectParam: "paymentId",
+  subjectServiceKey: "paymentId",
+  authMiddlewares: adminAuthMiddlewares,
+  resolveAccessContext: adminAccessContext,
+  requestDocument: requestPaymentReceipt,
+  getDocumentStatus: getPaymentReceiptStatus,
+  getDocumentFile: getPaymentReceiptFile,
+});
 
 router.patch(
   "/invoices/:invoiceId/due-date",
@@ -438,6 +499,44 @@ router.post(
 
       return res.status(error.statusCode || 500).json({
         message: error.message || "Erro interno ao reenviar cobrança.",
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/admin/financial/invoices/:invoiceId/payment-link
+ * Gera/compartilha o link privado de pagamento da fatura --
+ * deliveryMethod copy_link | email | whatsapp_message. Cada chamada
+ * invalida qualquer link anterior. copy_link e whatsapp_message
+ * devolvem o link/mensagem em claro nesta resposta, uma única vez.
+ */
+router.post(
+  "/invoices/:invoiceId/payment-link",
+  authenticateToken,
+  authorizeRoles("admin"),
+  invoicePaymentLinkAdminRateLimiter,
+  async (req, res) => {
+    try {
+      const invoiceId = Number(req.params.invoiceId);
+      const { deliveryMethod } = req.body || {};
+
+      const result = await shareInvoicePaymentLink(db, {
+        invoiceId,
+        deliveryMethod,
+        actorUserId: req.auth.userId,
+      });
+
+      if (result.paymentLinkUrl || result.message) {
+        res.set("Cache-Control", "no-store");
+      }
+
+      return res.status(200).json({ data: result });
+    } catch (error) {
+      console.error("Erro ao compartilhar link de pagamento da fatura:", error);
+
+      return res.status(error.statusCode || 500).json({
+        message: error.message || "Erro interno ao compartilhar o link de pagamento.",
       });
     }
   }

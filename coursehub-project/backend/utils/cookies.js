@@ -1,5 +1,6 @@
 const ACCESS_TOKEN_COOKIE = "access_token";
 const REFRESH_TOKEN_COOKIE = "refresh_token";
+const INVOICE_PAYMENT_SESSION_COOKIE = "invoice_payment_session";
 
 const DURATION_UNITS = {
   s: 1000,
@@ -60,11 +61,38 @@ function clearAuthCookies(res) {
   });
 }
 
+const INVOICE_PAYMENT_SESSION_PATH = "/api/public/invoice-payment";
+
+/**
+ * Cookie curto da sessão de pagamento privado de invoice (ver
+ * repositories/invoicePaymentSessions.js) -- escopado por `path` só às
+ * rotas de pagamento de invoice, mesma disciplina de
+ * setRefreshTokenCookie escopar a /api/auth.
+ */
+function setInvoicePaymentSessionCookie(res, sessionToken, { maxAgeMs } = {}) {
+  res.cookie(INVOICE_PAYMENT_SESSION_COOKIE, sessionToken, {
+    ...baseCookieOptions(),
+    path: INVOICE_PAYMENT_SESSION_PATH,
+    maxAge: maxAgeMs,
+  });
+}
+
+function clearInvoicePaymentSessionCookie(res) {
+  res.clearCookie(INVOICE_PAYMENT_SESSION_COOKIE, {
+    ...baseCookieOptions(),
+    path: INVOICE_PAYMENT_SESSION_PATH,
+  });
+}
+
 module.exports = {
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
+  INVOICE_PAYMENT_SESSION_COOKIE,
+  INVOICE_PAYMENT_SESSION_PATH,
   durationToMs,
   setAccessTokenCookie,
   setRefreshTokenCookie,
   clearAuthCookies,
+  setInvoicePaymentSessionCookie,
+  clearInvoicePaymentSessionCookie,
 };

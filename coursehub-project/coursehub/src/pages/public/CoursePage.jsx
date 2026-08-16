@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "../../auth/AuthContext";
 
 const API_URL = "http://localhost:3001";
 
@@ -18,8 +19,67 @@ const PAYMENT_METHOD_LABEL = {
   acceptsCreditCard: "Cartão de crédito",
 };
 
+/**
+ * courses.syllabus é texto livre sem convenção de formato imposta pelo
+ * formulário de admin (textarea simples). Na base real coexistem: lista
+ * separada por vírgula em uma linha; blocos "Módulo N — Título\nDescrição"
+ * separados por linha em branco; e listas com marcador (* ) ou linha simples,
+ * às vezes com um cabeçalho solto ("Ementa" / "Ementa do Curso – X") antes.
+ * Esta função tenta reconhecer esses formatos reais em vez de assumir um
+ * único delimitador.
+ */
+function parseSyllabus(rawSyllabus) {
+  if (typeof rawSyllabus !== "string") {
+    return Array.isArray(rawSyllabus) ? rawSyllabus.map((item) => ({ title: item, description: null })) : [];
+  }
+
+  const text = rawSyllabus.trim();
+  if (!text) {
+    return [];
+  }
+
+  let blocks = text.split(/\n\s*\n/).map((block) => block.trim()).filter(Boolean);
+
+  if (blocks.length > 1 && /^ementa\b/i.test(blocks[0]) && !blocks[0].includes("\n")) {
+    blocks = blocks.slice(1);
+  }
+
+  const items = [];
+
+  for (const block of blocks) {
+    const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+
+    if (lines.length <= 2) {
+      const [title, description] = lines;
+      items.push({ title, description: description || null });
+      continue;
+    }
+
+    for (const line of lines) {
+      items.push({ title: line.replace(/^[*-]\s+/, ""), description: null });
+    }
+  }
+
+  if (items.length === 1 && !items[0].description) {
+    const singleLine = items[0].title;
+    const parts = singleLine
+      .split(/[,;]/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (parts.length > 1) {
+      return parts.map((title) => ({ title, description: null }));
+    }
+  }
+
+  return items;
+}
+
 export default function CoursePage() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { estaLogado, usuarioLogado } = useAuth();
+  const plansSectionRef = useRef(null);
 
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -156,7 +216,7 @@ export default function CoursePage() {
         </p>
 
         <Link
-          to="/course"
+          to="/courses"
           className="mt-6 inline-block rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700"
         >
           Voltar para cursos
@@ -165,22 +225,37 @@ export default function CoursePage() {
     );
   }
 
-  const syllabus =
-    typeof course.syllabus === "string"
-      ? course.syllabus
-          .split(";")
-          .map((item) => item.trim())
-          .filter(Boolean)
-      : Array.isArray(course.syllabus)
-        ? course.syllabus
-        : [];
+  const syllabus = parseSyllabus(course.syllabus);
 
   const pricing = course.pricing;
+
+  function goToCheckout(planId) {
+    const isAuthenticatedStudent = estaLogado && usuarioLogado?.role === "student";
+    const query = planId ? `?plan=${planId}` : "";
+
+    if (isAuthenticatedStudent) {
+      navigate(`/aluno/financeiro/comprar/${id}${query}`);
+      return;
+    }
+
+    navigate(`/checkout/curso/${id}${query}`);
+  }
+
+  function handleComprarClick() {
+    if (pricingPlans.length === 1) {
+      goToCheckout(pricingPlans[0].id);
+      return;
+    }
+
+    if (pricingPlans.length > 1) {
+      plansSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
       <Link
-        to="/course"
+        to="/courses"
         className="text-sm font-semibold text-blue-600 hover:text-blue-700"
       >
         ← Voltar para cursos
@@ -241,10 +316,16 @@ export default function CoursePage() {
             Conteúdo do curso
           </h2>
 
-          <ul className="mt-4 list-disc space-y-2 pl-6 text-gray-700">
+          <ul className="mt-4 list-disc space-y-3 pl-6 text-gray-700">
             {syllabus.map((item, index) => (
-              <li key={`${item}-${index}`}>
-                {item}
+              <li key={`${item.title}-${index}`}>
+                <span className={item.description ? "font-semibold text-gray-900" : undefined}>
+                  {item.title}
+                </span>
+
+                {item.description && (
+                  <p className="mt-1 text-sm text-gray-600">{item.description}</p>
+                )}
               </li>
             ))}
           </ul>
@@ -276,14 +357,16 @@ export default function CoursePage() {
 
         <button
           type="button"
-          className="mt-6 rounded-2xl bg-blue-600 px-6 py-4 text-lg font-semibold text-white transition hover:bg-blue-700"
+          onClick={handleComprarClick}
+          disabled={!pricingPlans.length && !plansLoading}
+          className="mt-6 rounded-2xl bg-blue-600 px-6 py-4 text-lg font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
           Comprar curso
         </button>
       </div>
 
       {!plansLoading && pricingPlans.length > 0 && (
-        <section className="mt-10">
+        <section ref={plansSectionRef} className="mt-10">
           <h2 className="text-2xl font-bold text-gray-900">
             Formas de pagamento
           </h2>
@@ -326,6 +409,14 @@ export default function CoursePage() {
                       Aceita: {methods.join(", ")}
                     </p>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => goToCheckout(plan.id)}
+                    className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                  >
+                    Contratar este plano
+                  </button>
                 </div>
               );
             })}

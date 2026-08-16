@@ -19,6 +19,9 @@ logs/
 **/public/videos/
 *.mov
 
+# PDFs de documentos gerados (storage local privado, nunca versionado)
+**/backend/storage/generated-documents/
+
 # Editor e sistema
 .vscode/
 .DS_Store

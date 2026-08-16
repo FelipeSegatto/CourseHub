@@ -12,12 +12,16 @@ const MAX_POLLS = 75;
 const TERMINAL_STATUSES = new Set(["approved", "rejected", "cancelled", "refunded", "chargeback"]);
 
 /**
- * Consulta GET /student/finance/payments/:id enquanto o status ainda
- * é "pending", para que o modal reflita uma aprovação sem o aluno
- * precisar fechar e reabrir. Para automaticamente ao atingir um
- * status terminal, ao atingir MAX_POLLS, ou ao desmontar.
+ * Consulta o pagamento enquanto o status ainda é "pending", para que a
+ * UI reflita uma aprovação sem o usuário precisar atualizar a página.
+ * Para automaticamente ao atingir um status terminal, ao atingir
+ * MAX_POLLS, ou ao desmontar. `fetchFn` por padrão é a leitura
+ * autenticada do aluno (GET /student/finance/payments/:id) -- outros
+ * canais (link privado de invoice, checkout público) passam uma
+ * função equivalente para o próprio endpoint público/de sessão deles,
+ * mantendo exatamente o mesmo comportamento de polling.
  */
-export function usePaymentPolling(paymentId) {
+export function usePaymentPolling(paymentId, fetchFn = getInvoicePayment) {
   const [payment, setPayment] = useState(null);
   const [error, setError] = useState("");
   const pollCountRef = useRef(0);
@@ -32,7 +36,7 @@ export function usePaymentPolling(paymentId) {
 
     async function poll() {
       try {
-        const result = await getInvoicePayment(paymentId);
+        const result = await fetchFn(paymentId);
 
         if (cancelled) return;
 

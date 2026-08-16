@@ -13,7 +13,84 @@ const {
   getInvoicePaymentByUser,
 } = require("../services/financial/studentPaymentService");
 
+const {
+  purchaseAdditionalCourseAsAuthenticatedStudent,
+} = require("../services/financial/authenticatedCheckoutService");
+
+const { getStudentIdByUserId, createServiceError } = require("../services/classes/classAccessService");
+
+const {
+  requestContractDocument,
+  getContractDocumentStatus,
+  getContractDocumentFile,
+} = require("../services/financial/financialContractDocumentService");
+
+const {
+  requestInvoiceCopyDocument,
+  getInvoiceCopyDocumentStatus,
+  getInvoiceCopyDocumentFile,
+} = require("../services/financial/invoiceCopyDocumentService");
+
+const {
+  requestPaymentReceipt,
+  getPaymentReceiptStatus,
+  getPaymentReceiptFile,
+} = require("../services/financial/paymentReceiptDocumentService");
+
+const { mountDocumentAccessRoutes } = require("./helpers/documentAccessRoutes");
+
 const router = express.Router();
+
+/**
+ * studentId sempre resolvido a partir do token (req.auth.userId),
+ * nunca de um parâmetro de URL/corpo -- mesmo padrão já usado por
+ * createInvoicePayment/purchaseAdditionalCourseAsAuthenticatedStudent
+ * acima.
+ */
+async function resolveStudentAccessContext(req) {
+  const studentId = await getStudentIdByUserId(db.promise(), req.auth.userId);
+
+  if (!studentId) {
+    throw createServiceError("Aluno não encontrado.", 404);
+  }
+
+  return { scope: "student", studentId };
+}
+
+const studentAuthMiddlewares = [authenticateToken, authorizeRoles("student")];
+
+mountDocumentAccessRoutes(router, {
+  routePath: "/student/finance/contracts/:contractId/document",
+  subjectParam: "contractId",
+  subjectServiceKey: "contractId",
+  authMiddlewares: studentAuthMiddlewares,
+  resolveAccessContext: resolveStudentAccessContext,
+  requestDocument: requestContractDocument,
+  getDocumentStatus: getContractDocumentStatus,
+  getDocumentFile: getContractDocumentFile,
+});
+
+mountDocumentAccessRoutes(router, {
+  routePath: "/student/finance/invoices/:invoiceId/document",
+  subjectParam: "invoiceId",
+  subjectServiceKey: "invoiceId",
+  authMiddlewares: studentAuthMiddlewares,
+  resolveAccessContext: resolveStudentAccessContext,
+  requestDocument: requestInvoiceCopyDocument,
+  getDocumentStatus: getInvoiceCopyDocumentStatus,
+  getDocumentFile: getInvoiceCopyDocumentFile,
+});
+
+mountDocumentAccessRoutes(router, {
+  routePath: "/student/finance/payments/:paymentId/receipt",
+  subjectParam: "paymentId",
+  subjectServiceKey: "paymentId",
+  authMiddlewares: studentAuthMiddlewares,
+  resolveAccessContext: resolveStudentAccessContext,
+  requestDocument: requestPaymentReceipt,
+  getDocumentStatus: getPaymentReceiptStatus,
+  getDocumentFile: getPaymentReceiptFile,
+});
 
 /**
  * GET /api/student/finance
@@ -71,6 +148,53 @@ router.post(
 
       return res.status(error.statusCode || 500).json({
         message: error.statusCode ? error.message : "Não foi possível criar o pagamento.",
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/student/finance/courses/:courseId/checkout
+ * Compra autenticada de um novo curso pelo próprio aluno logado --
+ * studentId sempre derivado do token, nunca do corpo. pricingPlanId é
+ * só um id; o backend revalida o plano/preço dentro do service
+ * central de criação de contrato, nunca confia em nada além do id.
+ */
+router.post(
+  "/student/finance/courses/:courseId/checkout",
+  authenticateToken,
+  authorizeRoles("student"),
+  paymentCreateRateLimiter,
+  async (req, res) => {
+    try {
+      const {
+        pricingPlanId,
+        paymentMethod,
+        cardToken,
+        cardPaymentMethodId,
+        cardInstallments,
+        acceptance,
+      } = req.body || {};
+
+      const result = await purchaseAdditionalCourseAsAuthenticatedStudent(db, {
+        userId: req.auth.userId,
+        courseId: req.params.courseId,
+        pricingPlanId,
+        paymentMethod,
+        cardToken,
+        cardPaymentMethodId,
+        cardInstallments,
+        acceptance,
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+
+      return res.status(201).json({ data: result });
+    } catch (error) {
+      console.error("Erro ao comprar curso:", error);
+
+      return res.status(error.statusCode || 500).json({
+        message: error.statusCode ? error.message : "Não foi possível concluir a compra.",
       });
     }
   }

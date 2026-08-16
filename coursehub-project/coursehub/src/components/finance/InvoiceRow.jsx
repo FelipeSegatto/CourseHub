@@ -7,6 +7,8 @@ import {
   getPaymentMethodLabel,
 } from "./financeUtils";
 import PaymentPixModal from "./PaymentPixModal";
+import DocumentDownloadButton from "../documents/DocumentDownloadButton";
+import { getStudentInvoiceCopyEndpoints } from "../../services/DocumentGenerationService";
 
 export default function InvoiceRow({
   invoice,
@@ -114,6 +116,12 @@ export default function InvoiceRow({
         >
           {getInvoiceStatusLabel(invoice.status)}
         </span>
+
+        <DocumentDownloadButton
+          endpoints={getStudentInvoiceCopyEndpoints(invoice.id)}
+          label="2ª via"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+        />
 
         {canPay && (
           <button

@@ -18,6 +18,12 @@ import ChangeInvoiceAmountModal from "../../../components/financial/ChangeInvoic
 import RegisterManualPaymentModal from "../../../components/financial/RegisterManualPaymentModal";
 import CancelInvoiceModal from "../../../components/financial/CancelInvoiceModal";
 import RefundPaymentModal from "../../../components/financial/RefundPaymentModal";
+import InvoicePaymentLinkMenu from "../../../components/financial/InvoicePaymentLinkMenu";
+import DocumentDownloadButton from "../../../components/documents/DocumentDownloadButton";
+import {
+  getAdminInvoiceCopyEndpoints,
+  getAdminPaymentReceiptEndpoints,
+} from "../../../services/DocumentGenerationService";
 
 function formatCurrency(value) {
   const number = Number(value);
@@ -279,6 +285,11 @@ export default function FinancialInvoicesDetails() {
       invoice.status
     );
 
+  const canShareLink =
+    ["pending", "overdue", "processing"].includes(
+      invoice.status
+    );
+
   return (
     <main className="min-h-full bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1500px]">
@@ -313,6 +324,12 @@ export default function FinancialInvoicesDetails() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <DocumentDownloadButton
+              endpoints={getAdminInvoiceCopyEndpoints(invoice.id)}
+              label="2ª via"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            />
+
             {canEdit && (
               <>
                 <button
@@ -362,6 +379,13 @@ export default function FinancialInvoicesDetails() {
             )}
           </div>
         </header>
+
+        {canShareLink && (
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="mb-3 font-semibold text-slate-900">Compartilhar cobrança</h2>
+            <InvoicePaymentLinkMenu invoiceId={invoice.id} />
+          </section>
+        )}
 
         <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <SummaryCard
@@ -567,24 +591,34 @@ export default function FinancialInvoicesDetails() {
                       </td>
 
                       <td className="px-5 py-4 text-right">
-                        {![
-                          "refunded",
-                          "cancelled",
-                        ].includes(
-                          payment.status
-                        ) && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openRefundModal(
-                                payment
-                              )
-                            }
-                            className="text-sm font-semibold text-red-600 hover:underline"
-                          >
-                            Reembolsar
-                          </button>
-                        )}
+                        <div className="flex items-center justify-end gap-3">
+                          {payment.status === "approved" && (
+                            <DocumentDownloadButton
+                              endpoints={getAdminPaymentReceiptEndpoints(payment.id)}
+                              label="recibo"
+                              className="text-sm font-semibold text-blue-600 hover:underline"
+                            />
+                          )}
+
+                          {![
+                            "refunded",
+                            "cancelled",
+                          ].includes(
+                            payment.status
+                          ) && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openRefundModal(
+                                  payment
+                                )
+                              }
+                              className="text-sm font-semibold text-red-600 hover:underline"
+                            >
+                              Reembolsar
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

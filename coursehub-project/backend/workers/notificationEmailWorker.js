@@ -8,7 +8,9 @@ const {
   claimBatch,
   markDeliverySent,
   markDeliveryFailed,
+  clearRecipientActionPath,
 } = require("../services/notifications/notificationDeliveryService");
+const { getNotificationType } = require("../services/notifications/notificationTypeRegistry");
 
 function getConfig() {
   return {
@@ -51,6 +53,14 @@ async function processJob(job, sendEmailFn = sendEmail) {
       deliveryId: job.delivery_id,
       providerMessageId: result.messageId,
     });
+
+    // Um action_path sensível (ver notificationTypeRegistry.js) só
+    // existe para levar um destinatário EXTERNO (sem user_id, sem
+    // inbox in-app) até um link de uso único -- uma vez entregue, o
+    // valor bruto não precisa mais ficar em repouso na tabela.
+    if (job.user_id === null && getNotificationType(job.type)?.sensitiveActionPath) {
+      await clearRecipientActionPath(db, job.recipient_id);
+    }
 
     console.log(`[notificationEmailWorker] delivery ${job.delivery_id} sent`);
   } catch (error) {

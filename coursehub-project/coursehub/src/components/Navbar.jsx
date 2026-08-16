@@ -18,7 +18,7 @@ export default function Navbar() {
           <CourseHubLogo />
         </Link>
 
-        <nav className="hidden w-full items-center justify-center gap-22 lg:flex">
+        <nav className="hidden w-full font-pt  text-lg items-center justify-center gap-22 lg:flex">
           <NavLink
             to="/courses"
             className={linkClass}
@@ -45,7 +45,7 @@ export default function Navbar() {
           
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex font-pt text-semibold items-center gap-3">
          
           <Link
             to="/register"

@@ -9,10 +9,10 @@ import { Link } from "react-router-dom";
 const slides = [
         {
             id: 1,
-            image: "/home/hero-coursehub-1.webp",
+            image: "/home/hero-coursehub-4.webp",
             alt: "...",
             href: "/courses",
-            objectPosition: "object-center",
+            objectPosition: "object-[center_42%]",
         },
         {
             id: 2,
@@ -23,10 +23,10 @@ const slides = [
         },
         {
             id: 3,
-            image: "/home/hero-coursehub-4.webp",
+            image: "/home/hero-coursehub-1.webp",
             alt: "...",
             href: "/courses",
-            objectPosition: "object-[center_42%]",
+            objectPosition: "object-center",
         },
 ];
 

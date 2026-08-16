@@ -23,6 +23,13 @@ const { createNotificationEvent } = require("../notifications/notificationServic
 const {
   generateAndStoreContractTermsDocument,
 } = require("./contractTermsDocumentService");
+const {
+  createAccessToken: createInvoicePaymentAccessToken,
+} = require("../../repositories/invoicePaymentAccessTokens");
+const {
+  CURRENT_TERMS_VERSION,
+  CURRENT_PRIVACY_VERSION,
+} = require("../../config/legalVersions");
 
 const ALLOWED_CONTRACTING_PARTY_MODES = ["self", "existing", "new"];
 
@@ -216,14 +223,19 @@ async function loadValidatedPlan(connection, { courseId, pricingPlanId }) {
  *   contractingPartyData ({ relationshipType, ...party fields }, modes 'existing'/'new')
  *   courseId, pricingPlanId
  *   billingData: { dueDate, discountAmount?, discountReason?, notes? }
- *   origin: 'admin' | 'public_checkout' (defaults to 'admin')
+ *   origin: 'admin' | 'public_checkout' | 'authenticated_checkout' (defaults to 'admin')
+ *   acceptance?: { acceptedByUserId, termsVersion, privacyVersion, acceptanceMethod, ipAddress, userAgent }
+ *     -- opcional; só o wizard admin (origin 'admin') pode legitimamente
+ *     omitir (não grava nenhuma linha em contract_acceptances). Todo
+ *     checkout público/autenticado deve passar este bloco.
  *
- * createdByUserId is always derived by the ROUTE from the
- * authenticated admin's token -- never accepted inside payload.
+ * createdByUserId é o admin autenticado quando origin='admin'
+ * (obrigatório nesse caso, derivado pela ROTA a partir do token, nunca
+ * do payload) ou, para as demais origens, o usuário autenticado que
+ * iniciou a compra quando existir (aluno logado) -- pode ser null para
+ * um checkout público totalmente anônimo.
  */
-async function createStudentContractWithInitialInvoice(db, payload, createdByUserId) {
-  const actorUserId = normalizeId(createdByUserId, "Administrador responsável é obrigatório.");
-
+async function createStudentContractWithInitialInvoice(db, payload, createdByUserId, options = {}) {
   const {
     existingStudentId,
     newStudentData,
@@ -234,10 +246,31 @@ async function createStudentContractWithInitialInvoice(db, payload, createdByUse
     pricingPlanId,
     billingData = {},
     origin = "admin",
+    acceptance,
   } = payload || {};
 
-  if (!["admin", "public_checkout"].includes(origin)) {
+  if (!["admin", "public_checkout", "authenticated_checkout"].includes(origin)) {
     throw createServiceError("Origem do contrato inválida.", 400);
+  }
+
+  const actorUserId =
+    origin === "admin"
+      ? normalizeId(createdByUserId, "Administrador responsável é obrigatório.")
+      : createdByUserId
+        ? normalizeId(createdByUserId, "Usuário inválido.")
+        : null;
+
+  if (acceptance) {
+    if (acceptance.termsVersion !== CURRENT_TERMS_VERSION || acceptance.privacyVersion !== CURRENT_PRIVACY_VERSION) {
+      throw createServiceError(
+        "Os Termos de Uso ou a Política de Privacidade foram atualizados. Recarregue a página e aceite novamente.",
+        409
+      );
+    }
+
+    if (!acceptance.acceptanceMethod) {
+      throw createServiceError("Método de aceite do contrato é obrigatório.", 400);
+    }
   }
 
   const normalizedCourseId = normalizeId(courseId, "Curso é obrigatório e deve ser válido.");
@@ -250,10 +283,22 @@ async function createStudentContractWithInitialInvoice(db, payload, createdByUse
     throw createServiceError("Data de vencimento da primeira cobrança é obrigatória.", 400);
   }
 
-  const connection = await db.promise().getConnection();
+  // Aceita uma conexão de transação já aberta pelo chamador (ex.:
+  // submitPublicCheckoutContract, que precisa que a checagem de
+  // identidade + criação de aluno + criação de contrato aconteçam
+  // atomicamente, para nunca deixar um aluno novo "órfão" sem
+  // contrato se a criação do contrato falhar depois) -- mesmo padrão
+  // já usado por createNotificationEvent (runner pode ser o pool ou
+  // uma conexão existente). Quando `connection` é externa, esta
+  // função NUNCA chama beginTransaction/commit/rollback/release --
+  // quem abriu a transação é quem fecha.
+  const ownsTransaction = !options.connection;
+  const connection = options.connection || (await db.promise().getConnection());
 
   try {
-    await connection.beginTransaction();
+    if (ownsTransaction) {
+      await connection.beginTransaction();
+    }
 
     const { studentId } = await resolveStudent(db, connection, {
       existingStudentId,
@@ -340,6 +385,39 @@ async function createStudentContractWithInitialInvoice(db, payload, createdByUse
 
     const contractId = contractResult.insertId;
 
+    if (acceptance) {
+      await connection.query(
+        `
+          INSERT INTO contract_acceptances
+            (financial_contract_id, accepted_by_user_id, contracting_party_id,
+             accepted_name_snapshot, accepted_document_snapshot, accepted_email_snapshot,
+             terms_version, privacy_version, acceptance_method, ip_address, user_agent)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          contractId,
+          acceptance.acceptedByUserId || null,
+          resolvedContractingPartyId,
+          party.name,
+          party.document_number,
+          party.email,
+          acceptance.termsVersion,
+          acceptance.privacyVersion,
+          acceptance.acceptanceMethod,
+          acceptance.ipAddress || null,
+          acceptance.userAgent || null,
+        ]
+      );
+
+      await createFinancialEvent(connection, {
+        financialContractId: contractId,
+        eventType: "contract_acceptance_recorded",
+        source: origin === "admin" ? "admin" : "student",
+        actorUserId,
+        newValue: { acceptanceMethod: acceptance.acceptanceMethod },
+      });
+    }
+
     const isMonthly = plan.billing_type === "monthly_plan";
     const firstAmount = isMonthly ? Number(plan.monthly_payment_amount) : Number(plan.total_amount);
 
@@ -387,10 +465,12 @@ async function createStudentContractWithInitialInvoice(db, payload, createdByUse
       [invoiceId, contractId]
     );
 
+    const eventSource = origin === "admin" ? "admin" : "student";
+
     await createFinancialEvent(connection, {
       financialContractId: contractId,
       eventType: "contract_created",
-      source: "admin",
+      source: eventSource,
       actorUserId,
       newValue: {
         studentId,
@@ -404,7 +484,7 @@ async function createStudentContractWithInitialInvoice(db, payload, createdByUse
       financialContractId: contractId,
       invoiceId,
       eventType: "initial_invoice_created",
-      source: "admin",
+      source: eventSource,
       actorUserId,
       newValue: { amount: finalAmount, dueDate: billingData.dueDate },
     });
@@ -448,46 +528,42 @@ async function createStudentContractWithInitialInvoice(db, payload, createdByUse
       },
     });
 
-    await connection.commit();
+    // Um contratante sem conta CourseHub (party.user_id nulo) não
+    // consegue acessar /aluno/financeiro -- gera, ainda dentro desta
+    // transação, o token do link privado de pagamento
+    // (/pagamento/fatura?token=...) que a notificação abaixo vai usar
+    // no lugar daquele caminho autenticado. O token bruto só existe
+    // em memória aqui e no e-mail que o outbox entrega -- nunca é
+    // logado nem gravado em financial_events (ver
+    // invoicePaymentAccessTokens.js e
+    // notificationTypeRegistry.js#sensitiveActionPath).
+    let externalPaymentToken = null;
 
-    const [studentUserRows] = await db
-      .promise()
-      .query(`SELECT name FROM students WHERE id = ? LIMIT 1`, [studentId]);
-
-    const studentName = studentUserRows[0]?.name || "";
-
-    // The contracting party itself has a user_id only when it is
-    // linked to a real CourseHub account (always true for 'self'
-    // mode; possible but not required for 'existing'/'new' third
-    // parties) -- that is what decides internal vs external delivery,
-    // not the student's own account.
-    const recipient = party.user_id
-      ? { userId: party.user_id, email: party.email, name: party.name, role: "student" }
-      : { external: true, email: party.email, name: party.name };
-
-    try {
-      await createNotificationEvent(db, {
-        type: "financial.contract.billing_created",
-        sourceType: "financial_contract",
-        sourceId: contractId,
-        actorUserId,
-        context: {
-          contractId,
-          invoiceId,
-          studentName,
-          courseName: courseRows[0].name,
-          planName: plan.name,
-          amount: formatCurrency(finalAmount),
-          dueDate: formatDateBr(billingData.dueDate),
-        },
-        recipients: [recipient],
-        excludeActor: false,
+    if (!party.user_id) {
+      const { rawToken } = await createInvoicePaymentAccessToken(connection, {
+        invoiceId,
+        recipientName: party.name,
+        recipientEmail: party.email,
       });
-    } catch (notificationError) {
-      console.error(
-        "[contractCreationService] falha ao agendar e-mail de cobrança:",
-        notificationError
-      );
+
+      externalPaymentToken = rawToken;
+    }
+
+    if (ownsTransaction) {
+      await connection.commit();
+
+      await dispatchContractBillingNotification(db, {
+        contractId,
+        invoiceId,
+        studentId,
+        courseName: courseRows[0].name,
+        planName: plan.name,
+        amount: finalAmount,
+        dueDate: billingData.dueDate,
+        party,
+        externalPaymentToken,
+        actorUserId,
+      });
     }
 
     return {
@@ -496,12 +572,91 @@ async function createStudentContractWithInitialInvoice(db, payload, createdByUse
       studentId,
       contractingPartyId: resolvedContractingPartyId,
       status: "pending_payment",
+      // Só preenchido quando a transação é externa (o chamador
+      // precisa disso para disparar a notificação DEPOIS do próprio
+      // commit dele, nunca antes) -- ver
+      // dispatchContractBillingNotification (exportada) abaixo.
+      pendingBillingNotification: ownsTransaction
+        ? null
+        : {
+            contractId,
+            invoiceId,
+            studentId,
+            courseName: courseRows[0].name,
+            planName: plan.name,
+            amount: finalAmount,
+            dueDate: billingData.dueDate,
+            party,
+            externalPaymentToken,
+            actorUserId,
+          },
     };
   } catch (error) {
-    await connection.rollback();
+    if (ownsTransaction) {
+      await connection.rollback();
+    }
+
     throw error;
   } finally {
-    connection.release();
+    if (ownsTransaction) {
+      connection.release();
+    }
+  }
+}
+
+/**
+ * Extraído do fluxo principal para poder ser chamado tanto logo após
+ * o commit desta própria função (caso normal, transação própria)
+ * quanto pelo chamador de uma transação externa (submitPublicCheckoutContract),
+ * DEPOIS que o commit dele mesmo for bem-sucedido -- uma notificação
+ * nunca pode ser agendada antes de a escrita que ela anuncia estar
+ * de fato durável.
+ */
+async function dispatchContractBillingNotification(
+  db,
+  { contractId, invoiceId, studentId, courseName, planName, amount, dueDate, party, externalPaymentToken, actorUserId }
+) {
+  const [studentUserRows] = await db
+    .promise()
+    .query(`SELECT name FROM students WHERE id = ? LIMIT 1`, [studentId]);
+
+  const studentName = studentUserRows[0]?.name || "";
+
+  // The contracting party itself has a user_id only when it is
+  // linked to a real CourseHub account (always true for 'self'
+  // mode; possible but not required for 'existing'/'new' third
+  // parties) -- that is what decides internal vs external delivery,
+  // not the student's own account.
+  const recipient = party.user_id
+    ? { userId: party.user_id, email: party.email, name: party.name, role: "student" }
+    : { external: true, email: party.email, name: party.name };
+
+  try {
+    await createNotificationEvent(db, {
+      type: "financial.contract.billing_created",
+      sourceType: "financial_contract",
+      sourceId: contractId,
+      actorUserId,
+      context: {
+        contractId,
+        invoiceId,
+        studentName,
+        courseName,
+        planName,
+        amount: formatCurrency(amount),
+        dueDate: formatDateBr(dueDate),
+        externalPaymentPath: externalPaymentToken
+          ? `/pagamento/fatura?token=${externalPaymentToken}`
+          : undefined,
+      },
+      recipients: [recipient],
+      excludeActor: false,
+    });
+  } catch (notificationError) {
+    console.error(
+      "[contractCreationService] falha ao agendar e-mail de cobrança:",
+      notificationError
+    );
   }
 }
 
@@ -561,6 +716,23 @@ async function resendContractBilling(db, contractId, actorUserId) {
       }
     : { external: true, email: contract.contracting_party_email, name: contract.contracting_party_name };
 
+  // Mesma correção de financialContractBillingCreated.js: um
+  // contratante externo reenviado precisa de um link privado de
+  // pagamento novo (createAccessToken já invalida qualquer token
+  // anterior da mesma invoice). Roda direto no pool, não numa
+  // transação, já que esta função não abre uma.
+  let externalPaymentToken = null;
+
+  if (!contract.contracting_party_user_id) {
+    const { rawToken } = await createInvoicePaymentAccessToken(db.promise(), {
+      invoiceId: contract.invoice_id,
+      recipientName: contract.contracting_party_name,
+      recipientEmail: contract.contracting_party_email,
+    });
+
+    externalPaymentToken = rawToken;
+  }
+
   await createNotificationEvent(db, {
     type: "financial.contract.billing_created",
     sourceType: "financial_contract",
@@ -575,6 +747,9 @@ async function resendContractBilling(db, contractId, actorUserId) {
       amount: formatCurrency(contract.amount),
       dueDate: formatDateBr(contract.due_date),
       resendToken: crypto.randomUUID(),
+      externalPaymentPath: externalPaymentToken
+        ? `/pagamento/fatura?token=${externalPaymentToken}`
+        : undefined,
     },
     recipients: [recipient],
     excludeActor: false,
@@ -587,4 +762,6 @@ module.exports = {
   createServiceError,
   createStudentContractWithInitialInvoice,
   resendContractBilling,
+  loadValidatedPlan,
+  dispatchContractBillingNotification,
 };
