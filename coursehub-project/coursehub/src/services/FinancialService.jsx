@@ -247,3 +247,23 @@ export async function getInvoicePayment(paymentId) {
 
   return apiFetch(`/api/student/finance/payments/${paymentId}`);
 }
+
+/**
+ * deliveryMethod: "copy_link" | "email" | "whatsapp_message". Cada
+ * chamada invalida qualquer link anterior da mesma fatura. "email"
+ * só confirma o agendamento; "copy_link"/"whatsapp_message" trazem o
+ * link/mensagem em claro nesta resposta, UMA ÚNICA VEZ -- o chamador
+ * nunca deve persistir esse valor (nem em state global, nem em
+ * localStorage/sessionStorage), só copiar para a área de
+ * transferência e descartar.
+ */
+export async function generateInvoicePaymentLink(invoiceId, { deliveryMethod }) {
+  if (!invoiceId) {
+    throw new Error("O identificador da fatura é obrigatório.");
+  }
+
+  return apiFetch(`/api/admin/financial/invoices/${invoiceId}/payment-link`, {
+    method: "POST",
+    body: JSON.stringify({ deliveryMethod }),
+  });
+}

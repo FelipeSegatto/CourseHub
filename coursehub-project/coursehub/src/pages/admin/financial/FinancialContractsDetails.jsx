@@ -19,6 +19,10 @@ import { API_URL } from "../../../services/APIService";
 import ContractStatusBadge from "../../../components/financial/ContractStatusBadge";
 import ContractInvoicesTable from "../../../components/financial/ContractInvoicesTable";
 import FinancialEventsTimeline from "../../../components/financial/FinancialEventsTimeline";
+import AccountAccessCard from "../../../components/financial/AccountAccessCard";
+import InvoicePaymentLinkMenu from "../../../components/financial/InvoicePaymentLinkMenu";
+import DocumentDownloadButton from "../../../components/documents/DocumentDownloadButton";
+import { getAdminContractDocumentEndpoints } from "../../../services/DocumentGenerationService";
 
 const BILLING_TYPE_LABELS = {
   one_time: "Pagamento único",
@@ -470,6 +474,12 @@ export default function FinancialContractsDetails() {
               Ver termo do contrato
             </a>
 
+            <DocumentDownloadButton
+              endpoints={getAdminContractDocumentEndpoints(contract.id)}
+              label="contrato (PDF)"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
+            />
+
             <button
               type="button"
               onClick={() =>
@@ -589,6 +599,20 @@ export default function FinancialContractsDetails() {
               }
             />
           </dl>
+        </section>
+
+        <section className="mt-6 grid gap-4 sm:grid-cols-2">
+          <AccountAccessCard
+            userId={contract.student?.userId}
+            accountStatus={contract.student?.accountStatus}
+          />
+
+          {contract.status === "pending_payment" && contract.activationInvoiceId && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="mb-3 font-semibold text-slate-900">Compartilhar cobrança</h2>
+              <InvoicePaymentLinkMenu invoiceId={contract.activationInvoiceId} />
+            </div>
+          )}
         </section>
 
         <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

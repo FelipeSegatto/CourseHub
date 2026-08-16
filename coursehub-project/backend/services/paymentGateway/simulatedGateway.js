@@ -20,13 +20,32 @@ function addMinutes(date, minutes) {
 }
 
 /**
- * Cria uma tentativa de pagamento PIX simulado. Idempotente em
- * idempotencyKey: um create repetido (timeout, duplo clique) retorna
- * exatamente a mesma tentativa em vez de criar uma segunda -- igual
- * à garantia que a chave de idempotência de um gateway real oferece.
+ * Cria uma tentativa de pagamento simulada (pix, boleto ou cartão).
+ * Idempotente em idempotencyKey: um create repetido (timeout, duplo
+ * clique) retorna exatamente a mesma tentativa em vez de criar uma
+ * segunda -- igual à garantia que a chave de idempotência de um
+ * gateway real oferece.
+ *
+ * pix e boleto ficam "pending" até simulateApproval ser chamado (dev
+ * route), espelhando a natureza assíncrona real desses métodos.
+ * cartão aprova instantaneamente (síncrono, como um gateway real de
+ * cartão normalmente responde), exceto quando cardToken é o valor
+ * mágico documentado abaixo, para exercitar o caminho de recusa de
+ * forma determinística em teste.
  */
-async function createPayment({ paymentId, invoiceId, paymentMethod, amount, externalReference, idempotencyKey }) {
-  if (paymentMethod !== "pix") {
+const SIMULATED_DECLINED_CARD_TOKEN = "sim_card_declined";
+
+async function createPayment({
+  paymentId,
+  invoiceId,
+  paymentMethod,
+  amount,
+  externalReference,
+  idempotencyKey,
+  cardToken,
+  cardInstallments,
+}) {
+  if (!["pix", "boleto", "credit_card"].includes(paymentMethod)) {
     throw new Error(`O gateway simulado não suporta o método de pagamento "${paymentMethod}".`);
   }
 
@@ -36,24 +55,58 @@ async function createPayment({ paymentId, invoiceId, paymentMethod, amount, exte
     return { ...existing };
   }
 
-  const gatewayPaymentId = `sim_pix_${crypto.randomUUID()}`;
-  const expiresAt = addMinutes(new Date(), 30);
+  let result;
 
-  const result = {
-    gatewayPaymentId,
-    status: "pending",
-    gatewayStatus: "pending",
-    gatewayStatusDetail: "pending_waiting_transfer",
-    pixCopyPaste: ["000201", "COURSEHUB", gatewayPaymentId, externalReference, Number(amount).toFixed(2)].join("|"),
-    // Não é um QR Code real -- um marcador estável que o frontend
-    // pode renderizar como placeholder em desenvolvimento/testes.
-    pixQrCode: `SIMULATED_PIX_QR:${gatewayPaymentId}`,
-    pixExpiresAt: formatDateTimeForMySQL(expiresAt),
-    paidAt: null,
-  };
+  if (paymentMethod === "pix") {
+    const gatewayPaymentId = `sim_pix_${crypto.randomUUID()}`;
+    const expiresAt = addMinutes(new Date(), 30);
+
+    result = {
+      gatewayPaymentId,
+      status: "pending",
+      gatewayStatus: "pending",
+      gatewayStatusDetail: "pending_waiting_transfer",
+      pixCopyPaste: ["000201", "COURSEHUB", gatewayPaymentId, externalReference, Number(amount).toFixed(2)].join("|"),
+      // Não é um QR Code real -- um marcador estável que o frontend
+      // pode renderizar como placeholder em desenvolvimento/testes.
+      pixQrCode: `SIMULATED_PIX_QR:${gatewayPaymentId}`,
+      pixExpiresAt: formatDateTimeForMySQL(expiresAt),
+      paidAt: null,
+    };
+  } else if (paymentMethod === "boleto") {
+    const gatewayPaymentId = `sim_boleto_${crypto.randomUUID()}`;
+    const dueDate = addMinutes(new Date(), 3 * 24 * 60);
+
+    result = {
+      gatewayPaymentId,
+      status: "pending",
+      gatewayStatus: "pending",
+      gatewayStatusDetail: "pending_waiting_payment",
+      boletoBarcode: ["23790", "COURSEHUB", gatewayPaymentId, Number(amount).toFixed(2)].join("."),
+      // Não é um boleto real -- um marcador estável para dev/teste.
+      boletoUrl: `SIMULATED_BOLETO_URL:${gatewayPaymentId}`,
+      boletoDueDate: formatDateTimeForMySQL(dueDate),
+      paidAt: null,
+    };
+  } else {
+    const gatewayPaymentId = `sim_card_${crypto.randomUUID()}`;
+    const declined = cardToken === SIMULATED_DECLINED_CARD_TOKEN;
+
+    result = {
+      gatewayPaymentId,
+      status: declined ? "rejected" : "approved",
+      gatewayStatus: declined ? "rejected" : "approved",
+      gatewayStatusDetail: declined ? "cc_rejected_other_reason" : "accredited",
+      failureCode: declined ? "cc_rejected_other_reason" : null,
+      cardBrand: "visa",
+      cardLastFour: "1234",
+      cardInstallments: cardInstallments ? Number(cardInstallments) : 1,
+      paidAt: declined ? null : formatDateTimeForMySQL(new Date()),
+    };
+  }
 
   store.set(idempotencyKey, result);
-  store.set(gatewayPaymentId, result);
+  store.set(result.gatewayPaymentId, result);
 
   return { ...result };
 }
@@ -134,4 +187,5 @@ module.exports = {
   verifyWebhook,
   parseWebhook,
   simulateApproval,
+  SIMULATED_DECLINED_CARD_TOKEN,
 };

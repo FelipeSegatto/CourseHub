@@ -16,17 +16,22 @@
  * @property {string} email
  * @property {string} [firstName]
  * @property {string} [lastName]
+ * @property {string} [documentType] - "cpf" (por enquanto o único emitido pelo domínio), obrigatório na prática para boleto/cartão.
+ * @property {string} [documentNumber]
  *
  * @typedef {Object} CreatePaymentInput
  * @property {number} paymentId - payments.id da tentativa (já inserida com status 'created').
  * @property {number} invoiceId
- * @property {string} paymentMethod - por enquanto só "pix" está implementado de ponta a ponta.
+ * @property {"pix"|"boleto"|"credit_card"} paymentMethod
  * @property {number} amount - fonte da verdade: lido de invoices.amount pelo chamador, nunca do cliente.
  * @property {string} currency - ISO 4217, "BRL".
  * @property {string} description
  * @property {string} externalReference - "invoice:{invoiceId}:payment:{paymentId}".
  * @property {string} idempotencyKey - estável por tentativa; um retry precisa reutilizá-la, nunca gerar uma nova.
  * @property {GatewayPayer} payer
+ * @property {string} [cardToken] - só para paymentMethod "credit_card": token de uso único gerado NO NAVEGADOR pelo SDK do gateway (nunca dado bruto de cartão).
+ * @property {number} [cardInstallments] - só para "credit_card".
+ * @property {string} [cardPaymentMethodId] - só para "credit_card": bandeira identificada pelo SDK do gateway no navegador (ex.: "visa", "master").
  * @property {string} [notificationUrl] - URL do webhook, só faz sentido para gateways reais.
  *
  * @typedef {Object} GatewayPaymentResult
@@ -38,6 +43,12 @@
  * @property {string} [pixCopyPaste]
  * @property {string} [pixQrCode] - imagem do QR Code em base64 (ou um marcador simulado em dev).
  * @property {string} [pixExpiresAt] - "YYYY-MM-DD HH:mm:ss", formato DATETIME do MySQL.
+ * @property {string} [boletoBarcode] - linha digitável/código de barras do boleto.
+ * @property {string} [boletoUrl] - link para visualizar/imprimir o boleto.
+ * @property {string} [boletoDueDate] - "YYYY-MM-DD HH:mm:ss", vencimento do boleto emitido pelo gateway.
+ * @property {string} [cardBrand] - bandeira do cartão conforme identificada pelo gateway (nunca inferida pelo CourseHub).
+ * @property {string} [cardLastFour] - só os 4 últimos dígitos, exatamente como o gateway devolve -- nunca o PAN completo.
+ * @property {number} [cardInstallments]
  * @property {string} [paidAt] - "YYYY-MM-DD HH:mm:ss", preenchido só quando status já é "approved".
  *
  * @typedef {Object} GatewayRefundResult

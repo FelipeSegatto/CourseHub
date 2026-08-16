@@ -4,6 +4,8 @@ import {
   getPaymentMethodLabel,
   getPaymentStatusLabel,
 } from "./financeUtils";
+import DocumentDownloadButton from "../documents/DocumentDownloadButton";
+import { getStudentPaymentReceiptEndpoints } from "../../services/DocumentGenerationService";
 
 export default function PaymentRow({ payment }) {
   const paymentDate =
@@ -75,14 +77,24 @@ export default function PaymentRow({ payment }) {
         </p>
       </div>
 
-      <span
-        className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${
-          statusStyles[payment.status] ||
-          "bg-slate-100 text-slate-600"
-        }`}
-      >
-        {getPaymentStatusLabel(payment.status)}
-      </span>
+      <div className="flex items-center justify-end gap-3">
+        <span
+          className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${
+            statusStyles[payment.status] ||
+            "bg-slate-100 text-slate-600"
+          }`}
+        >
+          {getPaymentStatusLabel(payment.status)}
+        </span>
+
+        {payment.status === "approved" && (
+          <DocumentDownloadButton
+            endpoints={getStudentPaymentReceiptEndpoints(payment.id)}
+            label="recibo"
+            className="text-xs font-semibold text-blue-600 hover:underline"
+          />
+        )}
+      </div>
     </div>
   );
 }

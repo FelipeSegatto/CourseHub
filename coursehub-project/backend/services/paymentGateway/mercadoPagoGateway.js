@@ -57,9 +57,18 @@ function normalizeStatus(gatewayStatus) {
   }
 }
 
+/**
+ * Mapeia a resposta bruta do Mercado Pago para o resultado
+ * normalizado do domínio -- campos de boleto/cartão só são
+ * preenchidos quando `response.payment_type_id` indica esse método
+ * ("ticket" = boleto, "credit_card" = cartão), os demais ficam null,
+ * igual ao pix já fazia antes desta generalização.
+ */
 function mapPaymentResponse(response) {
   const transactionData = response.point_of_interaction?.transaction_data || {};
   const status = normalizeStatus(response.status);
+  const isBoleto = response.payment_type_id === "ticket";
+  const isCard = response.payment_type_id === "credit_card";
 
   return {
     gatewayPaymentId: response.id !== undefined && response.id !== null ? String(response.id) : null,
@@ -70,6 +79,14 @@ function mapPaymentResponse(response) {
     pixCopyPaste: transactionData.qr_code || null,
     pixQrCode: transactionData.qr_code_base64 || null,
     pixExpiresAt: response.date_of_expiration ? formatDateTimeForMySQL(response.date_of_expiration) : null,
+    boletoBarcode: isBoleto ? response.barcode?.content || null : null,
+    boletoUrl: isBoleto ? response.transaction_details?.external_resource_url || null : null,
+    boletoDueDate: isBoleto && response.date_of_expiration
+      ? formatDateTimeForMySQL(response.date_of_expiration)
+      : null,
+    cardBrand: isCard ? response.payment_method_id || null : null,
+    cardLastFour: isCard ? response.card?.last_four_digits || null : null,
+    cardInstallments: isCard ? response.installments || null : null,
     paidAt: response.date_approved ? formatDateTimeForMySQL(response.date_approved) : null,
     amount: response.transaction_amount ?? null,
     currency: response.currency_id || null,
@@ -78,12 +95,28 @@ function mapPaymentResponse(response) {
 }
 
 /**
- * Cria um pagamento PIX via POST /v1/payments. Só "pix" está
- * implementado de ponta a ponta por enquanto (ver
- * docs/features/payment-gateway.md#mvp) -- tokenização de cartão
- * fica fora do escopo até o frontend integrar o componente seguro de
- * cartão do próprio Mercado Pago (o CourseHub nunca pode ver dado
- * bruto de cartão, ver nota de PCI no mesmo doc).
+ * Cria um pagamento via POST /v1/payments -- pix, boleto ou cartão.
+ *
+ * pix e boleto nunca envolvem dado sensível: boleto só precisa de
+ * identificação do pagador (CPF/CNPJ), igual a qualquer emissão de
+ * boleto bancário.
+ *
+ * cartão (credit_card) só recebe `cardToken` -- o token de uso único
+ * que o Card Payment Brick do próprio Mercado Pago gera NO NAVEGADOR
+ * do pagador (ver coursehub/src/components/payment/CreditCardPaymentPanel.jsx),
+ * nunca dado bruto de cartão. O CourseHub não vê nem processa PAN,
+ * CVV ou validade em nenhum momento -- só repassa o token recebido do
+ * frontend para o campo `token` da API do Mercado Pago, exatamente
+ * como a documentação oficial de Checkout API exige.
+ *
+ * IMPORTANTE (risco residual documentado): os branches de boleto e
+ * cartão abaixo foram implementados a partir do formato documentado
+ * da API do Mercado Pago, mas não puderam ser verificados ao vivo
+ * contra um sandbox real neste ambiente (sem credenciais/rede). O
+ * branch de pix continua sendo o único verificado ponta a ponta em
+ * produção. Ver docs/features/payment-gateway.md e o relatório final
+ * desta missão para o risco residual completo antes de habilitar
+ * boleto/cartão reais.
  */
 async function createPayment({
   paymentMethod,
@@ -92,29 +125,63 @@ async function createPayment({
   externalReference,
   idempotencyKey,
   payer,
+  cardToken,
+  cardInstallments,
+  cardPaymentMethodId,
   notificationUrl,
 }) {
-  if (paymentMethod !== "pix") {
-    throw new Error(`O adaptador do Mercado Pago ainda não suporta o método de pagamento "${paymentMethod}".`);
-  }
-
   const client = new Payment(getConfig());
 
-  const response = await client.create({
-    body: {
+  const basePayer = {
+    email: payer.email,
+    first_name: payer.firstName || undefined,
+    last_name: payer.lastName || undefined,
+    identification:
+      payer.documentType && payer.documentNumber
+        ? { type: payer.documentType.toUpperCase(), number: payer.documentNumber }
+        : undefined,
+  };
+
+  let body;
+
+  if (paymentMethod === "pix") {
+    body = {
       transaction_amount: Number(amount),
       description,
       payment_method_id: "pix",
       external_reference: externalReference,
       notification_url: notificationUrl || undefined,
-      payer: {
-        email: payer.email,
-        first_name: payer.firstName || undefined,
-        last_name: payer.lastName || undefined,
-      },
-    },
-    requestOptions: { idempotencyKey },
-  });
+      payer: basePayer,
+    };
+  } else if (paymentMethod === "boleto") {
+    body = {
+      transaction_amount: Number(amount),
+      description,
+      payment_method_id: "bolbradesco",
+      external_reference: externalReference,
+      notification_url: notificationUrl || undefined,
+      payer: basePayer,
+    };
+  } else if (paymentMethod === "credit_card") {
+    if (!cardToken) {
+      throw new Error("Token de cartão é obrigatório para pagamento com cartão.");
+    }
+
+    body = {
+      transaction_amount: Number(amount),
+      description,
+      token: cardToken,
+      payment_method_id: cardPaymentMethodId,
+      installments: cardInstallments ? Number(cardInstallments) : 1,
+      external_reference: externalReference,
+      notification_url: notificationUrl || undefined,
+      payer: basePayer,
+    };
+  } else {
+    throw new Error(`O adaptador do Mercado Pago não suporta o método de pagamento "${paymentMethod}".`);
+  }
+
+  const response = await client.create({ body, requestOptions: { idempotencyKey } });
 
   return mapPaymentResponse(response);
 }

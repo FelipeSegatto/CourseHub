@@ -138,6 +138,147 @@ const accountActivationInvitationRateLimiter = rateLimit({
   },
 });
 
+/**
+ * Limita a troca de token por sessão / consulta de status no link
+ * privado de pagamento de invoice: 20 a cada 15 minutos por IP. Rota
+ * pré-sessão (ainda não há req.auth nem cookie de sessão válido para
+ * usar como chave), então só IP faz sentido -- generoso o bastante
+ * para um contratante legítimo abrindo o link algumas vezes, mas
+ * limita força bruta de token opaco.
+ */
+const invoicePaymentLinkAccessRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.",
+  },
+});
+
+/**
+ * Limita a ação administrativa de gerar/enviar/copiar o link de
+ * pagamento de uma fatura: 5 a cada 10 minutos por admin. Mesma
+ * motivação de accountActivationInvitationRateLimiter -- cada chamada
+ * invalida o link anterior, então sem limite um admin (ou uma sessão
+ * comprometida) poderia invalidar repetidamente o link que acabou de
+ * ser entregue ao contratante.
+ */
+const invoicePaymentLinkAdminRateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.auth?.userId ? String(req.auth.userId) : ipKeyGenerator(req.ip)),
+  message: {
+    message: "Muitos links gerados em pouco tempo. Aguarde um instante antes de tentar novamente.",
+  },
+});
+
+/**
+ * Limita a criação de tentativas de pagamento pelo link privado de
+ * invoice: 10 a cada 10 minutos por sessão de pagamento (fallback por
+ * IP se, por algum motivo, o middleware de sessão ainda não rodou).
+ * Mesmo teto de paymentCreateRateLimiter, só que chaveado pela sessão
+ * de pagamento em vez de req.auth.userId, já que este canal nunca tem
+ * um usuário autenticado.
+ */
+const publicInvoicePaymentCreateRateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) =>
+    req.invoicePaymentSession?.sessionId
+      ? `session:${req.invoicePaymentSession.sessionId}`
+      : ipKeyGenerator(req.ip),
+  message: {
+    message: "Muitas tentativas de pagamento em pouco tempo. Aguarde um instante antes de tentar novamente.",
+  },
+});
+
+/**
+ * Limita a criação de sessões de checkout público (curso + plano +
+ * e-mail): 5 a cada 15 minutos por IP. Primeira barreira contra spam
+ * de contratos falsos antes mesmo da verificação de e-mail entrar em
+ * jogo.
+ */
+const publicCheckoutSessionRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.",
+  },
+});
+
+/**
+ * Limita validação/confirmação de e-mail do checkout público: 8 a
+ * cada 15 minutos por IP -- mesmo teto de accountActivationRateLimiter,
+ * mesma motivação (evita força bruta contra o token opaco).
+ */
+const checkoutEmailVerificationRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.",
+  },
+});
+
+/**
+ * Limita a submissão final do checkout público (etapa 5 -- cria
+ * aluno/contratante/contrato/invoice e inicia o pagamento): 5 a cada
+ * 15 minutos por IP. É a rota mais cara desse fluxo (grava no banco),
+ * então o teto é mais apertado que os de leitura/verificação.
+ */
+const checkoutContractSubmitRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.",
+  },
+});
+
+/**
+ * Limita a solicitação de geração de documentos formais (contrato, 2ª
+ * via de fatura, recibo): 15 a cada 10 minutos por usuário. Cada
+ * chamada é idempotente (não gera trabalho novo se já existe um
+ * documento pronto para a mesma chave), então o teto só precisa
+ * impedir abuso deliberado do worker, não uso normal.
+ */
+const documentGenerationRequestRateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.auth?.userId ? String(req.auth.userId) : ipKeyGenerator(req.ip)),
+  message: {
+    message: "Muitas solicitações de documento em pouco tempo. Aguarde um instante antes de tentar novamente.",
+  },
+});
+
+/**
+ * Limita o download de documentos gerados: 30 a cada 10 minutos por
+ * usuário. Mais generoso que a geração (é só leitura de um arquivo já
+ * pronto), mas ainda com teto para dificultar automatizar o download
+ * em massa de documentos de terceiros mesmo que uma sessão vaze.
+ */
+const documentDownloadRateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.auth?.userId ? String(req.auth.userId) : ipKeyGenerator(req.ip)),
+  message: {
+    message: "Muitos downloads em pouco tempo. Aguarde um instante antes de tentar novamente.",
+  },
+});
+
 module.exports = {
   loginRateLimiter,
   forgotPasswordRateLimiter,
@@ -147,4 +288,12 @@ module.exports = {
   paymentCreateRateLimiter,
   accountActivationRateLimiter,
   accountActivationInvitationRateLimiter,
+  invoicePaymentLinkAccessRateLimiter,
+  invoicePaymentLinkAdminRateLimiter,
+  publicInvoicePaymentCreateRateLimiter,
+  publicCheckoutSessionRateLimiter,
+  checkoutEmailVerificationRateLimiter,
+  checkoutContractSubmitRateLimiter,
+  documentGenerationRequestRateLimiter,
+  documentDownloadRateLimiter,
 };

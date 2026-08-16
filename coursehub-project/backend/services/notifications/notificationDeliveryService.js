@@ -50,10 +50,13 @@ async function claimBatch(db, { batchSize, workerId, leaseMinutes }) {
           nd.attempt_count,
           nd.destination_snapshot,
 
+          n.type,
           n.title,
           n.message,
           n.priority,
 
+          nr.id AS recipient_id,
+          nr.user_id,
           nr.action_path
 
         FROM notification_deliveries nd
@@ -154,11 +157,28 @@ async function markDeliveryFailed(db, { deliveryId, previousAttemptCount, errorM
   return { exhausted, newAttemptCount };
 }
 
+/**
+ * Apaga o action_path de um destinatário depois de uma entrega bem
+ * sucedida -- só chamado pelo worker quando o tipo de notificação está
+ * marcado sensitiveActionPath (ver notificationTypeRegistry.js) E o
+ * destinatário é externo (sem user_id, então nunca lê o próprio inbox
+ * in-app). Depois disso, o valor bruto (que podia embutir um token de
+ * uso único) não fica mais recuperável a partir de
+ * notification_recipients -- compartilhar o link de novo sempre exige
+ * gerar um token novo.
+ */
+async function clearRecipientActionPath(db, recipientId) {
+  await db.promise().query(`UPDATE notification_recipients SET action_path = NULL WHERE id = ?`, [
+    recipientId,
+  ]);
+}
+
 module.exports = {
   createServiceError,
   claimBatch,
   markDeliverySent,
   markDeliveryFailed,
+  clearRecipientActionPath,
   getMaxAttempts,
   getRetryDelaysMinutes,
 };

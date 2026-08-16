@@ -18,6 +18,22 @@ function isFunction(value) {
  * has no domain resolvers yet -- callers pass pre-resolved
  * recipients directly). It documents WHO the type is meant to reach,
  * so stage 5's resolvers have a contract to implement against.
+ *
+ * sensitiveActionPath (optional, default false) declares that this
+ * type's buildActionPath() MAY embed a one-time secret (e.g. a raw
+ * checkout/invoice-payment token in the URL) for an EXTERNAL
+ * recipient (no CourseHub account, no in-app inbox that would ever
+ * need to re-read it). The email worker
+ * (workers/notificationEmailWorker.js) nulls out
+ * notification_recipients.action_path for such a recipient right
+ * after a successful send, so the raw token does not linger at rest
+ * in the outbox once delivered -- it is never re-derivable from
+ * notification_recipients after that point; sharing the link again
+ * always requires generating a brand new token. This never applies to
+ * an internal recipient (user_id set) even on a type flagged true --
+ * the worker only clears it when the recipient has no user_id, since
+ * only internal recipients ever read action_path back via the in-app
+ * inbox (notificationQueryService.js).
  */
 function validateDefinition(definition) {
   if (!definition || typeof definition !== "object") {
@@ -65,6 +81,15 @@ function validateDefinition(definition) {
 
   if (definition.recipientPolicy !== undefined && typeof definition.recipientPolicy !== "string") {
     throw new Error(`Notification type "${type}": 'recipientPolicy', when present, must describe the resolver as a string.`);
+  }
+
+  if (
+    definition.sensitiveActionPath !== undefined &&
+    typeof definition.sensitiveActionPath !== "boolean"
+  ) {
+    throw new Error(
+      `Notification type "${type}": 'sensitiveActionPath', when present, must be a boolean.`
+    );
   }
 }
 

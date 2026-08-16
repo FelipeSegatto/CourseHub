@@ -36,7 +36,24 @@ registerNotificationType({
       "A matrícula será liberada automaticamente assim que o pagamento for confirmado.",
     ].join("\n"),
 
-  buildActionPath: () => "/aluno/financeiro",
+  // O contratante interno (tem conta CourseHub) acessa sua própria
+  // área financeira normalmente. Já o contratante externo (sem
+  // conta -- ver contracting_parties.user_id nullable) não consegue
+  // logar ali: para ele, context.externalPaymentPath traz o link
+  // privado e seguro de pagamento daquela invoice específica
+  // (/pagamento/fatura?token=..., gerado por
+  // contractCreationService.js junto com a criação/reenvio da
+  // cobrança). `role` só vem preenchido para destinatário interno
+  // (ver notificationService.js#createNotificationEvent) -- é isso
+  // que decide o branch, não um campo à parte no contexto.
+  buildActionPath: (context, role) => (role ? "/aluno/financeiro" : context.externalPaymentPath || "/aluno/financeiro"),
+
+  // externalPaymentPath embute um token de pagamento de uso -- ver
+  // notificationTypeRegistry.js#sensitiveActionPath: o worker de
+  // e-mail apaga notification_recipients.action_path do destinatário
+  // externo assim que a entrega é confirmada, então o valor bruto não
+  // fica em repouso na tabela depois de enviado.
+  sensitiveActionPath: true,
 
   // A manual "reenviar cobrança" action passes a fresh resendToken so
   // each explicit resend creates a genuinely new notification+delivery

@@ -554,11 +554,14 @@ async function getFinancialContractDetails(
             fc.updated_at,
             s.name AS student_name,
             s.registration_number AS student_registration_number,
+            s.user_id AS student_user_id,
+            u.status AS student_account_status,
             co.name AS course_name,
             cp.name AS contracting_party_current_name,
             cp.email AS contracting_party_current_email
           FROM financial_contracts fc
           LEFT JOIN students s ON s.id = fc.student_id
+          LEFT JOIN users u ON u.id = s.user_id
           LEFT JOIN courses co ON co.id = fc.course_id
           LEFT JOIN contracting_parties cp ON cp.id = fc.contracting_party_id
           WHERE fc.id = ?
@@ -737,6 +740,8 @@ async function getFinancialContractDetails(
               id: contract.student_id,
               name: contract.student_name,
               registrationNumber: contract.student_registration_number,
+              userId: contract.student_user_id,
+              accountStatus: contract.student_account_status,
             }
           : null,
         course: contract.course_id

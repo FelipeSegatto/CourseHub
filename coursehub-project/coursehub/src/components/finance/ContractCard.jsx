@@ -8,6 +8,8 @@ import {
   formatDate,
   getContractStatusLabel,
 } from "./financeUtils";
+import DocumentDownloadButton from "../documents/DocumentDownloadButton";
+import { getStudentContractDocumentEndpoints } from "../../services/DocumentGenerationService";
 
 export default function ContractCard({ contract }) {
   const courseName =
@@ -83,6 +85,14 @@ export default function ContractCard({ contract }) {
           <p className="mt-1 text-lg font-semibold text-slate-900">
             {formatCurrency(totalAmount)}
           </p>
+
+          <div className="mt-3">
+            <DocumentDownloadButton
+              endpoints={getStudentContractDocumentEndpoints(contract.id)}
+              label="contrato (PDF)"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+            />
+          </div>
         </div>
       </div>
     </article>

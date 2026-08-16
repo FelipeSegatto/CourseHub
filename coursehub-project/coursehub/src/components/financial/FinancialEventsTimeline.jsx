@@ -29,6 +29,12 @@ const EVENT_TYPE_LABELS = {
     "Link de ativação gerado manualmente",
   account_activation_previous_tokens_invalidated:
     "Convites de ativação anteriores invalidados",
+
+  // Checkout multi-canal e link de pagamento
+  contract_acceptance_recorded: "Aceite do contrato registrado",
+  invoice_payment_link_generated: "Link de pagamento gerado",
+  invoice_payment_link_sent: "Link de pagamento enviado por e-mail",
+  invoice_payment_link_message_prepared: "Mensagem de WhatsApp preparada",
 };
 
 const SOURCE_LABELS = {
@@ -95,6 +101,7 @@ const VALUE_ENUM_LABELS = {
   manual_link: "Link manual",
   admin: "Comercial (admin)",
   public_checkout: "Checkout público",
+  authenticated_checkout: "Checkout autenticado",
   migration: "Migração",
   scholarship: "Bolsa",
   courtesy: "Cortesia",
