@@ -79,6 +79,8 @@ const adminAcademicDocumentsRoutes = require("./routes/adminAcademicDocumentsRou
 const studentAcademicDocumentsRoutes = require("./routes/studentAcademicDocumentsRoutes");
 const teacherAcademicDocumentsRoutes = require("./routes/teacherAcademicDocumentsRoutes");
 const publicDocumentVerificationRoutes = require("./routes/publicDocumentVerificationRoutes");
+const adminAcademicProgressRoutes = require("./routes/adminAcademicProgressRoutes");
+const adminReportsRoutes = require("./routes/adminReportsRoutes");
 
 const notificationRoutes = require("./routes/notificationRoutes");
 const notificationPreferenceRoutes = require("./routes/notificationPreferenceRoutes");
@@ -184,6 +186,8 @@ app.use("/api/admin/academic-documents", adminAcademicDocumentsRoutes);
 app.use("/api/student/academic-documents", studentAcademicDocumentsRoutes);
 app.use("/api/teacher/academic-documents", teacherAcademicDocumentsRoutes);
 app.use("/api/public/documents", publicDocumentVerificationRoutes);
+app.use("/api", adminAcademicProgressRoutes);
+app.use("/api/admin/reports", adminReportsRoutes);
 
 /* ==========================================================
    INICIALIZAÇÃO DA API

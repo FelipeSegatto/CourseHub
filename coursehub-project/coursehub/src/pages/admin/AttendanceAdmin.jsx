@@ -4,6 +4,7 @@ import { AdminAttendanceService } from "../../services/AdminAttendanceService";
 import { listClasses } from "../../services/AdminClassService";
 
 import ManagementPageShell from "../../components/ui/ManagementPageShell";
+import ExportPdfButton from "../../components/reports/ExportPdfButton";
 import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
 import { formatDisplayDate } from "../../utils/dateUtils";
@@ -281,6 +282,11 @@ export default function AttendanceAdmin() {
               />
               Só ajustadas
             </label>
+
+            <ExportPdfButton
+              basePath="/api/admin/reports/attendance"
+              filters={{ search, courseId, classId, status, adjustedOnly: adjustedOnly || undefined }}
+            />
           </div>
         }
         searchValue={searchInput}

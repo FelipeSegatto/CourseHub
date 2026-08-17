@@ -4,6 +4,7 @@ import { AdminGradeService } from "../../services/AdminGradeService";
 import { listClasses } from "../../services/AdminClassService";
 
 import ManagementPageShell from "../../components/ui/ManagementPageShell";
+import ExportPdfButton from "../../components/reports/ExportPdfButton";
 import AdminTable from "../../components/admin/AdminTable";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
@@ -290,6 +291,11 @@ export default function GradesAdmin() {
               />
               Só ajustadas
             </label>
+
+            <ExportPdfButton
+              basePath="/api/admin/reports/grades"
+              filters={{ search, courseId, classId, teacherId, adjustedOnly: adjustedOnly || undefined }}
+            />
           </div>
         }
         searchValue={searchInput}

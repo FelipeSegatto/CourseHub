@@ -296,6 +296,23 @@ const documentVerificationRateLimiter = rateLimit({
   },
 });
 
+/**
+ * Limita a exportação de relatórios em PDF: 15 a cada 10 minutos por
+ * usuário -- mesmo teto de documentGenerationRequestRateLimiter, já
+ * que renderizar um relatório também sobe um Chromium e monta um PDF
+ * completo, o mesmo tipo de operação cara.
+ */
+const reportExportRateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.auth?.userId ? String(req.auth.userId) : ipKeyGenerator(req.ip)),
+  message: {
+    message: "Muitas exportações de relatório em pouco tempo. Aguarde um instante antes de tentar novamente.",
+  },
+});
+
 module.exports = {
   loginRateLimiter,
   forgotPasswordRateLimiter,
@@ -314,4 +331,5 @@ module.exports = {
   documentGenerationRequestRateLimiter,
   documentDownloadRateLimiter,
   documentVerificationRateLimiter,
+  reportExportRateLimiter,
 };
