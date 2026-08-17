@@ -10,6 +10,7 @@ import {
 import { listClasses } from "../../services/AdminClassService";
 
 import ManagementPageShell from "../../components/ui/ManagementPageShell";
+import ExportPdfButton from "../../components/reports/ExportPdfButton";
 import AdminEnrollmentModal from "../../components/admin/AdminEnrollmentModal";
 import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
@@ -348,6 +349,11 @@ export default function EnrollmentsAdmin() {
               }}
               className={inputClass}
               title="Até"
+            />
+
+            <ExportPdfButton
+              basePath="/api/admin/reports/enrollments"
+              filters={{ search, courseId, classId, status, from, to }}
             />
           </div>
         }

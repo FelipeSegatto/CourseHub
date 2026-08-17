@@ -15,6 +15,7 @@ import {
 } from "../../../services/FinancialService";
 
 import FinancialInvoicesTable from "../../../components/financial/FinancialInvoicesTable";
+import ExportPdfButton from "../../../components/reports/ExportPdfButton";
 
 const INITIAL_PAGINATION = {
   page: 1,
@@ -560,6 +561,17 @@ export default function FinancialInvoicesAdmin() {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
+            <ExportPdfButton
+              basePath="/api/admin/reports/financial-invoices"
+              filters={{
+                status: filters.status,
+                contractId: filters.contractId,
+                dueFrom: filters.dueDateFrom,
+                dueTo: filters.dueDateTo,
+                search: debouncedSearch,
+              }}
+            />
+
             <button
               type="button"
               onClick={() =>

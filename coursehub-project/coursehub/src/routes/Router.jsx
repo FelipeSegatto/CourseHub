@@ -64,6 +64,7 @@ import PricingPlansAdmin from "../pages/admin/PricingPlansAdmin";
 import CalendarAdmin from "../pages/admin/CalendarAdmin";
 import GradesAdmin from "../pages/admin/GradesAdmin";
 import AttendanceAdmin from "../pages/admin/AttendanceAdmin";
+import AcademicProgressAdmin from "../pages/admin/AcademicProgressAdmin";
 import NotificationsAdmin from "../pages/admin/NotificationsAdmin";
 import ChatAdmin from "../pages/admin/ChatAdmin";
 import ModerationAdmin from "../pages/admin/ModerationAdmin";
@@ -428,6 +429,10 @@ export const router = createBrowserRouter([
               {
                 path: "frequencia",
                 element: <AttendanceAdmin />,
+              },
+              {
+                path: "progressao",
+                element: <AcademicProgressAdmin />,
               },
               {
                 path: "financeiro",
