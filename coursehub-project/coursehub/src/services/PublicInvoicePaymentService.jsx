@@ -25,3 +25,11 @@ export async function createPublicInvoicePayment(paymentMethod, extra = {}) {
 export async function getPublicInvoicePayment(paymentId) {
   return apiFetch(`${BASE}/payments/${paymentId}`);
 }
+
+/** "Não encontrou seu link?" -- sempre resolve com a mesma mensagem genérica. */
+export async function requestInvoicePaymentLinkByEmail(email) {
+  return apiFetch(`${BASE}/request-link`, {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}

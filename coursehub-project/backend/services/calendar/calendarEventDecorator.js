@@ -90,7 +90,41 @@ function decorateLabels(basicDto, { role, userContext }) {
 }
 
 function decorateActions(basicDto, { role, userContext }) {
-  const { sourceType, indicatorType, deepLink, status } = basicDto;
+  const { sourceType, indicatorType, deepLink, status, classId, sourceId } = basicDto;
+
+  // Encontro (class_session): "Gerenciar encontro" aponta pra
+  // Encontros (professor ou admin, conforme o papel de quem está
+  // olhando o calendário) -- não depende de deepLink (que hoje só
+  // existe pro professor, ver classSessionCalendarAdapter.js), por
+  // isso é resolvido aqui direto a partir de classId/sourceId, antes
+  // do corte "sem deepLink, sem ação" que vale pros outros tipos.
+  if (sourceType === "class_session") {
+    const actions = [];
+
+    if (role === "teacher" && deepLink) {
+      actions.push({ type: "navigate", label: "Abrir turma", target: deepLink, disabled: false, reason: null });
+    }
+
+    if (role === "teacher") {
+      actions.push({
+        type: "navigate",
+        label: "Gerenciar encontro",
+        target: `/professor/encontros?classId=${classId}&sessionId=${sourceId}`,
+        disabled: false,
+        reason: null,
+      });
+    } else if (role === "admin") {
+      actions.push({
+        type: "navigate",
+        label: "Gerenciar encontro",
+        target: `/admin/encontros?classId=${classId}&sessionId=${sourceId}`,
+        disabled: false,
+        reason: null,
+      });
+    }
+
+    return actions;
+  }
 
   if (sourceType === "academic_event") {
     if (role !== "admin") return [];
@@ -158,12 +192,6 @@ function decorateActions(basicDto, { role, userContext }) {
   if (sourceType === "course_content") {
     return [
       { type: "navigate", label: "Abrir material", target: deepLink, disabled: false, reason: null },
-    ];
-  }
-
-  if (sourceType === "class_session" && role === "teacher") {
-    return [
-      { type: "navigate", label: "Abrir turma", target: deepLink, disabled: false, reason: null },
     ];
   }
 

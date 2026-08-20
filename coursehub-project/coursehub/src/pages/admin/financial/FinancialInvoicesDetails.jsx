@@ -533,19 +533,21 @@ export default function FinancialInvoicesDetails() {
                 <thead className="border-b border-slate-200 bg-slate-50">
                   <tr>
                     {[
-                      "Pagamento",
-                      "Valor",
-                      "Forma",
-                      "Status",
-                      "Data",
-                      "Referência",
-                      "",
-                    ].map((label) => (
+                      { label: "Pagamento", align: "left" },
+                      { label: "Valor", align: "right" },
+                      { label: "Forma", align: "left" },
+                      { label: "Status", align: "left" },
+                      { label: "Data", align: "left" },
+                      { label: "Referência", align: "left" },
+                      { label: "", align: "right" },
+                    ].map((column) => (
                       <th
-                        key={label}
-                        className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
+                        key={column.label || "actions"}
+                        className={`px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 ${
+                          column.align === "right" ? "text-right" : "text-left"
+                        }`}
                       >
-                        {label}
+                        {column.label}
                       </th>
                     ))}
                   </tr>
@@ -561,7 +563,7 @@ export default function FinancialInvoicesDetails() {
                         #{payment.id}
                       </td>
 
-                      <td className="px-5 py-4 text-sm font-semibold text-emerald-700">
+                      <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold tabular-nums text-emerald-700">
                         {formatCurrency(
                           payment.amount
                         )}

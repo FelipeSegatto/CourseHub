@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { apiFetch } from "../../services/APIService";
 
 import {
@@ -12,6 +13,8 @@ import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminClassModal from "../../components/admin/AdminClassModal";
 import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
+import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const STATUS_OPTIONS = [
@@ -246,10 +249,10 @@ export default function ClassesAdmin() {
     { key: "shift", label: "Turno" },
     { key: "start_date", label: "Início" },
     { key: "end_date", label: "Término" },
-    { key: "active_enrollments", label: "Alunos ativos" },
-    { key: "session_count", label: "Sessões" },
+    { key: "active_enrollments", label: "Alunos ativos", align: "right" },
+    { key: "session_count", label: "Sessões", align: "right" },
     { key: "status", label: "Status" },
-    { key: "actions", label: "Ações" },
+    { key: "actions", label: "Ações", align: "right" },
   ];
 
   const inputClass =
@@ -362,51 +365,51 @@ export default function ClassesAdmin() {
               emptyMessage="Nenhuma turma encontrada."
               renderRow={(classItem) => (
                 <tr key={classItem.id} className="border-b border-gray-100">
-                  <td className="py-5">
-                    <p className="font-semibold text-gray-900">{classItem.name}</p>
+                  <td className="px-3 py-3">
+                    <p className="text-sm font-semibold text-gray-900">{classItem.name}</p>
                   </td>
 
-                  <td className="py-5 text-gray-600">{classItem.course?.name || "-"}</td>
-                  <td className="py-5 text-gray-600">
+                  <td className="px-3 py-3 text-sm text-gray-600">{classItem.course?.name || "-"}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">
                     {classItem.teacher?.name || "-"}
                   </td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                     {SHIFT_OPTIONS.find((option) => option.value === classItem.shift)
                       ?.label || classItem.shift}
                   </td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                     {formatShortDate(classItem.startDate)}
                   </td>
-                  <td className="py-5 text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                     {formatShortDate(classItem.endDate)}
                   </td>
 
-                  <td className="py-5 text-gray-600">{classItem.activeEnrollments}</td>
-                  <td className="py-5 text-gray-600">{classItem.sessionCount}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-gray-600">{classItem.activeEnrollments}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-gray-600">{classItem.sessionCount}</td>
 
-                  <td className="py-5">
+                  <td className="whitespace-nowrap px-3 py-3">
                     <StatusBadge status={classItem.status} />
                   </td>
 
-                  <td className="py-5">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEditClick(classItem)}
-                        className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200"
-                      >
+                  <td className="whitespace-nowrap px-3 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <TableActionButton variant="accent" size="sm" onClick={() => handleEditClick(classItem)}>
                         Editar
-                      </button>
+                      </TableActionButton>
 
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveClick(classItem)}
-                        className="rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-200"
-                      >
-                        Remover
-                      </button>
+                      <RowActionsMenu
+                        items={[
+                          {
+                            key: "delete",
+                            label: "Remover",
+                            icon: Trash2,
+                            variant: "danger",
+                            onClick: () => handleRemoveClick(classItem),
+                          },
+                        ]}
+                      />
                     </div>
                   </td>
                 </tr>

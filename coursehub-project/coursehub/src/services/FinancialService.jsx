@@ -63,6 +63,25 @@ export async function cancelFinancialContract(contractId, payload) {
   });
 }
 
+export async function getContractWithdrawalImpact(contractId) {
+  if (!contractId) {
+    throw new Error("O identificador do contrato financeiro é obrigatório.");
+  }
+
+  return apiFetch(`/api/admin/financial/contracts/${contractId}/withdrawal-impact`);
+}
+
+export async function registerContractWithdrawal(contractId, payload) {
+  if (!contractId) {
+    throw new Error("O identificador do contrato financeiro é obrigatório.");
+  }
+
+  return apiFetch(`/api/admin/financial/contracts/${contractId}/withdrawal`, {
+    method: "POST",
+    body: JSON.stringify(payload || {}),
+  });
+}
+
 export async function sendContractInvoice(contractId) {
   if (!contractId) {
     throw new Error("O identificador do contrato financeiro é obrigatório.");

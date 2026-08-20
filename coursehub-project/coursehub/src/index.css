@@ -173,3 +173,37 @@ body {
 .animate-check-pop {
   animation: checkPop 280ms ease-out;
 }
+
+/* ======================================================
+   IMPRESSÃO (window.print())
+   Usado pelo botão "Exportar PDF" dos dashboards administrativos
+   que ainda não têm filtro real na tela -- ver PrintPageButton.jsx.
+   .print-hide some do impresso (navbar, botões, navegação pura).
+   .print-avoid-break nunca corta um card/artigo no meio entre
+   páginas -- aplicado por classe (.rounded-2xl é o marcador de
+   "card" já usado consistentemente pelos dashboards) em vez de
+   marcar cada componente manualmente.
+====================================================== */
+
+@media print {
+  .print-hide {
+    display: none !important;
+  }
+
+  .print-area .rounded-2xl,
+  .print-area .rounded-xl,
+  .print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body {
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @page {
+    margin: 12mm;
+  }
+}

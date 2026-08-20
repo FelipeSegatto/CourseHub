@@ -81,6 +81,8 @@ const teacherAcademicDocumentsRoutes = require("./routes/teacherAcademicDocument
 const publicDocumentVerificationRoutes = require("./routes/publicDocumentVerificationRoutes");
 const adminAcademicProgressRoutes = require("./routes/adminAcademicProgressRoutes");
 const adminReportsRoutes = require("./routes/adminReportsRoutes");
+const adminStudentProgressRoutes = require("./routes/adminStudentProgressRoutes");
+const adminClassSessionRoutes = require("./routes/adminClassSessionRoutes");
 
 const notificationRoutes = require("./routes/notificationRoutes");
 const notificationPreferenceRoutes = require("./routes/notificationPreferenceRoutes");
@@ -91,6 +93,7 @@ const adminSystemHealthRoutes = require("./routes/adminSystemHealthRoutes");
 const paymentWebhookRoutes = require("./routes/paymentWebhookRoutes");
 const publicInvoicePaymentRoutes = require("./routes/publicInvoicePaymentRoutes");
 const publicCheckoutRoutes = require("./routes/publicCheckoutRoutes");
+const publicInstitutionRoutes = require("./routes/publicInstitutionRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -148,6 +151,7 @@ app.use("/api", adminSystemHealthRoutes);
 app.use("/api", paymentWebhookRoutes);
 app.use("/api/public/invoice-payment", publicInvoicePaymentRoutes);
 app.use("/api/public/checkout", publicCheckoutRoutes);
+app.use("/api/public", publicInstitutionRoutes);
 
 app.use("/api", studentCourseRoutes);
 app.use("/api", studentProgressRoutes);
@@ -188,6 +192,8 @@ app.use("/api/teacher/academic-documents", teacherAcademicDocumentsRoutes);
 app.use("/api/public/documents", publicDocumentVerificationRoutes);
 app.use("/api", adminAcademicProgressRoutes);
 app.use("/api/admin/reports", adminReportsRoutes);
+app.use("/api", adminStudentProgressRoutes);
+app.use("/api", adminClassSessionRoutes);
 
 /* ==========================================================
    INICIALIZAÇÃO DA API

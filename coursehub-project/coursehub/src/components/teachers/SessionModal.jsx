@@ -3,9 +3,6 @@ import {
   useState,
 } from "react";
 
-import { useAuth } from "../../auth/AuthContext";
-import { apiFetch } from "../../services/APIService";
-
 const sessionTypeOptions = [
   {
     value: "class",
@@ -200,6 +197,13 @@ function getErrorMessage(error) {
   );
 }
 
+/**
+ * Formulário compartilhado de encontro (professor e admin usam o
+ * mesmo componente, mesma validação, mesmos campos) -- quem chama
+ * decide COMO salvar via onSubmit, este componente nunca sabe se
+ * quem está salvando é o professor dono da turma ou um administrador.
+ * onSubmit(payload, {isEditing, session, classId}) => Promise<savedSession>
+ */
 export default function SessionModal({
   open,
   classId,
@@ -207,9 +211,8 @@ export default function SessionModal({
   nextSessionNumber = 1,
   onClose,
   onSaved,
+  onSubmit,
 }) {
-  const { usuarioLogado } = useAuth();
-
   const [form, setForm] = useState(
     initialSessionForm
   );
@@ -321,14 +324,6 @@ export default function SessionModal({
   async function handleSubmit(event) {
     event.preventDefault();
 
-    if (!usuarioLogado?.id) {
-      setError(
-        "Não foi possível identificar o professor."
-      );
-
-      return;
-    }
-
     if (!classId && !isEditing) {
       setError(
         "Não foi possível identificar a turma."
@@ -352,29 +347,11 @@ export default function SessionModal({
       setSaving(true);
       setError("");
 
-      let data;
-
-      if (isEditing) {
-        data = await apiFetch(
-          `/api/teacher/by-user/${usuarioLogado.id}/class-sessions/${session.id}`,
-          {
-            method: "PUT",
-            body: JSON.stringify(
-              payload
-            ),
-          }
-        );
-      } else {
-        data = await apiFetch(
-          `/api/teacher/by-user/${usuarioLogado.id}/classes/${classId}/sessions`,
-          {
-            method: "POST",
-            body: JSON.stringify(
-              payload
-            ),
-          }
-        );
-      }
+      const data = await onSubmit(payload, {
+        isEditing,
+        session,
+        classId,
+      });
 
       const savedSession =
         data?.session;

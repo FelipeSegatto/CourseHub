@@ -14,10 +14,12 @@ function buildQueryString(params = {}) {
   return query.toString();
 }
 
-export async function listAcademicProgress(params = {}) {
+export async function listStudentProgress(params = {}) {
   const queryString = buildQueryString(params);
 
-  return apiFetch(
-    queryString ? `/api/admin/academic-progress?${queryString}` : "/api/admin/academic-progress"
-  );
+  return apiFetch(queryString ? `/api/admin/student-progress?${queryString}` : "/api/admin/student-progress");
+}
+
+export async function getEnrollmentProgress(enrollmentId) {
+  return apiFetch(`/api/admin/student-progress/enrollments/${enrollmentId}`);
 }

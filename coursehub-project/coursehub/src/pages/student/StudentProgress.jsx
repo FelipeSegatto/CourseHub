@@ -9,47 +9,16 @@ import {
   useNavigate,
 } from "react-router-dom";
 
-import {
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts";
-
 import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
 
 import StudentManagementPage from "../../components/students/StudentManagementPage";
 import StatusBadge from "../../components/ui/StatusBadge";
-
-/*
- * Cores dos gráficos de rosca.
- *
- * Conteúdo:
- * - verde: concluído;
- * - azul: em andamento;
- * - cinza: não iniciado.
- */
-const contentChartColors = [
-  "#22c55e",
-  "#3b82f6",
-  "#d1d5db",
-];
-
-/*
- * Progresso acadêmico:
- * - verde: corrigidas;
- * - azul: aguardando correção;
- * - amarelo: pendentes;
- * - vermelho: devolvidas.
- */
-const academicChartColors = [
-  "#22c55e",
-  "#3b82f6",
-  "#f59e0b",
-  "#ef4444",
-];
+import ProgressDonutChart from "../../components/charts/ProgressDonutChart";
+import {
+  CONTENT_CHART_COLORS as contentChartColors,
+  ACADEMIC_CHART_COLORS as academicChartColors,
+} from "../../components/charts/progressChartColors";
 
 /*
  * Converte um valor para número com fallback seguro.
@@ -226,152 +195,6 @@ function ProgressBar({
   );
 }
 
-function ChartLegend({
-  items,
-  colors,
-}) {
-  return (
-    <div className="mt-5 space-y-2">
-      {items.map((item, index) => (
-        <div
-          key={item.name}
-          className="flex items-center justify-between gap-4 text-sm"
-        >
-          <div className="flex items-center gap-2">
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{
-                backgroundColor:
-                  colors[
-                    index % colors.length
-                  ],
-              }}
-            />
-
-            <span className="text-gray-600">
-              {item.name}
-            </span>
-          </div>
-
-          <span className="font-semibold text-gray-900">
-            {item.value}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/*
- * Gráfico de rosca reutilizável.
- *
- * Recebe os dados já calculados pelo resumo ativo:
- * - resumo global;
- * - ou resumo do curso selecionado.
- */
-function ProgressDonutChart({
-  title,
-  description,
-  centerValue,
-  centerLabel,
-  data,
-  colors,
-}) {
-  const total = data.reduce(
-    (sum, item) =>
-      sum + normalizeNumber(item.value),
-    0
-  );
-
-  /*
-   * Quando não existem dados, criamos uma fatia cinza
-   * apenas para manter a estrutura visual do gráfico.
-   */
-  const chartData =
-    total > 0
-      ? data
-      : [
-          {
-            name: "Sem dados",
-            value: 1,
-          },
-        ];
-
-  const chartColors =
-    total > 0
-      ? colors
-      : ["#e5e7eb"];
-
-  return (
-    <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div>
-        <h3 className="text-lg font-bold text-gray-900">
-          {title}
-        </h3>
-
-        <p className="mt-1 text-sm leading-6 text-gray-500">
-          {description}
-        </p>
-      </div>
-
-      <div className="relative mt-4 h-56">
-        <ResponsiveContainer
-          width="100%"
-          height="100%"
-        >
-          <PieChart>
-            <Pie
-              data={chartData}
-              dataKey="value"
-              nameKey="name"
-              innerRadius={64}
-              outerRadius={88}
-              paddingAngle={3}
-              stroke="none"
-            >
-              {chartData.map(
-                (item, index) => (
-                  <Cell
-                    key={`${item.name}-${index}`}
-                    fill={
-                      chartColors[
-                        index %
-                          chartColors.length
-                      ]
-                    }
-                  />
-                )
-              )}
-            </Pie>
-
-            <Tooltip
-              formatter={(value, name) => [
-                value,
-                name,
-              ]}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <strong className="text-3xl font-bold text-gray-950">
-            {centerValue}
-          </strong>
-
-          <span className="mt-1 text-xs font-medium text-gray-500">
-            {centerLabel}
-          </span>
-        </div>
-      </div>
-
-      <ChartLegend
-        items={data}
-        colors={colors}
-      />
-    </article>
-  );
-}
-
 /*
  * Card detalhado de um curso.
  *
@@ -431,10 +254,10 @@ function CourseProgressCard({
       contentTotal
     );
 
-  const courseLink =
-    course.next_content_id
-      ? `/aluno/curso/${course.course_id}:${course.next_content_id}`
-      : `/aluno/curso/${course.course_id}`;
+ const courseLink =
+  course.next_content_id
+    ? `/aluno/dashboard-aluno/courses/${course.course_id}:${course.next_content_id}`
+    : `/aluno/dashboard-aluno/courses/${course.course_id}`;
 
   return (
     <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:border-blue-200 hover:shadow-md">
@@ -1270,68 +1093,68 @@ export default function StudentProgress() {
     ]
   );
 
+ 
+
   const quickActions = [
-    {
-      title: "Continuar estudando",
-      description:
-        "Retome o curso acessado mais recentemente.",
+  {
+    title: "Continuar estudando",
+    description:
+      "Retome o curso acessado mais recentemente.",
 
-      onClick: () => {
-        /*
-         * Caso exista um curso selecionado, a ação
-         * continua especificamente nele.
-         */
-        if (selectedCourse) {
-          const path =
-            selectedCourse.next_content_id
-              ? `/aluno/curso/${selectedCourse.course_id}:${selectedCourse.next_content_id}`
-              : `/aluno/curso/${selectedCourse.course_id}`;
+    onClick: () => {
+      /*
+       * Caso exista um curso selecionado,
+       * continua especificamente nele.
+       */
+      if (selectedCourse) {
+        const path =
+          selectedCourse.next_content_id
+            ? `/aluno/dashboard-aluno/courses/${selectedCourse.course_id}:${selectedCourse.next_content_id}`
+            : `/aluno/dashboard-aluno/courses/${selectedCourse.course_id}`;
 
-          navigate(path);
-          return;
-        }
+        navigate(path);
+        return;
+      }
 
-        /*
-         * Sem seleção, utiliza o continue_learning
-         * calculado pela rota agregadora.
-         */
-        const nextCourse =
-          overview?.continue_learning;
+      /*
+       * Sem seleção, utiliza o continue_learning
+       * calculado pela rota agregadora.
+       */
+      const nextCourse =
+        overview?.continue_learning;
 
-        if (nextCourse?.course_id) {
-          const path =
-            nextCourse.content_id
-              ? `/aluno/curso/${nextCourse.course_id}:${nextCourse.content_id}`
-              : `/aluno/curso/${nextCourse.course_id}`;
+      if (nextCourse?.course_id) {
+        const path =
+          nextCourse.content_id
+            ? `/aluno/dashboard-aluno/courses/${nextCourse.course_id}:${nextCourse.content_id}`
+            : `/aluno/dashboard-aluno/courses/${nextCourse.course_id}`;
 
-          navigate(path);
-          return;
-        }
+        navigate(path);
+        return;
+      }
 
-        navigate(
-          "/aluno/dashboard-aluno"
-        );
-      },
+      navigate("/aluno/dashboard-aluno");
     },
-    {
-      title: "Ver todos os cursos",
-      description:
-        "Retorne à visão geral da sua evolução.",
+  },
 
-      onClick: () => {
-        setSelectedCourseId("");
-        setBusca("");
-      },
-    },
-    {
-      title: "Minhas notas",
-      description:
-        "Consulte notas e feedbacks das atividades corrigidas.",
+  {
+    title: "Ver evolução por curso",
+    description:
+      "Veja a evolução do seu progresso em cada curso.",
 
-      onClick: () =>
-        navigate("/aluno/notas"),
-    },
-  ];
+    onClick: () => {
+      document.getElementById("course-evolution").scrollIntoView({behavior: "smooth", block: "start"});   },
+  },
+
+  {
+    title: "Minhas notas",
+    description:
+      "Consulte notas e feedbacks das atividades corrigidas.",
+
+    onClick: () =>
+      navigate("/aluno/notas"),
+  },
+];
 
   return (
     <StudentManagementPage
@@ -1539,7 +1362,7 @@ export default function StudentProgress() {
           </section>
           
 }
-          <section>
+          <section className="scroll-mt-34" id="course-evolution">
             <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h2 className="text-xl font-bold text-gray-950">

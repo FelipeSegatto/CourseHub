@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Power, KeyRound, Shield, Trash2 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 
 import {
@@ -14,6 +15,8 @@ import AdminUserModal from "../../components/admin/AdminUserModal";
 import DeleteConfirmModal from "../../components/admin/AdminDeleteModal";
 import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
+import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const ROLE_OPTIONS = [
@@ -241,7 +244,7 @@ export default function UsersAdmin() {
     { key: "linked", label: "Entidade vinculada" },
     { key: "status", label: "Status" },
     { key: "created_at", label: "Criado em" },
-    { key: "actions", label: "Ações" },
+    { key: "actions", label: "Ações", align: "right" },
   ];
 
   const inputClass =
@@ -252,7 +255,7 @@ export default function UsersAdmin() {
       <ManagementPageShell
         backTo="/admin/dashboard-admin"
         title="Gerenciamento de usuários"
-        description="Cadastre administradores, professores ou alunos e gerencie papel, status e credenciais. Edição detalhada de dados acadêmicos/profissionais continua em Alunos e Professores."
+        description="Cadastre administradores, professores ou alunos e gerencie papel, status e credenciais."
         createButtonText="+ Novo usuário"
         onCreateClick={handleCreateClick}
         stats={stats}
@@ -350,84 +353,80 @@ export default function UsersAdmin() {
               emptyMessage="Nenhum usuário encontrado."
               renderRow={(user) => (
                 <tr key={user.id} className="border-b border-gray-100">
-                  <td className="py-5">
-                    <p className="font-semibold text-gray-900">{user.name}</p>
-                    <p className="text-sm text-gray-500">{user.email}</p>
+                  <td className="px-3 py-3">
+                    <p className="text-sm font-semibold text-gray-900">{user.name}</p>
+                    <p className="text-xs text-gray-500">{user.email}</p>
                   </td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                     {ROLE_OPTIONS.find((option) => option.value === user.role)?.label ||
                       user.role}
                   </td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="px-3 py-3 text-sm text-gray-600">
                     {user.linkedEntity
                       ? `${user.linkedEntity.type === "student" ? "Aluno" : "Professor"} · ${user.linkedEntity.displayName}`
                       : "Sem vínculo"}
                   </td>
 
-                  <td className="py-5">
+                  <td className="whitespace-nowrap px-3 py-3">
                     <StatusBadge status={user.status} />
                   </td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                     {formatShortDate(user.createdAt)}
                   </td>
 
-                  <td className="py-5">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEditClick(user)}
-                        className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200"
-                      >
+                  <td className="whitespace-nowrap px-3 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <TableActionButton variant="accent" size="sm" onClick={() => handleEditClick(user)}>
                         Editar
-                      </button>
+                      </TableActionButton>
 
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStatus(user)}
-                        disabled={isSelf(user) || rowActionLoading === user.id}
-                        title={isSelf(user) ? "Você não pode alterar o próprio status." : undefined}
-                        className="rounded-lg bg-yellow-100 px-3 py-2 text-sm font-medium text-yellow-700 hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {user.status === "active" ? "Inativar" : "Ativar"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleSendPasswordReset(user)}
-                        disabled={rowActionLoading === user.id}
-                        className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Redefinir senha
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => openRoleModal(user)}
-                        disabled={Boolean(user.linkedEntity) || isSelf(user)}
-                        title={
-                          user.linkedEntity
-                            ? "Contas com entidade acadêmica/profissional vinculada não suportam troca de papel nesta versão."
-                            : isSelf(user)
-                              ? "Você não pode alterar o próprio papel."
-                              : undefined
-                        }
-                        className="rounded-lg bg-purple-100 px-3 py-2 text-sm font-medium text-purple-700 hover:bg-purple-200 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Alterar papel
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteClick(user)}
-                        disabled={isSelf(user) || rowActionLoading === user.id}
-                        title={isSelf(user) ? "Você não pode remover a própria conta." : undefined}
-                        className="rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Remover
-                      </button>
+                      <RowActionsMenu
+                        items={[
+                          {
+                            key: "toggle-status",
+                            label: user.status === "active" ? "Inativar" : "Ativar",
+                            icon: Power,
+                            variant: "warning",
+                            disabled: isSelf(user) || rowActionLoading === user.id,
+                            title: isSelf(user) ? "Você não pode alterar o próprio status." : undefined,
+                            onClick: () => handleToggleStatus(user),
+                          },
+                          {
+                            key: "reset-password",
+                            label: "Redefinir senha",
+                            icon: KeyRound,
+                            variant: "neutral",
+                            disabled: rowActionLoading === user.id,
+                            onClick: () => handleSendPasswordReset(user),
+                          },
+                          {
+                            key: "change-role",
+                            label: "Alterar papel",
+                            icon: Shield,
+                            variant: "neutral",
+                            disabled: Boolean(user.linkedEntity) || isSelf(user),
+                            title: user.linkedEntity
+                              ? "Contas com entidade acadêmica/profissional vinculada não suportam troca de papel nesta versão."
+                              : isSelf(user)
+                                ? "Você não pode alterar o próprio papel."
+                                : undefined,
+                            onClick: () => openRoleModal(user),
+                          },
+                          {
+                            key: "delete",
+                            label: "Remover",
+                            icon: Trash2,
+                            variant: "danger",
+                            separator: true,
+                            disabled: isSelf(user) || rowActionLoading === user.id,
+                            title: isSelf(user) ? "Você não pode remover a própria conta." : undefined,
+                            onClick: () => handleDeleteClick(user),
+                          },
+                        ]}
+                      />
                     </div>
                   </td>
                 </tr>

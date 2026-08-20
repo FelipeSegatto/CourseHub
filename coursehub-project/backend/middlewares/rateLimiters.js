@@ -313,6 +313,36 @@ const reportExportRateLimiter = rateLimit({
   },
 });
 
+/**
+ * "Não encontrou seu link?" (Fale conosco -> recuperação de link de
+ * fatura por e-mail): limitado tanto por IP quanto por e-mail
+ * normalizado -- por IP sozinho não impediria alguém testar uma lista
+ * de e-mails a partir do mesmo endereço espalhando as tentativas ao
+ * longo do tempo, e por e-mail sozinho não impediria varrer muitos
+ * e-mails rapidamente do mesmo IP. Os dois limiters são aplicados em
+ * sequência na rota (ver publicInvoicePaymentRoutes.js).
+ */
+const invoicePaymentLinkRecoveryByIpRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.",
+  },
+});
+
+const invoicePaymentLinkRecoveryByEmailRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => String(req.body?.email || "").trim().toLowerCase() || ipKeyGenerator(req.ip),
+  message: {
+    message: "Muitas tentativas para este e-mail. Aguarde alguns minutos antes de tentar novamente.",
+  },
+});
+
 module.exports = {
   loginRateLimiter,
   forgotPasswordRateLimiter,
@@ -332,4 +362,6 @@ module.exports = {
   documentDownloadRateLimiter,
   documentVerificationRateLimiter,
   reportExportRateLimiter,
+  invoicePaymentLinkRecoveryByIpRateLimiter,
+  invoicePaymentLinkRecoveryByEmailRateLimiter,
 };

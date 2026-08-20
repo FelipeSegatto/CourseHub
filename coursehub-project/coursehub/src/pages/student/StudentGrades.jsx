@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
 
@@ -7,6 +6,7 @@ import StudentManagementPage from "../../components/students/StudentManagementPa
 import StudentTable from "../../components/students/StudentTable";
 import StudentStatusFilter from "../../components/students/StudentStatusFilter";
 import StatusBadge from "../../components/ui/StatusBadge";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
 
 const typeOptions = [
   {
@@ -305,10 +305,12 @@ export default function StudentGrades() {
     {
       key: "score",
       label: "Nota",
+      align: "right",
     },
     {
       key: "performance",
       label: "Aproveitamento",
+      align: "right",
     },
     {
       key: "date",
@@ -321,6 +323,7 @@ export default function StudentGrades() {
     {
       key: "actions",
       label: "Ações",
+      align: "right",
     },
   ];
 
@@ -378,8 +381,8 @@ export default function StudentGrades() {
                 key={grade.id}
                 className="border-b border-gray-100"
               >
-                <td className="py-5">
-                  <p className="font-semibold text-gray-900 text-sm">
+                <td className="px-4 py-3">
+                  <p className="text-xs font-semibold text-gray-900">
                     {grade.title}
                   </p>
 
@@ -388,13 +391,13 @@ export default function StudentGrades() {
                   </p>
                 </td>
 
-                <td className="py-5 text-gray-700 text-sm">
+                <td className="px-4 py-3 text-xs text-gray-600">
                   {grade.courseName}
                 </td>
 
-                <td className="py-5">
+                <td className="whitespace-nowrap px-4 py-3">
                   <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                       grade.activityKind === "exam"
                         ? "bg-purple-100 text-purple-700"
                         : "bg-blue-100 text-blue-700"
@@ -404,8 +407,8 @@ export default function StudentGrades() {
                   </span>
                 </td>
 
-                <td className="py-5">
-                  <p className="font-bold text-gray-900">
+                <td className="whitespace-nowrap px-4 py-3 text-right">
+                  <p className="text-sm font-semibold tabular-nums text-gray-900">
                     {formatNumber(
                       grade.score
                     )}{" "}
@@ -416,8 +419,8 @@ export default function StudentGrades() {
                   </p>
                 </td>
 
-                <td className="py-5 gap-8">
-                  <p className="font-semibold text-gray-900 text-center gap-8">
+                <td className="whitespace-nowrap px-4 py-3 text-right">
+                  <p className="text-sm font-semibold tabular-nums text-gray-900">
                     {grade.percentage !== null
                       ? `${grade.percentage.toFixed(
                           1
@@ -426,32 +429,38 @@ export default function StudentGrades() {
                   </p>
 
                   <p
-                    className={`mt-1 text-xs font-medium text-center ${performance.className}`}
+                    className={`mt-1 text-xs font-medium ${performance.className}`}
                   >
                     {performance.label}
                   </p>
                 </td>
 
-                <td className="py-5 text-gray-600 text-xs">
+                <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-600">
                   {formatDate(
                     grade.gradedAt
                   )}
                 </td>
 
-                <td className="py-5">
+                <td className="whitespace-nowrap px-4 py-3">
                   <StatusBadge
                     status={grade.status}
+                    size="sm"
                   />
                 </td>
 
-                <td className="py-5">
-                  {grade.submissionId ? (
-                    <Link
-                      to={`/aluno/notas/${grade.submissionId}`}
-                      className="inline-block rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-200"
+                <td className="whitespace-nowrap px-4 py-3 text-right">
+                  {grade.submissionId && grade.activityId ? (
+                    <TableActionButton
+                      variant="accent"
+                      size="sm"
+                      to={`${
+                        grade.activityKind === "exam"
+                          ? "/aluno/avaliacoes"
+                          : "/aluno/atividades"
+                      }/${grade.activityId}`}
                     >
                       Ver correção
-                    </Link>
+                    </TableActionButton>
                   ) : (
                     <span className="text-sm text-gray-400">
                       Sem detalhes

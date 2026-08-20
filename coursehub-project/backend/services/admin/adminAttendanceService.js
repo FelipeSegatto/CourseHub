@@ -293,6 +293,7 @@ async function adjustAttendance(db, id, { status, reason }, actingUserId) {
 
 module.exports = {
   createServiceError,
+  ALLOWED_ATTENDANCE_STATUSES,
   listAttendance,
   getAttendanceById,
   adjustAttendance,

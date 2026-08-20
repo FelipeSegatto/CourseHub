@@ -408,6 +408,81 @@ async function updateContractingParty(db, id, payload) {
   }
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Qualquer um destes campos presentes no payload é rejeitado com 400
+// -- nunca silenciosamente ignorado -- para deixar claro que este
+// endpoint de contato nunca é uma porta alternativa para editar
+// dados jurídicos do contratante.
+const FORBIDDEN_CONTACT_FIELDS = [
+  "partyType",
+  "party_type",
+  "name",
+  "documentType",
+  "document_type",
+  "documentNumber",
+  "document_number",
+  "status",
+  "userId",
+  "user_id",
+];
+
+/**
+ * Atualiza SOMENTE e-mail e telefone do cadastro mestre de um
+ * contratante -- nunca nome, documento, tipo, status ou vínculo com
+ * usuário. Diferente de updateContractingParty (PUT completo), esta
+ * função não aceita nenhum campo jurídico, então não existe payload
+ * capaz de acidentalmente reescrever CPF/CNPJ por aqui. Nunca toca em
+ * financial_contracts -- contratos já criados guardam seu próprio
+ * snapshot (contracting_party_name/document/email/phone/address) e
+ * esse snapshot é imutável por design (ver createStudentContractWithInitialInvoice),
+ * então editar o cadastro atual do contratante nunca reescreve
+ * retroativamente um contrato já existente.
+ */
+async function updateContractingPartyContact(db, id, payload) {
+  const normalizedId = normalizeId(id, "ID do contratante inválido.");
+
+  const forbiddenFieldPresent = FORBIDDEN_CONTACT_FIELDS.find(
+    (field) => payload && Object.prototype.hasOwnProperty.call(payload, field)
+  );
+
+  if (forbiddenFieldPresent) {
+    throw createServiceError(
+      "Este endpoint só permite alterar e-mail e telefone. Nome, documento, tipo e status não podem ser alterados por aqui.",
+      400
+    );
+  }
+
+  const rawEmail = payload?.email;
+  const rawPhone = payload?.phone;
+
+  const trimmedEmail = typeof rawEmail === "string" ? rawEmail.trim() : "";
+
+  if (!trimmedEmail) {
+    throw createServiceError("O e-mail é obrigatório.", 400);
+  }
+
+  if (!EMAIL_PATTERN.test(trimmedEmail)) {
+    throw createServiceError("Informe um e-mail válido.", 400);
+  }
+
+  const trimmedPhone = typeof rawPhone === "string" ? rawPhone.trim() : "";
+  const normalizedPhone = trimmedPhone || null;
+
+  const [result] = await db
+    .promise()
+    .query(
+      `UPDATE contracting_parties SET email = ?, phone = ?, updated_at = NOW() WHERE id = ?`,
+      [trimmedEmail, normalizedPhone, normalizedId]
+    );
+
+  if (result.affectedRows === 0) {
+    throw createServiceError("Contratante não encontrado.", 404);
+  }
+
+  return getContractingPartyById(db, normalizedId);
+}
+
 async function updateContractingPartyStatus(db, id, status) {
   const normalizedId = normalizeId(id, "ID do contratante inválido.");
 
@@ -615,6 +690,7 @@ module.exports = {
   getContractingPartyById,
   createContractingParty,
   updateContractingParty,
+  updateContractingPartyContact,
   updateContractingPartyStatus,
   searchActiveContractingParties,
   findOrCreateSelfContractingPartyForStudent,

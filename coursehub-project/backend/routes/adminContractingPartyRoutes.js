@@ -8,6 +8,7 @@ const {
   getContractingPartyById,
   createContractingParty,
   updateContractingParty,
+  updateContractingPartyContact,
   updateContractingPartyStatus,
   searchActiveContractingParties,
 } = require("../services/financial/contractingPartyService");
@@ -112,6 +113,31 @@ router.put(
       });
     } catch (error) {
       return handleServiceError(res, error, "Erro ao atualizar contratante.");
+    }
+  }
+);
+
+/**
+ * PATCH /api/admin/contracting-parties/:partyId/contact
+ * Atualiza somente e-mail e telefone do cadastro mestre -- nunca
+ * nome, documento, tipo ou status (esses continuam exclusivos do PUT
+ * completo). Nunca altera contratos já existentes, que guardam seu
+ * próprio snapshot congelado.
+ */
+router.patch(
+  "/admin/contracting-parties/:partyId/contact",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const party = await updateContractingPartyContact(db, req.params.partyId, req.body);
+
+      return res.status(200).json({
+        message: "Contato do contratante atualizado com sucesso.",
+        data: party,
+      });
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao atualizar contato do contratante.");
     }
   }
 );

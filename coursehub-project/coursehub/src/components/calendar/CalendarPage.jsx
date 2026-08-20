@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Dialog } from "radix-ui";
 import { X } from "lucide-react";
 
@@ -8,6 +9,24 @@ import {
   todayDateString,
 } from "../../utils/dateUtils";
 import { apiFetch } from "../../services/APIService";
+
+const DATE_PARAM_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Deep link vindo de Encontros ("Ver no calendário"): ?date=YYYY-MM-DD
+ * foca o mês/dia do encontro. Valor ausente ou mal formado é
+ * ignorado silenciosamente -- nunca quebra a tela, só cai no padrão
+ * (mês atual).
+ */
+function resolveInitialFocusDate(searchParams) {
+  const dateParam = searchParams.get("date");
+
+  if (dateParam && DATE_PARAM_PATTERN.test(dateParam)) {
+    return dateParam;
+  }
+
+  return todayDateString();
+}
 
 import { getMacroFilters } from "./calendarDisplayConfig";
 import CalendarToolbar from "./CalendarToolbar";
@@ -20,9 +39,14 @@ import CalendarEventFormModal from "./CalendarEventFormModal";
 const today = new Date();
 
 export default function CalendarPage({ role, userId, title, description }) {
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
-  const [selectedDate, setSelectedDate] = useState(todayDateString());
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [initialFocusDate] = useState(() => resolveInitialFocusDate(searchParams));
+  const [initialFocusYear, initialFocusMonth] = initialFocusDate.split("-").map(Number);
+
+  const [year, setYear] = useState(initialFocusYear);
+  const [month, setMonth] = useState(initialFocusMonth - 1);
+  const [selectedDate, setSelectedDate] = useState(initialFocusDate);
   const [macroFilterKey, setMacroFilterKey] = useState("all");
   const [activeIndicatorTypes, setActiveIndicatorTypes] = useState(new Set());
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -166,6 +190,11 @@ export default function CalendarPage({ role, userId, title, description }) {
           macroFilterKey={activeMacroFilter.key}
           onMacroFilterChange={handleMacroFilterChange}
           onCreateClick={() => setFormModal({ mode: "create", event: null })}
+          onCreateSession={
+            role === "admin" || role === "teacher"
+              ? () => navigate(`/${role === "admin" ? "admin" : "professor"}/encontros?date=${selectedDate}`)
+              : undefined
+          }
         />
 
         <CalendarFilterBar

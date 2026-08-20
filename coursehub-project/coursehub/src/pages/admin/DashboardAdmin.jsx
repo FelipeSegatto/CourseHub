@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { getAdminDashboard } from "../../services/DashboardService";
 import StatCard from "../../components/ui/StatCard";
 import QuickActionsCard from "../../components/ui/QuickActionsCard";
+import PrintPageButton from "../../components/reports/PrintPageButton";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 function formatShortDate(dateString) {
@@ -38,8 +39,7 @@ const quickActions = [
   {
     title: "Emitir certificado",
     description: "Gerencie certificados dos alunos.",
-    disabled: true,
-    disabledReason: "Em breve — certificados ainda não têm dados reais nesta versão.",
+    to: "/admin/emissao",
   },
   {
     title: "Gerenciar materiais",
@@ -100,7 +100,7 @@ export default function DashboardAdmin() {
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
-      <div className="mx-auto max-w-7xl">
+      <div className="print-area mx-auto max-w-7xl">
         <section className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-blue-600">
@@ -117,14 +117,18 @@ export default function DashboardAdmin() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={loadDashboard}
-            disabled={loading}
-            className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:opacity-50"
-          >
-            Atualizar
-          </button>
+          <div className="flex gap-3 print-hide">
+            <button
+              type="button"
+              onClick={loadDashboard}
+              disabled={loading}
+              className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:opacity-50"
+            >
+              Atualizar
+            </button>
+
+            <PrintPageButton />
+          </div>
         </section>
 
         {error && (
@@ -134,7 +138,7 @@ export default function DashboardAdmin() {
             <button
               type="button"
               onClick={loadDashboard}
-              className="text-sm font-semibold text-red-700 hover:underline"
+              className="print-hide text-sm font-semibold text-red-700 hover:underline"
             >
               Tentar novamente
             </button>
@@ -306,7 +310,7 @@ export default function DashboardAdmin() {
               </div>
             </section>
 
-            <section className="mt-8 rounded-2xl bg-blue-600 p-8 text-white">
+            <section className="print-hide mt-8 rounded-2xl bg-blue-600 p-8 text-white">
               <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h2 className="text-2xl font-bold">

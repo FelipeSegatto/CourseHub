@@ -33,4 +33,14 @@ export const AdminAttendanceService = {
       body: JSON.stringify({ status, reason }),
     });
   },
+
+  listSessions(params = {}) {
+    const queryString = buildQueryString(params);
+
+    return apiFetch(queryString ? `${base}/sessions?${queryString}` : `${base}/sessions`);
+  },
+
+  getSessionDetail(sessionId) {
+    return apiFetch(`${base}/sessions/${sessionId}`);
+  },
 };

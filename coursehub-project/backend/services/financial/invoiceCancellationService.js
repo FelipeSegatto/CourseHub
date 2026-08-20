@@ -46,8 +46,159 @@ function getCurrentMysqlDateTime() {
 }
 
 /**
+ * Núcleo do cancelamento de fatura, operando sobre uma `connection`
+ * JÁ transacionada -- extraído para que outros fluxos que precisam
+ * cancelar faturas dentro da PRÓPRIA transação (ex.:
+ * contractWithdrawalService, que cancela várias faturas de um
+ * contrato dentro de uma única transação de desistência) nunca
+ * precisem abrir uma segunda transação aninhada chamando
+ * `cancelInvoice` diretamente. `cancelInvoice` (abaixo) é só uma casca
+ * fina que abre sua própria transação e delega para esta função --
+ * nenhuma lógica de cancelamento de fatura é duplicada entre os dois
+ * pontos de entrada.
+ */
+async function cancelInvoiceWithConnection(
+  db,
+  connection,
+  {
+    invoiceId,
+    reason,
+    actorUserId,
+  }
+) {
+  const normalizedInvoiceId = Number(invoiceId);
+
+  const [invoices] = await connection.execute(
+      `
+        SELECT
+          i.id,
+          i.financial_contract_id,
+          i.amount,
+          i.status,
+          i.due_date,
+          i.paid_at,
+          i.cancelled_at,
+          i.description,
+          fc.enrollment_id,
+          fc.student_id,
+          fc.course_id,
+          c.name AS course_name
+        FROM invoices i
+        INNER JOIN financial_contracts fc
+          ON fc.id = i.financial_contract_id
+        INNER JOIN courses c
+          ON c.id = fc.course_id
+        WHERE i.id = ?
+        FOR UPDATE
+      `,
+      [normalizedInvoiceId]
+    );
+
+  if (invoices.length === 0) {
+    throw createServiceError(
+      "Fatura não encontrada.",
+      404
+    );
+  }
+
+  const invoice = invoices[0];
+
+  if (invoice.status === "paid") {
+    throw createServiceError(
+      "Não é possível cancelar uma fatura já paga. Para desfazer o pagamento, será necessário realizar um reembolso.",
+      409
+    );
+  }
+
+  if (invoice.status === "cancelled") {
+    throw createServiceError(
+      "Esta fatura já está cancelada.",
+      409
+    );
+  }
+
+  if (invoice.status === "refunded") {
+    throw createServiceError(
+      "Não é possível cancelar uma fatura reembolsada.",
+      409
+    );
+  }
+
+  const cancellationDate =
+    getCurrentMysqlDateTime();
+
+  await connection.execute(
+    `
+      UPDATE invoices
+      SET
+        status = 'cancelled',
+        cancelled_at = ?
+      WHERE id = ?
+    `,
+    [
+      cancellationDate,
+      normalizedInvoiceId,
+    ]
+  );
+
+  await connection.execute(
+    `
+      DELETE FROM invoice_collection_actions
+      WHERE invoice_id = ?
+        AND status IN ('pending', 'skipped')
+    `,
+    [normalizedInvoiceId]
+  );
+
+  await createFinancialEvent(connection, {
+    financialContractId:
+      invoice.financial_contract_id,
+    invoiceId: normalizedInvoiceId,
+    paymentId: null,
+    enrollmentId: invoice.enrollment_id,
+    eventType: "invoice_cancelled",
+    source: "admin",
+    actorUserId,
+    previousValue: {
+      invoiceStatus: invoice.status,
+      cancelledAt: invoice.cancelled_at,
+    },
+    newValue: {
+      invoiceStatus: "cancelled",
+      cancelledAt: cancellationDate,
+    },
+    reason: reason.trim(),
+  });
+
+  await recalculateFinancialContractStatus(
+    connection,
+    invoice.financial_contract_id
+  );
+
+  await notifyInvoiceCancelled(db, connection, {
+    invoiceId: normalizedInvoiceId,
+    invoiceDescription: invoice.description,
+    reason: reason.trim(),
+    studentId: invoice.student_id,
+    courseId: invoice.course_id,
+    courseName: invoice.course_name,
+  });
+
+  return {
+    invoiceId: normalizedInvoiceId,
+    financialContractId:
+      invoice.financial_contract_id,
+    previousStatus: invoice.status,
+    invoiceStatus: "cancelled",
+    cancelledAt: cancellationDate,
+  };
+}
+
+/**
  * Cancela uma fatura aberta, remove ações de cobrança
- * pendentes e registra o evento financeiro.
+ * pendentes e registra o evento financeiro. Casca fina: valida a
+ * entrada, abre sua própria transação e delega para
+ * cancelInvoiceWithConnection.
  */
 async function cancelInvoice(
   db,
@@ -93,134 +244,16 @@ async function cancelInvoice(
     );
   }
 
-  return withTransaction(db, async (connection) => {
-    const [invoices] = await connection.execute(
-      `
-        SELECT
-          i.id,
-          i.financial_contract_id,
-          i.amount,
-          i.status,
-          i.due_date,
-          i.paid_at,
-          i.cancelled_at,
-          i.description,
-          fc.enrollment_id,
-          fc.student_id,
-          fc.course_id,
-          c.name AS course_name
-        FROM invoices i
-        INNER JOIN financial_contracts fc
-          ON fc.id = i.financial_contract_id
-        INNER JOIN courses c
-          ON c.id = fc.course_id
-        WHERE i.id = ?
-        FOR UPDATE
-      `,
-      [normalizedInvoiceId]
-    );
-
-    if (invoices.length === 0) {
-      throw createServiceError(
-        "Fatura não encontrada.",
-        404
-      );
-    }
-
-    const invoice = invoices[0];
-
-    if (invoice.status === "paid") {
-      throw createServiceError(
-        "Não é possível cancelar uma fatura já paga. Para desfazer o pagamento, será necessário realizar um reembolso.",
-        409
-      );
-    }
-
-    if (invoice.status === "cancelled") {
-      throw createServiceError(
-        "Esta fatura já está cancelada.",
-        409
-      );
-    }
-
-    if (invoice.status === "refunded") {
-      throw createServiceError(
-        "Não é possível cancelar uma fatura reembolsada.",
-        409
-      );
-    }
-
-    const cancellationDate =
-      getCurrentMysqlDateTime();
-
-    await connection.execute(
-      `
-        UPDATE invoices
-        SET
-          status = 'cancelled',
-          cancelled_at = ?
-        WHERE id = ?
-      `,
-      [
-        cancellationDate,
-        normalizedInvoiceId,
-      ]
-    );
-
-    await connection.execute(
-      `
-        DELETE FROM invoice_collection_actions
-        WHERE invoice_id = ?
-          AND status IN ('pending', 'skipped')
-      `,
-      [normalizedInvoiceId]
-    );
-
-    await createFinancialEvent(connection, {
-      financialContractId:
-        invoice.financial_contract_id,
+  return withTransaction(db, (connection) =>
+    cancelInvoiceWithConnection(db, connection, {
       invoiceId: normalizedInvoiceId,
-      paymentId: null,
-      enrollmentId: invoice.enrollment_id,
-      eventType: "invoice_cancelled",
-      source: "admin",
+      reason,
       actorUserId,
-      previousValue: {
-        invoiceStatus: invoice.status,
-        cancelledAt: invoice.cancelled_at,
-      },
-      newValue: {
-        invoiceStatus: "cancelled",
-        cancelledAt: cancellationDate,
-      },
-      reason: reason.trim(),
-    });
-
-    await recalculateFinancialContractStatus(
-      connection,
-      invoice.financial_contract_id
-    );
-
-    await notifyInvoiceCancelled(db, connection, {
-      invoiceId: normalizedInvoiceId,
-      invoiceDescription: invoice.description,
-      reason: reason.trim(),
-      studentId: invoice.student_id,
-      courseId: invoice.course_id,
-      courseName: invoice.course_name,
-    });
-
-    return {
-      invoiceId: normalizedInvoiceId,
-      financialContractId:
-        invoice.financial_contract_id,
-      previousStatus: invoice.status,
-      invoiceStatus: "cancelled",
-      cancelledAt: cancellationDate,
-    };
-  });
+    })
+  );
 }
 
 module.exports = {
   cancelInvoice,
+  cancelInvoiceWithConnection,
 };

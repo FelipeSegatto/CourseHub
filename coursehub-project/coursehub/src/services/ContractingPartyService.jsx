@@ -48,6 +48,13 @@ export async function updateContractingParty(partyId, payload) {
   });
 }
 
+export async function updateContractingPartyContact(partyId, payload) {
+  return apiFetch(`/api/admin/contracting-parties/${partyId}/contact`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function updateContractingPartyStatus(partyId, status) {
   return apiFetch(`/api/admin/contracting-parties/${partyId}/status`, {
     method: "PATCH",

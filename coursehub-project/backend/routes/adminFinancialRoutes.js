@@ -48,6 +48,11 @@ const {
 } = require("../services/financial/contractCancellationService");
 
 const {
+  getContractWithdrawalImpact,
+  registerContractWithdrawal,
+} = require("../services/financial/contractWithdrawalService");
+
+const {
   getContractTermsDocumentHtml,
 } = require("../services/financial/contractTermsDocumentService");
 
@@ -472,6 +477,62 @@ router.post(
 
       return res.status(error.statusCode || 500).json({
         message: error.message || "Erro interno ao cancelar contrato.",
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/admin/financial/contracts/:contractId/withdrawal-impact
+ * Prévia consultada pelo modal antes de confirmar a desistência.
+ */
+router.get(
+  "/contracts/:contractId/withdrawal-impact",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result = await getContractWithdrawalImpact(db, req.params.contractId);
+
+      return res.status(200).json({ data: result });
+    } catch (error) {
+      console.error("Erro ao consultar impacto da desistência:", error);
+
+      return res.status(error.statusCode || 500).json({
+        message: error.message || "Erro interno ao consultar o impacto da desistência.",
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/admin/financial/contracts/:contractId/withdrawal
+ * Registra a desistência: encerra contrato + matrícula, trata
+ * faturas conforme a política escolhida, nunca reembolsa
+ * automaticamente.
+ */
+router.post(
+  "/contracts/:contractId/withdrawal",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result = await registerContractWithdrawal(db, req.params.contractId, {
+        reason: req.body?.reason,
+        notes: req.body?.notes,
+        overdueInvoiceAction: req.body?.overdueInvoiceAction,
+        actorUserId: req.auth.userId,
+      });
+
+      return res.status(200).json({
+        message: "Desistência registrada com sucesso.",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Erro ao registrar desistência:", error);
+
+      return res.status(error.statusCode || 500).json({
+        message: error.message || "Erro interno ao registrar a desistência.",
       });
     }
   }

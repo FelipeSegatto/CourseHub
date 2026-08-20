@@ -146,6 +146,34 @@ async function applyApproval(db, connection, row, gatewayResult) {
     return { applied: true, reason: "duplicate_invoice_payment" };
   }
 
+  // Uma confirmação atrasada do gateway (webhook fora de ordem, ou um
+  // aluno finalizando um checkout minutos depois da desistência já
+  // ter sido registrada) nunca pode reabrir uma fatura cancelada ou
+  // reembolsada -- isso reativaria o contrato/matrícula via
+  // activateContractFromPaidInvoice logo abaixo, exatamente o que a
+  // desistência (contractWithdrawalService) existe para evitar. O
+  // dinheiro recebido nunca é perdido: o pagamento ainda é marcado
+  // approved nesta linha (preserva o registro para reconciliação),
+  // só a fatura/contrato/matrícula não são tocados. Mesmo padrão do
+  // branch "invoice já paga" logo acima, só que para o caso "invoice
+  // já fechada definitivamente".
+  if (row.invoice_status === "cancelled" || row.invoice_status === "refunded") {
+    await createFinancialEvent(connection, {
+      financialContractId: row.financial_contract_id,
+      invoiceId: row.invoice_id,
+      paymentId: row.id,
+      enrollmentId: row.enrollment_id,
+      eventType: "payment_approved_after_invoice_cancelled",
+      source: "gateway",
+      previousValue: { invoiceStatus: row.invoice_status },
+      newValue: { paymentStatus: "approved", paidAt },
+      reason:
+        "O gateway confirmou este pagamento, mas a fatura já estava cancelada ou reembolsada (ex.: desistência já registrada). O contrato e a matrícula NÃO foram reativados. Requer reconciliação manual.",
+    });
+
+    return { applied: true, reason: "invoice_already_closed" };
+  }
+
   await connection.execute(`UPDATE invoices SET status = 'paid', paid_at = ?, cancelled_at = NULL WHERE id = ?`, [
     paidAt,
     row.invoice_id,

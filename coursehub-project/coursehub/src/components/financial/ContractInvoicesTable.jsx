@@ -1,4 +1,5 @@
 import InvoiceStatusBadge from "./InvoiceStatusBadge";
+import TableActionButton from "../ui/actions/TableActionButton";
 
 function formatCurrency(value) {
   const numericValue = Number(value);
@@ -189,22 +190,13 @@ export default function ContractInvoicesTable({
                 </td>
 
                 <td className="px-5 py-4 text-right">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onOpenInvoice?.(invoice.id)
-                    }
-                    className={[
-                      "inline-flex min-h-9 items-center justify-center",
-                      "rounded-lg border border-slate-300 bg-white",
-                      "px-3 text-xs font-semibold text-slate-700",
-                      "transition hover:border-slate-400 hover:bg-slate-50",
-                      "focus:outline-none focus:ring-2",
-                      "focus:ring-blue-500 focus:ring-offset-2",
-                    ].join(" ")}
+                  <TableActionButton
+                    variant="accent"
+                    size="sm"
+                    onClick={() => onOpenInvoice?.(invoice.id)}
                   >
                     Detalhes
-                  </button>
+                  </TableActionButton>
                 </td>
               </tr>
             );

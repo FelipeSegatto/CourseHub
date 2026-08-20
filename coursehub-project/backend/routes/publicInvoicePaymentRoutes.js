@@ -12,11 +12,16 @@ const requireInvoicePaymentSession = require("../middlewares/requireInvoicePayme
 const {
   invoicePaymentLinkAccessRateLimiter,
   publicInvoicePaymentCreateRateLimiter,
+  invoicePaymentLinkRecoveryByIpRateLimiter,
+  invoicePaymentLinkRecoveryByEmailRateLimiter,
 } = require("../middlewares/rateLimiters");
 const {
   exchangeInvoicePaymentToken,
   getInvoicePaymentSessionSnapshot,
 } = require("../services/financial/invoicePaymentAccessService");
+const {
+  requestInvoicePaymentLinkByEmail,
+} = require("../services/financial/invoicePaymentLinkRecoveryService");
 const {
   startInvoicePayment,
   getInvoicePaymentByAccessContext,
@@ -134,5 +139,39 @@ router.get("/payments/:paymentId", requireInvoicePaymentSession, async (req, res
     });
   }
 });
+
+/**
+ * POST /api/public/invoice-payment/request-link
+ * "Não encontrou seu link?" (Fale conosco) -- recebe só um e-mail,
+ * nunca invoiceId. Sempre responde a mesma mensagem genérica, exista
+ * ou não uma fatura elegível para esse e-mail, para não vazar se o
+ * endereço tem cadastro/contrato/fatura (mesmo princípio de
+ * /api/forgot-password/check-email).
+ */
+router.post(
+  "/request-link",
+  invoicePaymentLinkRecoveryByIpRateLimiter,
+  invoicePaymentLinkRecoveryByEmailRateLimiter,
+  async (req, res) => {
+    const genericResponse = {
+      message: "Se houver uma cobrança disponível para este e-mail, enviaremos as instruções de acesso.",
+    };
+
+    try {
+      await requestInvoicePaymentLinkByEmail(db, req.body || {});
+
+      return res.status(200).json(genericResponse);
+    } catch (error) {
+      if (error.statusCode === 400) {
+        return res.status(400).json({ message: error.message });
+      }
+
+      console.error("Erro ao processar solicitação de link de fatura:", error.message);
+
+      // Qualquer outro erro ainda responde com a mensagem genérica.
+      return res.status(200).json(genericResponse);
+    }
+  }
+);
 
 module.exports = router;

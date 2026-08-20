@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { getFinancialDashboardSummary } from "../../../services/FinancialService";
 
 import FinancialSummaryCards from "../../../components/financial/FinancialSummaryCards";
+import PrintPageButton from "../../../components/reports/PrintPageButton";
 
 function extractResponseData(response) {
   return response?.data ?? response ?? {};
@@ -151,7 +152,7 @@ useEffect(() => {
 
   return (
     <main className="min-h-full bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1600px]">
+      <div className="print-area mx-auto max-w-[1600px]">
         <header className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <span className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600">
@@ -168,14 +169,18 @@ useEffect(() => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={loadSummary}
-            disabled={loading}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
-          >
-            Atualizar dados
-          </button>
+          <div className="flex gap-3 print-hide">
+            <button
+              type="button"
+              onClick={loadSummary}
+              disabled={loading}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+            >
+              Atualizar dados
+            </button>
+
+            <PrintPageButton />
+          </div>
         </header>
 
         {error && (
@@ -187,7 +192,7 @@ useEffect(() => {
             <button
               type="button"
               onClick={loadSummary}
-              className="text-sm font-semibold text-red-700 hover:underline"
+              className="print-hide text-sm font-semibold text-red-700 hover:underline"
             >
               Tentar novamente
             </button>
@@ -258,7 +263,7 @@ useEffect(() => {
               />
             </section>
 
-            <section className="mt-6 grid gap-5 lg:grid-cols-2">
+            <section className="print-hide mt-6 grid gap-5 lg:grid-cols-2">
               <button
                 type="button"
                 onClick={() =>

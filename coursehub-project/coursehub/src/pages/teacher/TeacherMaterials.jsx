@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
 
@@ -8,6 +7,7 @@ import ContentModal from "../../components/teachers/ContentModal";
 import DeleteModal from "../../components/teachers/DeleteModal";
 import TeacherTable from "../../components/teachers/TeacherTable";
 import TeacherStatusFilter from "../../components/teachers/TeacherStatusFilter";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
 import StatusBadge from "../../components/ui/StatusBadge";
 
 const contentStatusOptions = [
@@ -560,6 +560,7 @@ export default function TeacherMaterials() {
     {
       key: "actions",
       label: "Ações",
+      align: "right",
     },
   ];
 
@@ -607,25 +608,25 @@ export default function TeacherMaterials() {
                 key={content.id}
                 className="border-b border-gray-100"
               >
-                <td className="py-5">
-                  <p className="font-semibold text-gray-900">
+                <td className="px-3 py-3">
+                  <p className="text-sm font-semibold text-gray-900">
                     {content.title}
                   </p>
 
                   {content.description && (
-                    <p className="mt-1 max-w-md truncate text-sm text-gray-500">
+                    <p className="mt-1 max-w-md truncate text-xs text-gray-500">
                       {content.description}
                     </p>
                   )}
                 </td>
 
-                <td className="py-5 text-gray-600">
+                <td className="px-3 py-3 text-sm text-gray-600">
                   {content.course_name ||
                     content.course_title ||
                     `Curso #${content.course_id}`}
                 </td>
 
-                <td className="py-5 text-gray-600">
+                <td className="px-3 py-3 text-sm text-gray-600">
                   {content.classId ?? content.class_id
                     ? content.className ||
                       content.class_name ||
@@ -633,7 +634,7 @@ export default function TeacherMaterials() {
                     : "Todas as turmas"}
                 </td>
 
-                <td className="py-5 text-gray-600">
+                <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                   {contentTypeLabels[
                     content.type
                   ] ||
@@ -641,14 +642,14 @@ export default function TeacherMaterials() {
                     "-"}
                 </td>
 
-                <td className="py-5">
+                <td className="whitespace-nowrap px-3 py-3">
                   <StatusBadge
                     status={content.status}
                   />
                 </td>
 
-                <td className="py-5">
-                  <div className="flex flex-wrap gap-2">
+                <td className="whitespace-nowrap px-3 py-3">
+                  <div className="flex items-center justify-end gap-2">
                     {(() => {
                       const specificClassId =
                         content.classId ?? content.class_id ?? null;
@@ -659,12 +660,13 @@ export default function TeacherMaterials() {
                        */
                       if (specificClassId) {
                         return (
-                          <Link
+                          <TableActionButton
+                            variant="neutral"
+                            size="sm"
                             to={`/professor/turmas/${specificClassId}/materiais`}
-                            className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-200"
                           >
                             Ver
-                          </Link>
+                          </TableActionButton>
                         );
                       }
 
@@ -679,47 +681,48 @@ export default function TeacherMaterials() {
 
                       if (!fallbackClass) {
                         return (
-                          <button
-                            type="button"
+                          <TableActionButton
+                            variant="neutral"
+                            size="sm"
                             disabled
                             title="Nenhuma turma cadastrada para este curso."
-                            className="cursor-not-allowed rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-400"
                           >
                             Ver
-                          </button>
+                          </TableActionButton>
                         );
                       }
 
                       return (
-                        <Link
+                        <TableActionButton
+                          variant="neutral"
+                          size="sm"
                           to={`/professor/turmas/${fallbackClass.id}/materiais`}
                           title="Conteúdo geral do curso. Abrir na primeira turma disponível."
-                          className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-200"
                         >
                           Ver
-                        </Link>
+                        </TableActionButton>
                       );
                     })()}
 
-                    <button
-                      type="button"
+                    <TableActionButton
+                      variant="accent"
+                      size="sm"
                       onClick={() =>
                         handleEditClick(content)
                       }
-                      className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-200"
                     >
                       Editar
-                    </button>
+                    </TableActionButton>
 
-                    <button
-                      type="button"
+                    <TableActionButton
+                      variant="danger"
+                      size="sm"
                       onClick={() =>
                         handleDeleteClick(content)
                       }
-                      className="rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-200"
                     >
                       Remover
-                    </button>
+                    </TableActionButton>
                   </div>
                 </td>
               </tr>

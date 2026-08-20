@@ -13,6 +13,7 @@ import {
 import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
 import SessionModal from "../../components/teachers/SessionModal";
+import { saveTeacherSession } from "../../services/TeacherSessionService";
 
 const sessionTypeOptions = [
   {
@@ -635,6 +636,7 @@ export default function TeacherClassDetails() {
         nextSessionNumber={nextSessionNumber}
         onClose={closeSessionModal}
         onSaved={handleSessionSaved}
+        onSubmit={saveTeacherSession(usuarioLogado?.id)}
       />
     </main>
   );

@@ -1,138 +1,14 @@
-const { createServiceError } = require("../classes/classAccessService");
 const { requireOwnedClass } = require("./teacherClassService");
 const { withTransaction } = require("../../utils/dbTransaction");
 const { datesRepresentSameInstant } = require("../../utils/appConfig");
-const { createNotificationEvent } = require("../notifications/notificationService");
 const {
-  resolveActiveStudentsForCourseOrClass,
-} = require("../notifications/notificationRecipientResolvers");
-
-const ALLOWED_SESSION_TYPES = new Set([
-  "class",
-  "review",
-  "exam",
-  "presentation",
-  "workshop",
-  "lab",
-  "recovery",
-  "other",
-]);
-
-const ALLOWED_SESSION_STATUSES = new Set(["scheduled", "completed", "cancelled"]);
-
-function isValidDateString(value) {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
-}
-
-function isValidTimeString(value) {
-  if (value === null || value === undefined || value === "") {
-    return true;
-  }
-
-  if (typeof value !== "string" || !/^\d{2}:\d{2}(:\d{2})?$/.test(value)) {
-    return false;
-  }
-
-  const [hours, minutes, seconds = "00"] = value.split(":");
-  const parsedHours = Number(hours);
-  const parsedMinutes = Number(minutes);
-  const parsedSeconds = Number(seconds);
-
-  return (
-    parsedHours >= 0 &&
-    parsedHours <= 23 &&
-    parsedMinutes >= 0 &&
-    parsedMinutes <= 59 &&
-    parsedSeconds >= 0 &&
-    parsedSeconds <= 59
-  );
-}
-
-function normalizeTimeValue(value) {
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-
-  const normalized = value.trim();
-
-  if (/^\d{2}:\d{2}$/.test(normalized)) {
-    return `${normalized}:00`;
-  }
-
-  return normalized;
-}
-
-function mapClassSession(session) {
-  return {
-    id: session.id,
-    classId: session.class_id,
-    sessionNumber: session.session_number,
-    title: session.title,
-    sessionDate: session.session_date,
-    startTime: session.start_time,
-    endTime: session.end_time,
-    sessionType: session.session_type,
-    description: session.description,
-    status: session.status,
-    createdAt: session.created_at,
-    updatedAt: session.updated_at,
-  };
-}
-
-/**
- * Shared by every learning.session.* event -- same shape as
- * notifyActivityEvent/notifyContentEvent. Sessions always belong to
- * exactly one real class (no course-wide "class_id null" case), so
- * the resolver call is simpler here.
- */
-async function notifySessionEvent(
-  db,
-  connection,
-  type,
-  { sessionId, title, sessionDate, startTime, endTime, courseId, courseName, classId, className, teacherUserId }
-) {
-  const recipients = await resolveActiveStudentsForCourseOrClass(connection, {
-    courseId,
-    classId,
-  });
-
-  if (recipients.length === 0) {
-    return;
-  }
-
-  await createNotificationEvent(db, {
-    type,
-    sourceType: "class_session",
-    sourceId: sessionId,
-    actorUserId: teacherUserId,
-    courseId,
-    classId,
-    context: {
-      sessionId,
-      sessionTitle: title,
-      sessionDate,
-      startTime,
-      endTime,
-      courseId,
-      courseName,
-      classId,
-      className,
-    },
-    recipients,
-    connection,
-  });
-}
+  createServiceError,
+  ALLOWED_SESSION_TYPES,
+  ALLOWED_SESSION_STATUSES,
+  mapClassSession,
+  validateSessionPayload,
+  notifySessionEvent,
+} = require("../classSessions/classSessionShared");
 
 /**
  * Busca uma sessão e confirma que sua turma pertence ao
@@ -170,92 +46,27 @@ async function getTeacherSessionByUserId(db, userId, sessionId, options = {}) {
   return rows[0] || null;
 }
 
-function validateSessionPayload({
-  sessionNumber,
-  title,
-  description,
-  sessionDate,
-  startTime,
-  endTime,
-  sessionType,
-  status,
-}) {
-  const normalizedSessionNumber = Number(sessionNumber);
-  const normalizedTitle = typeof title === "string" ? title.trim() : "";
-  const normalizedStartTime = normalizeTimeValue(startTime);
-  const normalizedEndTime = normalizeTimeValue(endTime);
-
-  if (!Number.isInteger(normalizedSessionNumber) || normalizedSessionNumber <= 0) {
-    throw createServiceError(
-      "O número da sessão deve ser um inteiro maior que zero.",
-      400
-    );
-  }
-
-  if (!normalizedTitle) {
-    throw createServiceError("O título da sessão é obrigatório.", 400);
-  }
-
-  if (normalizedTitle.length > 180) {
-    throw createServiceError(
-      "O título da sessão deve possuir no máximo 180 caracteres.",
-      400
-    );
-  }
-
-  if (!isValidDateString(sessionDate)) {
-    throw createServiceError(
-      "A data da sessão é obrigatória e deve usar o formato YYYY-MM-DD.",
-      400
-    );
-  }
-
-  if (!isValidTimeString(normalizedStartTime) || !isValidTimeString(normalizedEndTime)) {
-    throw createServiceError(
-      "Os horários devem usar o formato HH:MM ou HH:MM:SS.",
-      400
-    );
-  }
-
-  if (
-    normalizedStartTime &&
-    normalizedEndTime &&
-    normalizedEndTime <= normalizedStartTime
-  ) {
-    throw createServiceError(
-      "O horário final deve ser posterior ao horário inicial.",
-      400
-    );
-  }
-
-  if (!ALLOWED_SESSION_TYPES.has(sessionType)) {
-    throw createServiceError("Tipo de sessão inválido.", 400);
-  }
-
-  if (!ALLOWED_SESSION_STATUSES.has(status)) {
-    throw createServiceError("Status de sessão inválido.", 400);
-  }
-
-  return {
-    sessionNumber: normalizedSessionNumber,
-    title: normalizedTitle,
-    description:
-      typeof description === "string" ? description.trim() || null : null,
-    sessionDate,
-    startTime: normalizedStartTime,
-    endTime: normalizedEndTime,
-    sessionType,
-    status,
-  };
-}
-
 /**
  * Lista as sessões de uma turma, com resumo de frequência por
  * sessão e um resumo geral de status.
  */
-async function listSessions(db, { userId, classId, status, sessionType }) {
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function normalizeSessionDate(value, message) {
+  if (!value) return null;
+
+  if (typeof value !== "string" || !DATE_PATTERN.test(value)) {
+    throw createServiceError(message, 400);
+  }
+
+  return value;
+}
+
+async function listSessions(db, { userId, classId, status, sessionType, from, to }) {
   const normalizedStatus = typeof status === "string" ? status.trim() : "";
   const normalizedType = typeof sessionType === "string" ? sessionType.trim() : "";
+  const normalizedFrom = normalizeSessionDate(from, "A data inicial deve estar no formato YYYY-MM-DD.");
+  const normalizedTo = normalizeSessionDate(to, "A data final deve estar no formato YYYY-MM-DD.");
 
   const allowedStatusFilters = new Set(["", ...ALLOWED_SESSION_STATUSES]);
   const allowedTypeFilters = new Set(["", ...ALLOWED_SESSION_TYPES]);
@@ -268,11 +79,17 @@ async function listSessions(db, { userId, classId, status, sessionType }) {
     throw createServiceError("Tipo de sessão inválido.", 400);
   }
 
+  if (normalizedFrom && normalizedTo && normalizedFrom > normalizedTo) {
+    throw createServiceError("A data inicial não pode ser posterior à data final.", 400);
+  }
+
   const { classData } = await requireOwnedClass(db.promise(), { userId, classId });
 
   const queryParams = [classId];
   let statusCondition = "";
   let typeCondition = "";
+  let fromCondition = "";
+  let toCondition = "";
 
   if (normalizedStatus) {
     statusCondition = "AND cs.status = ?";
@@ -282,6 +99,16 @@ async function listSessions(db, { userId, classId, status, sessionType }) {
   if (normalizedType) {
     typeCondition = "AND cs.session_type = ?";
     queryParams.push(normalizedType);
+  }
+
+  if (normalizedFrom) {
+    fromCondition = "AND cs.session_date >= ?";
+    queryParams.push(normalizedFrom);
+  }
+
+  if (normalizedTo) {
+    toCondition = "AND cs.session_date <= ?";
+    queryParams.push(normalizedTo);
   }
 
   const [sessionRows] = await db.promise().query(
@@ -297,7 +124,7 @@ async function listSessions(db, { userId, classId, status, sessionType }) {
         SUM(CASE WHEN a.status = 'excused' THEN 1 ELSE 0 END) AS excused_count
       FROM class_sessions cs
       LEFT JOIN attendance a ON a.class_session_id = cs.id
-      WHERE cs.class_id = ? ${statusCondition} ${typeCondition}
+      WHERE cs.class_id = ? ${statusCondition} ${typeCondition} ${fromCondition} ${toCondition}
       GROUP BY
         cs.id, cs.class_id, cs.session_number, cs.title, cs.session_date,
         cs.start_time, cs.end_time, cs.session_type, cs.description,
@@ -450,7 +277,7 @@ async function createSession(db, { userId, classId, payload }) {
         courseName: classData.course_title || classData.course_name,
         classId,
         className: classData.name,
-        teacherUserId: userId,
+        actorUserId: userId,
       });
     }
 
@@ -518,7 +345,7 @@ async function updateSession(db, { userId, sessionId, payload }) {
       courseName: currentSession.course_name,
       classId: currentSession.class_id,
       className: currentSession.class_name,
-      teacherUserId: userId,
+      actorUserId: userId,
     };
 
     const scheduleChanged =
@@ -586,7 +413,7 @@ async function cancelSession(db, { userId, sessionId }) {
         courseName: session.course_name,
         classId: session.class_id,
         className: session.class_name,
-        teacherUserId: userId,
+        actorUserId: userId,
       });
     }
 

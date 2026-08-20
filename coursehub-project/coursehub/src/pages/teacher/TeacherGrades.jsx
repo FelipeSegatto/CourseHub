@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
 import {
@@ -8,6 +7,7 @@ import {
 } from "../../services/TeacherGradeService";
 import StatCard from "../../components/ui/StatCard";
 import StatusBadge from "../../components/ui/StatusBadge";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
 
 const inputClass =
   "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
@@ -265,23 +265,23 @@ export default function TeacherGrades() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[800px] border-collapse">
                 <thead>
-                  <tr className="border-b border-gray-200 text-left">
-                    <th className="pb-4 text-sm font-semibold text-gray-500">Aluno</th>
-                    <th className="pb-4 text-sm font-semibold text-gray-500">Status</th>
-                    <th className="pb-4 text-sm font-semibold text-gray-500">Nota</th>
-                    <th className="pb-4 text-sm font-semibold text-gray-500">Ações</th>
+                  <tr className="border-b border-gray-200">
+                    <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Aluno</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Nota</th>
+                    <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Ações</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {students.map((student) => (
                     <tr key={student.studentId} className="border-b border-gray-100">
-                      <td className="py-5">
-                        <p className="font-semibold text-gray-900">{student.studentName}</p>
+                      <td className="px-3 py-3">
+                        <p className="text-sm font-semibold text-gray-900">{student.studentName}</p>
                         <p className="text-xs text-gray-500">{student.registrationNumber}</p>
                       </td>
 
-                      <td className="py-5">
+                      <td className="whitespace-nowrap px-3 py-3">
                         {student.submissionId === null ? (
                           <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500">
                             Não enviado
@@ -293,12 +293,12 @@ export default function TeacherGrades() {
 
                       {student.submissionId === null ? (
                         <>
-                          <td className="py-5 text-gray-400">-</td>
-                          <td className="py-5 text-gray-400">-</td>
+                          <td className="px-3 py-3 text-sm text-gray-400">-</td>
+                          <td className="px-3 py-3 text-right text-sm text-gray-400">-</td>
                         </>
                       ) : (
                         <>
-                          <td className="py-5">
+                          <td className="px-3 py-3">
                             <input
                               type="number"
                               min="0"
@@ -315,7 +315,7 @@ export default function TeacherGrades() {
                                   [student.submissionId]: event.target.value,
                                 }))
                               }
-                              className="w-20 rounded-lg border border-gray-300 px-3 py-2 text-gray-700 outline-none focus:border-blue-500"
+                              className="w-20 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500"
                             />
 
                             {rowErrors[student.submissionId] && (
@@ -325,23 +325,25 @@ export default function TeacherGrades() {
                             )}
                           </td>
 
-                          <td className="py-5">
-                            <div className="flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleSaveScore(student)}
+                          <td className="whitespace-nowrap px-3 py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              <TableActionButton
+                                variant="accent"
+                                size="sm"
+                                loading={savingId === student.submissionId}
                                 disabled={savingId === student.submissionId}
-                                className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200 disabled:opacity-50"
+                                onClick={() => handleSaveScore(student)}
                               >
                                 {savingId === student.submissionId ? "Salvando..." : "Salvar nota"}
-                              </button>
+                              </TableActionButton>
 
-                              <Link
+                              <TableActionButton
+                                variant="neutral"
+                                size="sm"
                                 to={`/professor/envios/${student.submissionId}/corrigir`}
-                                className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
                               >
                                 Ver correção completa
-                              </Link>
+                              </TableActionButton>
                             </div>
                           </td>
                         </>

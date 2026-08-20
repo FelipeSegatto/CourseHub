@@ -17,6 +17,10 @@ export default function NavbarTeacher() {
       to: "/professor/minhas-turmas"
     },
     {
+      label: "Encontros",
+      to: "/professor/encontros",
+    },
+    {
       label: "Materiais",
       to: "/professor/materiais",
     },

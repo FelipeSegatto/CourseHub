@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Repeat, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
 import { apiFetch } from "../../services/APIService";
 
 import {
@@ -14,6 +15,8 @@ import ExportPdfButton from "../../components/reports/ExportPdfButton";
 import AdminEnrollmentModal from "../../components/admin/AdminEnrollmentModal";
 import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
+import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const STATUS_OPTIONS = [
@@ -262,7 +265,7 @@ export default function EnrollmentsAdmin() {
     { key: "enrolled_at", label: "Data" },
     { key: "status", label: "Status" },
     { key: "contract", label: "Contrato financeiro" },
-    { key: "actions", label: "Ações" },
+    { key: "actions", label: "Ações", align: "right" },
   ];
 
   const inputClass =
@@ -393,29 +396,29 @@ export default function EnrollmentsAdmin() {
               emptyMessage="Nenhuma matrícula encontrada."
               renderRow={(enrollment) => (
                 <tr key={enrollment.id} className="border-b border-gray-100">
-                  <td className="py-5">
-                    <p className="font-semibold text-gray-900">
+                  <td className="px-3 py-3">
+                    <p className="text-sm font-semibold text-gray-900">
                       {enrollment.student.name}
                     </p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-xs text-gray-500">
                       {enrollment.student.registrationNumber}
                     </p>
                   </td>
 
-                  <td className="py-5 text-gray-600">{enrollment.course.name}</td>
-                  <td className="py-5 text-gray-600">
+                  <td className="px-3 py-3 text-sm text-gray-600">{enrollment.course.name}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">
                     {enrollment.class?.name || "Sem turma"}
                   </td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                     {formatShortDate(enrollment.enrolledAt)}
                   </td>
 
-                  <td className="py-5">
+                  <td className="whitespace-nowrap px-3 py-3">
                     <StatusBadge status={enrollment.status} />
                   </td>
 
-                  <td className="py-5">
+                  <td className="whitespace-nowrap px-3 py-3">
                     {enrollment.financialContract ? (
                       <StatusBadge status={enrollment.financialContract.status} />
                     ) : (
@@ -423,50 +426,48 @@ export default function EnrollmentsAdmin() {
                     )}
                   </td>
 
-                  <td className="py-5">
-                    <div className="flex flex-wrap gap-2">
-                      {enrollment.status === "active" && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => openClassChangeModal(enrollment)}
-                            disabled={rowActionLoading === enrollment.id}
-                            className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Trocar turma
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleStatusChange(enrollment, "completed")}
-                            disabled={rowActionLoading === enrollment.id}
-                            className="rounded-lg bg-purple-100 px-3 py-2 text-sm font-medium text-purple-700 hover:bg-purple-200 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Concluir
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleStatusChange(enrollment, "cancelled")}
-                            disabled={rowActionLoading === enrollment.id}
-                            className="rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Cancelar
-                          </button>
-                        </>
-                      )}
-
-                      {enrollment.status !== "active" && (
-                        <button
-                          type="button"
-                          onClick={() => handleStatusChange(enrollment, "active")}
-                          disabled={rowActionLoading === enrollment.id}
-                          className="rounded-lg bg-green-100 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-200 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Reativar
-                        </button>
-                      )}
-                    </div>
+                  <td className="whitespace-nowrap px-3 py-3 text-right">
+                    {enrollment.status === "active" ? (
+                      <RowActionsMenu
+                        items={[
+                          {
+                            key: "change-class",
+                            label: "Trocar turma",
+                            icon: Repeat,
+                            variant: "neutral",
+                            disabled: rowActionLoading === enrollment.id,
+                            onClick: () => openClassChangeModal(enrollment),
+                          },
+                          {
+                            key: "complete",
+                            label: "Concluir",
+                            icon: CheckCircle2,
+                            variant: "neutral",
+                            disabled: rowActionLoading === enrollment.id,
+                            onClick: () => handleStatusChange(enrollment, "completed"),
+                          },
+                          {
+                            key: "cancel",
+                            label: "Cancelar matrícula",
+                            icon: XCircle,
+                            variant: "danger",
+                            separator: true,
+                            disabled: rowActionLoading === enrollment.id,
+                            onClick: () => handleStatusChange(enrollment, "cancelled"),
+                          },
+                        ]}
+                      />
+                    ) : (
+                      <TableActionButton
+                        variant="warning"
+                        size="sm"
+                        icon={RotateCcw}
+                        disabled={rowActionLoading === enrollment.id}
+                        onClick={() => handleStatusChange(enrollment, "active")}
+                      >
+                        Reativar
+                      </TableActionButton>
+                    )}
                   </td>
                 </tr>
               )}

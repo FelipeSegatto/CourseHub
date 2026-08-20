@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { apiFetch } from "../../services/APIService";
 
 import ManagementPageShell from "../../components/ui/ManagementPageShell";
@@ -6,6 +7,8 @@ import AdminCreateEditModal from "../../components/admin/AdminCreateEditModal";
 import DeleteConfirmModal from "../../components/admin/AdminDeleteModal";
 import AdminTable from "../../components/admin/AdminTable";
 import AdminStatusFilter from "../../components/admin/AdminStatusFilter";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
+import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
 
 import StatusBadge from "../../components/ui/StatusBadge";
 
@@ -143,7 +146,7 @@ export default function TeachersAdmin() {
     { key: "course_names", label: "Cursos" },
     { key: "phone", label: "Telefone" },
     { key: "status", label: "Status" },
-    { key: "actions", label: "Ações" },
+    { key: "actions", label: "Ações", align: "right" },
   ];
 
   return (
@@ -185,41 +188,41 @@ export default function TeachersAdmin() {
             emptyMessage="Nenhum professor encontrado."
             renderRow={(teacher) => (
               <tr key={teacher.id} className="border-b border-gray-100">
-                <td className="py-5">
-                  <p className="font-semibold text-gray-900">{teacher.name}</p>
-                  <p className="text-sm text-gray-500">{teacher.email}</p>
+                <td className="px-3 py-3">
+                  <p className="text-sm font-semibold text-gray-900">{teacher.name}</p>
+                  <p className="text-xs text-gray-500">{teacher.email}</p>
                 </td>
 
-                <td className="py-5 text-gray-600">
+                <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                   {teacher.registration_number || "-"}
                 </td>
 
-                <td className="py-5 text-gray-600">{teacher.course_names || "-"}</td>
-                <td className="py-5 text-gray-600">{teacher.phone || "-"}</td>
+                <td className="px-3 py-3 text-sm text-gray-600">{teacher.course_names || "-"}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">{teacher.phone || "-"}</td>
 
-                <td className="py-5">
+                <td className="whitespace-nowrap px-3 py-3">
                   <StatusBadge status={teacher.status} />
                 </td>
 
-                <td className="py-5">
-                  <div className="flex gap-2">
-                    <button className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200">
-                      Ver
-                    </button>
+                <td className="whitespace-nowrap px-3 py-3">
+                  <div className="flex items-center justify-end gap-2">
 
-                    <button
-                      onClick={() => handleEditClick(teacher)}
-                      className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200"
-                    >
+
+                    <TableActionButton variant="accent" size="sm" onClick={() => handleEditClick(teacher)}>
                       Editar
-                    </button>
+                    </TableActionButton>
 
-                    <button
-                      onClick={() => handleDeleteClick(teacher)}
-                      className="rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-200"
-                    >
-                      Remover
-                    </button>
+                    <RowActionsMenu
+                      items={[
+                        {
+                          key: "delete",
+                          label: "Remover",
+                          icon: Trash2,
+                          variant: "danger",
+                          onClick: () => handleDeleteClick(teacher),
+                        },
+                      ]}
+                    />
                   </div>
                 </td>
               </tr>

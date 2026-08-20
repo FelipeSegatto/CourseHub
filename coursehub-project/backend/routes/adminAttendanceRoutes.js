@@ -9,6 +9,11 @@ const {
   adjustAttendance,
 } = require("../services/admin/adminAttendanceService");
 
+const {
+  listAttendanceSessions,
+  getAttendanceSessionDetail,
+} = require("../services/admin/adminAttendanceSessionService");
+
 const router = express.Router();
 
 function handleServiceError(res, error, fallbackMessage) {
@@ -40,6 +45,46 @@ router.get(
       return res.status(200).json(result);
     } catch (error) {
       return handleServiceError(res, error, "Erro ao buscar frequência.");
+    }
+  }
+);
+
+/**
+ * GET /api/admin/attendance/sessions
+ * Frequência por chamada -- a unidade é o encontro, não o registro
+ * individual. Precisa vir ANTES de /admin/attendance/:attendanceId
+ * na ordem de registro, senão o Express tentaria casar "sessions"
+ * como um :attendanceId.
+ */
+router.get(
+  "/admin/attendance/sessions",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result = await listAttendanceSessions(db, req.query);
+
+      return res.status(200).json(result);
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao buscar chamadas de frequência.");
+    }
+  }
+);
+
+/**
+ * GET /api/admin/attendance/sessions/:sessionId
+ */
+router.get(
+  "/admin/attendance/sessions/:sessionId",
+  authenticateToken,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result = await getAttendanceSessionDetail(db, req.params.sessionId);
+
+      return res.status(200).json(result);
+    } catch (error) {
+      return handleServiceError(res, error, "Erro ao buscar detalhe da chamada.");
     }
   }
 );

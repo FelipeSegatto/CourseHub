@@ -140,7 +140,7 @@ export default function TeacherDashboard() {
               />
 
               <StatCard
-                title="Compromissos (7 dias)"
+                title="Aulas e Eventos (7 dias)"
                 value={summary?.upcomingCommitments ?? 0}
                 color="purple"
               />

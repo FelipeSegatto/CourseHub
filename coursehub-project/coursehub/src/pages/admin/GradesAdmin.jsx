@@ -2,13 +2,21 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../services/APIService";
 import { AdminGradeService } from "../../services/AdminGradeService";
 import { listClasses } from "../../services/AdminClassService";
+import { useAppliedFilters } from "../../hooks/useAppliedFilters";
 
 import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import ExportPdfButton from "../../components/reports/ExportPdfButton";
 import AdminTable from "../../components/admin/AdminTable";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const PAGE_LIMIT = 10;
+
+const INITIAL_DRAFT = { search: "", courseId: "", classId: "", teacherId: "", adjustedOnly: false };
+
+function hasValidScope(draft) {
+  return Boolean(draft.courseId || draft.classId || draft.teacherId || draft.search.trim().length >= 3);
+}
 
 function formatShortDate(value) {
   if (!value) return "-";
@@ -23,23 +31,13 @@ function formatShortDate(value) {
 export default function GradesAdmin() {
   const [items, setItems] = useState([]);
   const [summary, setSummary] = useState(null);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: PAGE_LIMIT,
-    total: 0,
-    totalPages: 1,
-  });
+  const [pagination, setPagination] = useState({ page: 1, limit: PAGE_LIMIT, total: 0, totalPages: 1 });
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
-  const [courseId, setCourseId] = useState("");
-  const [classId, setClassId] = useState("");
-  const [teacherId, setTeacherId] = useState("");
-  const [adjustedOnly, setAdjustedOnly] = useState(false);
-  const [page, setPage] = useState(1);
+  const { draft, updateDraft, applied, hasApplied, isStale, apply, clear, page, setPage } =
+    useAppliedFilters(INITIAL_DRAFT);
 
   const [courses, setCourses] = useState([]);
   const [teachers, setTeachers] = useState([]);
@@ -51,35 +49,26 @@ export default function GradesAdmin() {
   const [adjustLoading, setAdjustLoading] = useState(false);
   const [adjustError, setAdjustError] = useState("");
 
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setSearch(searchInput);
-      setPage(1);
-    }, 400);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchInput]);
-
   const fetchItems = useCallback(async () => {
+    if (!applied) return;
+
     try {
       setLoading(true);
       setError("");
 
       const result = await AdminGradeService.list({
-        search,
-        courseId,
-        classId,
-        teacherId,
-        adjustedOnly: adjustedOnly || undefined,
+        search: applied.search,
+        courseId: applied.courseId,
+        classId: applied.classId,
+        teacherId: applied.teacherId,
+        adjustedOnly: applied.adjustedOnly || undefined,
         page,
         limit: PAGE_LIMIT,
       });
 
       setItems(Array.isArray(result?.data) ? result.data : []);
       setSummary(result?.summary || null);
-      setPagination(
-        result?.pagination || { page: 1, limit: PAGE_LIMIT, total: 0, totalPages: 1 }
-      );
+      setPagination(result?.pagination || { page: 1, limit: PAGE_LIMIT, total: 0, totalPages: 1 });
     } catch (requestError) {
       console.error("[GradesAdmin] erro:", requestError);
       setError(requestError.message || "Não foi possível carregar as notas.");
@@ -87,7 +76,7 @@ export default function GradesAdmin() {
     } finally {
       setLoading(false);
     }
-  }, [search, courseId, classId, teacherId, adjustedOnly, page]);
+  }, [applied, page]);
 
   useEffect(() => {
     fetchItems();
@@ -120,9 +109,9 @@ export default function GradesAdmin() {
   }, []);
 
   useEffect(() => {
-    if (!courseId) {
+    if (!draft.courseId) {
       setFilterClasses([]);
-      setClassId("");
+      if (draft.classId) updateDraft({ classId: "" });
       return;
     }
 
@@ -130,7 +119,7 @@ export default function GradesAdmin() {
 
     async function loadClassesForFilter() {
       try {
-        const response = await listClasses({ courseId, limit: 100 });
+        const response = await listClasses({ courseId: draft.courseId, limit: 100 });
 
         if (!ignoreRequest) {
           setFilterClasses(Array.isArray(response?.data) ? response.data : []);
@@ -145,7 +134,8 @@ export default function GradesAdmin() {
     return () => {
       ignoreRequest = true;
     };
-  }, [courseId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.courseId]);
 
   function handleAdjustClick(item) {
     setAdjustTarget(item);
@@ -202,24 +192,28 @@ export default function GradesAdmin() {
     }
   }
 
-  const stats = [
-    { title: "Total de notas", value: summary?.total ?? 0 },
-    { title: "Média geral", value: summary?.averageScore ?? "-" },
-    { title: "Ajustadas por admin", value: summary?.adjustedCount ?? 0, color: "purple" },
-  ];
+  const stats = hasApplied
+    ? [
+        { title: "Total de notas", value: summary?.total ?? 0 },
+        { title: "Média geral", value: summary?.averageScore ?? "-" },
+        { title: "Ajustadas por admin", value: summary?.adjustedCount ?? 0, color: "purple" },
+      ]
+    : [];
 
   const columns = [
     { key: "student", label: "Aluno" },
     { key: "course", label: "Curso · Turma" },
     { key: "activity", label: "Atividade" },
-    { key: "score", label: "Nota atual" },
+    { key: "score", label: "Nota atual", align: "right" },
     { key: "teacher", label: "Corrigida por" },
     { key: "adjustment", label: "Ajuste admin" },
-    { key: "actions", label: "Ações" },
+    { key: "actions", label: "Ações", align: "right" },
   ];
 
   const inputClass =
     "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
+
+  const canApply = hasValidScope(draft);
 
   return (
     <>
@@ -230,13 +224,10 @@ export default function GradesAdmin() {
         stats={stats}
         tableTitle="Lista de notas"
         tableActions={
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <select
-              value={courseId}
-              onChange={(event) => {
-                setCourseId(event.target.value);
-                setPage(1);
-              }}
+              value={draft.courseId}
+              onChange={(event) => updateDraft({ courseId: event.target.value })}
               className={inputClass}
             >
               <option value="">Todos os cursos</option>
@@ -248,12 +239,9 @@ export default function GradesAdmin() {
             </select>
 
             <select
-              value={classId}
-              onChange={(event) => {
-                setClassId(event.target.value);
-                setPage(1);
-              }}
-              disabled={!courseId}
+              value={draft.classId}
+              onChange={(event) => updateDraft({ classId: event.target.value })}
+              disabled={!draft.courseId}
               className={inputClass}
             >
               <option value="">Todas as turmas</option>
@@ -265,11 +253,8 @@ export default function GradesAdmin() {
             </select>
 
             <select
-              value={teacherId}
-              onChange={(event) => {
-                setTeacherId(event.target.value);
-                setPage(1);
-              }}
+              value={draft.teacherId}
+              onChange={(event) => updateDraft({ teacherId: event.target.value })}
               className={inputClass}
             >
               <option value="">Todos os professores</option>
@@ -283,30 +268,69 @@ export default function GradesAdmin() {
             <label className="flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700">
               <input
                 type="checkbox"
-                checked={adjustedOnly}
-                onChange={(event) => {
-                  setAdjustedOnly(event.target.checked);
-                  setPage(1);
-                }}
+                checked={draft.adjustedOnly}
+                onChange={(event) => updateDraft({ adjustedOnly: event.target.checked })}
               />
               Só ajustadas
             </label>
 
-            <ExportPdfButton
-              basePath="/api/admin/reports/grades"
-              filters={{ search, courseId, classId, teacherId, adjustedOnly: adjustedOnly || undefined }}
-            />
+            <button
+              type="button"
+              onClick={apply}
+              disabled={!canApply}
+              className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Aplicar filtros
+            </button>
+
+            {hasApplied && (
+              <button
+                type="button"
+                onClick={clear}
+                className="text-sm font-semibold text-gray-500 hover:text-gray-700 hover:underline"
+              >
+                Limpar filtros
+              </button>
+            )}
+
+            {hasApplied && (
+              <ExportPdfButton
+                basePath="/api/admin/reports/grades"
+                filters={{
+                  search: applied.search,
+                  courseId: applied.courseId,
+                  classId: applied.classId,
+                  teacherId: applied.teacherId,
+                  adjustedOnly: applied.adjustedOnly || undefined,
+                }}
+              />
+            )}
           </div>
         }
-        searchValue={searchInput}
-        onSearchChange={setSearchInput}
-        searchPlaceholder="Buscar aluno ou atividade..."
+        searchValue={draft.search}
+        onSearchChange={(value) => updateDraft({ search: value })}
+        searchPlaceholder="Buscar aluno ou atividade (mín. 3 caracteres)..."
       >
-        {loading && (
+        {!hasApplied && (
+          <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center">
+            <p className="font-semibold text-gray-700">Selecione os filtros e clique em Aplicar para consultar os dados.</p>
+            <p className="mt-2 text-sm text-gray-500">
+              Escolha ao menos um curso, turma ou professor, ou busque por pelo menos 3 caracteres.
+            </p>
+          </div>
+        )}
+
+        {hasApplied && isStale && (
+          <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+            Os filtros foram alterados -- clique em "Aplicar filtros" para atualizar os resultados abaixo.
+          </p>
+        )}
+
+        {hasApplied && loading && (
           <p className="py-6 text-center text-gray-500">Carregando notas...</p>
         )}
 
-        {!loading && error && (
+        {hasApplied && !loading && error && (
           <div className="flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 p-4">
             <p className="text-sm text-red-700">{error}</p>
 
@@ -320,33 +344,33 @@ export default function GradesAdmin() {
           </div>
         )}
 
-        {!loading && !error && (
+        {hasApplied && !loading && !error && (
           <>
             <AdminTable
               columns={columns}
               data={items}
-              emptyMessage="Nenhuma nota encontrada."
+              emptyMessage="Nenhuma nota encontrada para os filtros aplicados."
               renderRow={(item) => (
                 <tr key={item.id} className="border-b border-gray-100">
-                  <td className="py-5">
-                    <p className="font-semibold text-gray-900">{item.student.name}</p>
+                  <td className="px-3 py-3">
+                    <p className="text-sm font-semibold text-gray-900">{item.student.name}</p>
                     <p className="text-xs text-gray-500">{item.student.registrationNumber}</p>
                   </td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="px-3 py-3 text-sm text-gray-600">
                     {item.course.name}
                     {item.class ? ` · ${item.class.name}` : ""}
                   </td>
 
-                  <td className="py-5 text-gray-600">{item.activity.title}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{item.activity.title}</td>
 
-                  <td className="py-5 font-semibold text-gray-900">
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-sm font-semibold tabular-nums text-gray-900">
                     {item.score} / {item.maxScore}
                   </td>
 
-                  <td className="py-5 text-gray-600">{item.teacher?.name || "-"}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{item.teacher?.name || "-"}</td>
 
-                  <td className="py-5">
+                  <td className="whitespace-nowrap px-3 py-3">
                     {item.adjustment ? (
                       <span
                         title={item.adjustment.reason || ""}
@@ -359,14 +383,10 @@ export default function GradesAdmin() {
                     )}
                   </td>
 
-                  <td className="py-5">
-                    <button
-                      type="button"
-                      onClick={() => handleAdjustClick(item)}
-                      className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200"
-                    >
+                  <td className="whitespace-nowrap px-3 py-3 text-right">
+                    <TableActionButton variant="accent" size="sm" onClick={() => handleAdjustClick(item)}>
                       Ajustar
-                    </button>
+                    </TableActionButton>
                   </td>
                 </tr>
               )}
@@ -375,8 +395,7 @@ export default function GradesAdmin() {
             {pagination.totalPages > 1 && (
               <div className="mt-6 flex items-center justify-between gap-4">
                 <p className="text-sm text-gray-500">
-                  Página {pagination.page} de {pagination.totalPages} · {pagination.total}{" "}
-                  registro(s)
+                  Página {pagination.page} de {pagination.totalPages} · {pagination.total} registro(s)
                 </p>
 
                 <div className="flex gap-2">
@@ -391,9 +410,7 @@ export default function GradesAdmin() {
 
                   <button
                     type="button"
-                    onClick={() =>
-                      setPage((current) => Math.min(current + 1, pagination.totalPages))
-                    }
+                    onClick={() => setPage((current) => Math.min(current + 1, pagination.totalPages))}
                     disabled={pagination.page >= pagination.totalPages}
                     className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >

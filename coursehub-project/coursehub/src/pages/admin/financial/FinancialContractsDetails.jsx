@@ -22,7 +22,10 @@ import FinancialEventsTimeline from "../../../components/financial/FinancialEven
 import AccountAccessCard from "../../../components/financial/AccountAccessCard";
 import InvoicePaymentLinkMenu from "../../../components/financial/InvoicePaymentLinkMenu";
 import DocumentDownloadButton from "../../../components/documents/DocumentDownloadButton";
+import ContractWithdrawalModal from "../../../components/financial/ContractWithdrawalModal";
 import { getAdminContractDocumentEndpoints } from "../../../services/DocumentGenerationService";
+
+const WITHDRAWABLE_CONTRACT_STATUSES = ["active", "overdue"];
 
 const BILLING_TYPE_LABELS = {
   one_time: "Pagamento único",
@@ -208,6 +211,13 @@ export default function FinancialContractsDetails() {
   const [reloadKey, setReloadKey] = useState(0);
   const [eventsReloadKey, setEventsReloadKey] =
     useState(0);
+
+  const [withdrawalModalOpen, setWithdrawalModalOpen] = useState(false);
+
+  function handleWithdrawalSuccess() {
+    setReloadKey((current) => current + 1);
+    setEventsReloadKey((current) => current + 1);
+  }
 
   const loadContract = useCallback(
     async (signal) => {
@@ -489,6 +499,16 @@ export default function FinancialContractsDetails() {
             >
               Dashboard financeiro
             </button>
+
+            {WITHDRAWABLE_CONTRACT_STATUSES.includes(contract.status) && (
+              <button
+                type="button"
+                onClick={() => setWithdrawalModalOpen(true)}
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 shadow-sm transition hover:border-red-400 hover:bg-red-50"
+              >
+                Registrar desistência
+              </button>
+            )}
           </div>
         </header>
 
@@ -690,6 +710,13 @@ export default function FinancialContractsDetails() {
           )}
         </section>
       </div>
+
+      <ContractWithdrawalModal
+        open={withdrawalModalOpen}
+        contractId={contract.id}
+        onClose={() => setWithdrawalModalOpen(false)}
+        onSuccess={handleWithdrawalSuccess}
+      />
     </main>
   );
 }

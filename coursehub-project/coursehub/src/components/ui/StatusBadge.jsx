@@ -1,6 +1,12 @@
+const SIZE_CLASSES = {
+  md: "px-3 py-1 text-xs",
+  sm: "px-2 py-0.5 text-[11px]",
+};
+
 function StatusBadge({
   status,
   activeLabel = "Ativo",
+  size = "md",
 }) {
   const statusMap = {
     active: {
@@ -109,7 +115,7 @@ function StatusBadge({
 
   return (
     <span
-      className={`rounded-full px-3 py-1 text-xs font-semibold ${badge.className}`}
+      className={`rounded-full font-semibold ${SIZE_CLASSES[size] || SIZE_CLASSES.md} ${badge.className}`}
     >
       {badge.text}
     </span>

@@ -12,6 +12,7 @@ export default function CalendarToolbar({
   macroFilterKey,
   onMacroFilterChange,
   onCreateClick,
+  onCreateSession,
 }) {
   const macroFilters = getMacroFilters(role);
   const monthLabel = formatMonthLabel(year, month);
@@ -69,6 +70,17 @@ export default function CalendarToolbar({
             </button>
           ))}
         </div>
+
+        {(role === "admin" || role === "teacher") && onCreateSession && (
+          <button
+            type="button"
+            onClick={onCreateSession}
+            className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+          >
+            <Plus size={16} />
+            Novo encontro
+          </button>
+        )}
 
         {role === "admin" && (
           <button

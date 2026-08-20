@@ -1,4 +1,5 @@
 import ContractStatusBadge from "./ContractStatusBadge";
+import TableActionButton from "../ui/actions/TableActionButton";
 
 const BILLING_TYPE_LABELS = {
   one_time: "Pagamento único",
@@ -193,24 +194,13 @@ export default function FinancialContractsTable({
                 </td>
 
                 <td className="px-5 py-4 text-right">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onOpenContract(contract.id)
-                    }
-                    className={[
-                      "inline-flex min-h-9 items-center justify-center",
-                      "rounded-lg border border-slate-300",
-                      "bg-white px-3 py-1.5",
-                      "text-xs font-semibold text-slate-700",
-                      "transition",
-                      "hover:border-slate-400 hover:bg-slate-50",
-                      "focus:outline-none focus:ring-2",
-                      "focus:ring-blue-500 focus:ring-offset-2",
-                    ].join(" ")}
+                  <TableActionButton
+                    variant="accent"
+                    size="sm"
+                    onClick={() => onOpenContract(contract.id)}
                   >
                     Detalhes
-                  </button>
+                  </TableActionButton>
                 </td>
               </tr>
             );

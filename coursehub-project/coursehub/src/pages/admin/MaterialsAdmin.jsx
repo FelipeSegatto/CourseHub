@@ -13,6 +13,7 @@ import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminContentModal from "../../components/admin/AdminContentModal";
 import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const TYPE_OPTIONS = [
@@ -277,10 +278,10 @@ export default function MaterialsAdmin() {
     { key: "scope", label: "Turma" },
     { key: "is_required", label: "Obrigatório" },
     { key: "due_date", label: "Prazo" },
-    { key: "order_index", label: "Ordem" },
+    { key: "order_index", label: "Ordem", align: "right" },
     { key: "status", label: "Status" },
     { key: "updated_at", label: "Atualizado em" },
-    { key: "actions", label: "Ações" },
+    { key: "actions", label: "Ações", align: "right" },
   ];
 
   const inputClass =
@@ -416,53 +417,45 @@ export default function MaterialsAdmin() {
               emptyMessage="Nenhum material encontrado."
               renderRow={(material) => (
                 <tr key={material.id} className="border-b border-gray-100">
-                  <td className="py-5">
-                    <p className="font-semibold text-gray-900">{material.title}</p>
+                  <td className="px-3 py-3">
+                    <p className="text-sm font-semibold text-gray-900">{material.title}</p>
                   </td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                     {TYPE_OPTIONS.find((option) => option.value === material.type)?.label ||
                       material.type}
                   </td>
 
-                  <td className="py-5 text-gray-600">{material.course?.name || "-"}</td>
-                  <td className="py-5 text-gray-600">{material.scopeLabel}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{material.course?.name || "-"}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{material.scopeLabel}</td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                     {material.isRequired ? "Sim" : "Não"}
                   </td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                     {formatShortDateTime(material.dueDate)}
                   </td>
 
-                  <td className="py-5 text-gray-600">{material.orderIndex}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-gray-600">{material.orderIndex}</td>
 
-                  <td className="py-5">
+                  <td className="whitespace-nowrap px-3 py-3">
                     <StatusBadge status={material.status} />
                   </td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                     {formatShortDateTime(material.updatedAt)}
                   </td>
 
-                  <td className="py-5">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEditClick(material)}
-                        className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200"
-                      >
+                  <td className="whitespace-nowrap px-3 py-3">
+                    <div className="flex justify-end gap-2">
+                      <TableActionButton variant="accent" size="sm" onClick={() => handleEditClick(material)}>
                         Editar
-                      </button>
+                      </TableActionButton>
 
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveClick(material)}
-                        className="rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-200"
-                      >
+                      <TableActionButton variant="danger" size="sm" onClick={() => handleRemoveClick(material)}>
                         Remover
-                      </button>
+                      </TableActionButton>
                     </div>
                   </td>
                 </tr>

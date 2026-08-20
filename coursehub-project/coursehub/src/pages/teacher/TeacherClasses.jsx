@@ -4,14 +4,13 @@ import {
   useState,
 } from "react";
 
-import { Link } from "react-router-dom";
-
 import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
 
 import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import TeacherTable from "../../components/teachers/TeacherTable";
 import TeacherStatusFilter from "../../components/teachers/TeacherStatusFilter";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
 
 import StatusBadge from "../../components/ui/StatusBadge";
 
@@ -380,6 +379,7 @@ export default function TeacherClasses() {
     {
       key: "students",
       label: "Alunos",
+      align: "right",
     },
     {
       key: "status",
@@ -388,6 +388,7 @@ export default function TeacherClasses() {
     {
       key: "actions",
       label: "Ações",
+      align: "right",
     },
   ];
 
@@ -448,8 +449,8 @@ export default function TeacherClasses() {
               key={classItem.id}
               className="border-b border-gray-100"
             >
-              <td className="py-5">
-                <p className="font-semibold text-gray-900">
+              <td className="px-3 py-3">
+                <p className="text-sm font-semibold text-gray-900">
                   {classItem.name}
                 </p>
 
@@ -465,8 +466,8 @@ export default function TeacherClasses() {
                 )}
               </td>
 
-              <td className="py-5">
-                <p className="font-medium text-gray-700">
+              <td className="px-3 py-3">
+                <p className="text-sm font-medium text-gray-700">
                   {classItem.courseName ||
                     (classItem.courseId
                       ? `Curso #${classItem.courseId}`
@@ -483,7 +484,7 @@ export default function TeacherClasses() {
                 )}
               </td>
 
-              <td className="py-5 text-gray-600">
+              <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                 <p>
                   {formatDate(
                     classItem.startDate
@@ -498,8 +499,8 @@ export default function TeacherClasses() {
                 </p>
               </td>
 
-              <td className="py-5">
-                <p className="font-semibold text-gray-800">
+              <td className="whitespace-nowrap px-3 py-3 text-right">
+                <p className="text-sm font-semibold tabular-nums text-gray-800">
                   {
                     classItem.studentCount
                   }
@@ -510,7 +511,7 @@ export default function TeacherClasses() {
                 </p>
               </td>
 
-              <td className="py-5">
+              <td className="whitespace-nowrap px-3 py-3">
                 <StatusBadge
                   status={
                     classItem.status
@@ -518,28 +519,31 @@ export default function TeacherClasses() {
                 />
               </td>
 
-              <td className="py-5">
-                <div className="flex flex-wrap gap-2">
-                  <Link
+              <td className="whitespace-nowrap px-3 py-3">
+                <div className="flex justify-end gap-2">
+                  <TableActionButton
+                    variant="accent"
+                    size="sm"
                     to={`/professor/turmas/${classItem.id}`}
-                    className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-200"
                   >
                     Abrir turma
-                  </Link>
+                  </TableActionButton>
 
-                  <Link
+                  <TableActionButton
+                    variant="neutral"
+                    size="sm"
                     to={`/professor/turmas/${classItem.id}/frequencia`}
-                    className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-200"
                   >
                     Frequência
-                  </Link>
+                  </TableActionButton>
 
-                  <Link
+                  <TableActionButton
+                    variant="neutral"
+                    size="sm"
                     to={`/professor/turmas/${classItem.id}/materiais`}
-                    className="rounded-lg bg-green-100 px-3 py-2 text-sm font-medium text-green-700 transition hover:bg-green-200"
                   >
                     Materiais
-                  </Link>
+                  </TableActionButton>
                 </div>
               </td>
             </tr>

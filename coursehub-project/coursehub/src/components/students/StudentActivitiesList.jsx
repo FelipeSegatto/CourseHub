@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { apiFetch } from "../../services/APIService";
 
 import StudentManagementPage from "./StudentManagementPage";
 import StudentTable from "./StudentTable";
 import StudentStatusFilter from "./StudentStatusFilter";
 import StatusBadge from "../ui/StatusBadge";
+import TableActionButton from "../ui/actions/TableActionButton";
 
 
 
@@ -309,7 +309,7 @@ export default function StudentActivitiesList({
     { key: "course", label: "Curso" },
     { key: "dueDate", label: "Prazo" },
     { key: "status", label: "Status" },
-    { key: "actions", label: "Ações" },
+    { key: "actions", label: "Ações", align: "right" },
   ];
 
   return (
@@ -361,8 +361,8 @@ export default function StudentActivitiesList({
                 key={activity.id}
                 className="border-b border-gray-100"
               >
-                <td className="py-5">
-                  <p className="font-semibold text-sm text-gray-900">
+                <td className="px-4 py-3">
+                  <p className="text-sm font-semibold text-gray-900">
                     {activity.title}
                   </p>
 
@@ -371,31 +371,28 @@ export default function StudentActivitiesList({
                   </p>
                 </td>
 
-                <td className="py-5 text-sm text-gray-700">
+                <td className="px-4 py-3 text-sm text-gray-600">
                   {activity.courseTitle}
                 </td>
 
-                <td className="py-5 mr-6 text-sm text-gray-700">
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
                   {activity.dueDate}
                 </td>
 
-                <td className="py-5">
+                <td className="whitespace-nowrap px-4 py-3">
                   <StatusBadge status={activity.status} />
                 </td>
 
-                <td className="py-5">
-                  <Link
+                <td className="whitespace-nowrap px-4 py-3 text-right">
+                  <TableActionButton
+                    variant={isPending ? "accent" : "neutral"}
+                    size="sm"
                     to={`${detailsPath}/${activity.id}`}
-                    className={`inline-block rounded-lg px-3 py-2 text-sm font-medium transition ${
-                      isPending
-                        ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
                   >
                     {isPending
                       ? actionPendingLabel
                       : "Ver detalhes"}
-                  </Link>
+                  </TableActionButton>
                 </td>
               </tr>
             );

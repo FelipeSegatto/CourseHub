@@ -26,6 +26,7 @@ import PublicCheckoutWizard from "../pages/public/checkout/PublicCheckoutWizard"
 import CheckoutProcessing from "../pages/public/checkout/CheckoutProcessing";
 import CheckoutResult from "../pages/public/checkout/CheckoutResult";
 import VerifyDocument from "../pages/public/VerifyDocument";
+import ContactPage from "../pages/public/ContactPage";
 
 import StudentHome from "../pages/student/StudentHome";
 import StudentDashboard from "../pages/student/StudentDashboard";
@@ -56,6 +57,7 @@ import ActivitiesAdmin from "../pages/admin/ActivitiesAdmin";
 import AssessmentsAdmin from "../pages/admin/AssessmentsAdmin";
 import CertificatesAdmin from "../pages/admin/CertificatesAdmin";
 import FinancialContractsAdmin from "../pages/admin/financial/FinancialContractsAdmin";
+import ContractingPartiesAdmin from "../pages/admin/financial/ContractingPartiesAdmin";
 import FinancialContractsDetails from "../pages/admin/financial/FinancialContractsDetails";
 import FinancialInvoicesAdmin from "../pages/admin/financial/FinancialInvoicesAdmin";
 import FinancialInvoicesDetails from "../pages/admin/financial/FinancialInvoicesDetails";
@@ -64,7 +66,10 @@ import PricingPlansAdmin from "../pages/admin/PricingPlansAdmin";
 import CalendarAdmin from "../pages/admin/CalendarAdmin";
 import GradesAdmin from "../pages/admin/GradesAdmin";
 import AttendanceAdmin from "../pages/admin/AttendanceAdmin";
-import AcademicProgressAdmin from "../pages/admin/AcademicProgressAdmin";
+import AdminAttendanceSessionDetailPage from "../pages/admin/AdminAttendanceSessionDetailPage";
+import AdminSessionsPage from "../pages/admin/AdminSessionsPage";
+import AdminStudentProgressPage from "../pages/admin/AdminStudentProgressPage";
+import AdminStudentProgressDetailPage from "../pages/admin/AdminStudentProgressDetailPage";
 import NotificationsAdmin from "../pages/admin/NotificationsAdmin";
 import ChatAdmin from "../pages/admin/ChatAdmin";
 import ModerationAdmin from "../pages/admin/ModerationAdmin";
@@ -73,6 +78,7 @@ import SystemHealthAdmin from "../pages/admin/SystemHealthAdmin";
 import TeacherHome from "../pages/teacher/TeacherHome";
 import TeacherDashboard from "../pages/teacher/TeacherDashboard";
 import TeacherClasses from "../pages/teacher/TeacherClasses";
+import TeacherSessionsPage from "../pages/teacher/TeacherSessionsPage";
 import TeacherClassDetails from "../pages/teacher/TeacherClassDetails";
 import TeacherMaterials from "../pages/teacher/TeacherMaterials";
 import MaterialPlayer from "../pages/teacher/MaterialPlayer";
@@ -160,6 +166,10 @@ export const router = createBrowserRouter([
       {
         path: "pagamento/fatura",
         element: <InvoicePaymentLink />,
+      },
+      {
+        path: "fale-conosco",
+        element: <ContactPage />,
       },
 
       // ============================
@@ -431,8 +441,20 @@ export const router = createBrowserRouter([
                 element: <AttendanceAdmin />,
               },
               {
+                path: "frequencia/encontros/:sessionId",
+                element: <AdminAttendanceSessionDetailPage />,
+              },
+              {
+                path: "encontros",
+                element: <AdminSessionsPage />,
+              },
+              {
                 path: "progressao",
-                element: <AcademicProgressAdmin />,
+                element: <AdminStudentProgressPage />,
+              },
+              {
+                path: "progressao/matriculas/:enrollmentId",
+                element: <AdminStudentProgressDetailPage />,
               },
               {
                 path: "financeiro",
@@ -457,6 +479,10 @@ export const router = createBrowserRouter([
               {
                 path: "financeiro/planos",
                 element: <PricingPlansAdmin />,
+              },
+              {
+                path: "financeiro/contratantes",
+                element: <ContractingPartiesAdmin />,
               },
               {
                 path: "emissao",
@@ -536,6 +562,12 @@ export const router = createBrowserRouter([
                 path: "minhas-turmas",
                 element: (
                   <TeacherClasses />
+                ),
+              },
+              {
+                path: "encontros",
+                element: (
+                  <TeacherSessionsPage />
                 ),
               },
               {

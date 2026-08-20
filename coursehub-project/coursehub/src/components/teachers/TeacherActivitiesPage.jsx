@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
 
@@ -8,6 +7,7 @@ import ActivityModal from "./ActivityModal";
 import DeleteModal from "./DeleteModal";
 import TeacherTable from "./TeacherTable";
 import TeacherStatusFilter from "./TeacherStatusFilter";
+import TableActionButton from "../ui/actions/TableActionButton";
 
 import StatusBadge from "../ui/StatusBadge";
 
@@ -399,9 +399,9 @@ export default function TeacherActivitiesPage({
     { key: "class", label: "Turma" },
     { key: "type", label: "Tipo" },
     { key: "due_date", label: "Prazo" },
-    { key: "max_score", label: "Nota máxima" },
+    { key: "max_score", label: "Nota máxima", align: "right" },
     { key: "status", label: "Status" },
-    { key: "actions", label: "Ações" },
+    { key: "actions", label: "Ações", align: "right" },
   ];
 
   return (
@@ -452,73 +452,74 @@ export default function TeacherActivitiesPage({
                 key={activity.id}
                 className="border-b border-gray-100"
               >
-                <td className="py-5">
-                  <p className="font-semibold text-gray-900">
+                <td className="px-3 py-3">
+                  <p className="text-sm font-semibold text-gray-900">
                     {activity.title}
                   </p>
 
                   {activity.description && (
-                    <p className="mt-1 max-w-md truncate text-sm text-gray-500">
+                    <p className="mt-1 max-w-md truncate text-xs text-gray-500">
                       {activity.description}
                     </p>
                   )}
                 </td>
 
-                <td className="py-5 text-gray-600">
+                <td className="px-3 py-3 text-sm text-gray-600">
                   {activity.course_name ||
                     activity.course_title ||
                     `Curso #${activity.course_id}`}
                 </td>
 
-                <td className="py-5 text-gray-600">
+                <td className="px-3 py-3 text-sm text-gray-600">
                   {resolveActivityClassName(activity) ||
                     "Todas as turmas"}
                 </td>
 
-                <td className="py-5 text-gray-600">
+                <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                   {typeLabels[activity.type] || activity.type || "-"}
                 </td>
 
-                <td className="py-5 text-gray-600">
+                <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                   {formatDate(activity.due_date)}
                 </td>
 
-                <td className="py-5 text-gray-600">
+                <td className="whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-gray-600">
                   {formatScore(activity.max_score)}
                 </td>
 
-                <td className="py-5">
+                <td className="whitespace-nowrap px-3 py-3">
                   <StatusBadge status={activity.status} />
                 </td>
 
-                <td className="py-5">
-                  <div className="flex flex-wrap gap-2">
-                   <Link
-                        to={
-                            activity.activity_kind === "exam"
-                            ? `/professor/avaliacoes/${activity.id}/envios`
-                            : `/professor/atividades/${activity.id}/envios`
-                        }
-                        className="rounded-lg bg-purple-100 px-3 py-2 text-sm font-medium text-purple-700 transition hover:bg-purple-200"
-                        >
-                        Ver envios
-                    </Link>
+                <td className="whitespace-nowrap px-3 py-3">
+                  <div className="flex items-center justify-end gap-2">
+                    <TableActionButton
+                      variant="accent"
+                      size="sm"
+                      to={
+                        activity.activity_kind === "exam"
+                          ? `/professor/avaliacoes/${activity.id}/envios`
+                          : `/professor/atividades/${activity.id}/envios`
+                      }
+                    >
+                      Ver envios
+                    </TableActionButton>
 
-                    <button
-                      type="button"
+                    <TableActionButton
+                      variant="neutral"
+                      size="sm"
                       onClick={() => handleEditClick(activity)}
-                      className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-200"
                     >
                       Editar
-                    </button>
+                    </TableActionButton>
 
-                    <button
-                      type="button"
+                    <TableActionButton
+                      variant="danger"
+                      size="sm"
                       onClick={() => handleDeleteClick(activity)}
-                      className="rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-200"
                     >
                       Remover
-                    </button>
+                    </TableActionButton>
                   </div>
                 </td>
               </tr>

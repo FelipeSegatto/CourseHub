@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Power, Trash2 } from "lucide-react";
 import { apiFetch } from "../../services/APIService";
 
 import {
@@ -12,6 +13,8 @@ import PricingPlanModal from "../../components/admin/PricingPlanModal";
 import DeleteConfirmModal from "../../components/admin/AdminDeleteModal";
 import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
+import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
 
 const BILLING_TYPE_OPTIONS = [
   { value: "one_time", label: "Pagamento único" },
@@ -199,11 +202,11 @@ export default function PricingPlansAdmin() {
     { key: "plan", label: "Plano" },
     { key: "course", label: "Curso" },
     { key: "billing_type", label: "Tipo de cobrança" },
-    { key: "amount", label: "Valor" },
+    { key: "amount", label: "Valor", align: "right" },
     { key: "methods", label: "Formas de pagamento" },
-    { key: "contracts", label: "Contratos" },
+    { key: "contracts", label: "Contratos", align: "right" },
     { key: "status", label: "Status" },
-    { key: "actions", label: "Ações" },
+    { key: "actions", label: "Ações", align: "right" },
   ];
 
   const inputClass =
@@ -304,66 +307,62 @@ export default function PricingPlansAdmin() {
               emptyMessage="Nenhum plano comercial encontrado."
               renderRow={(plan) => (
                 <tr key={plan.id} className="border-b border-gray-100">
-                  <td className="py-5">
-                    <p className="font-semibold text-gray-900">{plan.name}</p>
+                  <td className="px-3 py-3">
+                    <p className="text-sm font-semibold text-gray-900">{plan.name}</p>
                     {plan.description && (
-                      <p className="mt-1 max-w-xs text-sm text-gray-500">{plan.description}</p>
+                      <p className="mt-1 max-w-xs text-xs text-gray-500">{plan.description}</p>
                     )}
                   </td>
 
-                  <td className="py-5 text-gray-600">{plan.courseName}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{plan.courseName}</td>
 
-                  <td className="py-5 text-gray-600">{billingTypeLabel(plan.billingType)}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">{billingTypeLabel(plan.billingType)}</td>
 
-                  <td className="py-5 text-gray-600">
-                    <p className="font-medium text-gray-900">{formatCurrency(plan.totalAmount)}</p>
+                  <td className="whitespace-nowrap px-3 py-3 text-right">
+                    <p className="text-sm font-semibold tabular-nums text-gray-900">{formatCurrency(plan.totalAmount)}</p>
                     {plan.billingType === "monthly_plan" && plan.monthlyPaymentCount && (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs tabular-nums text-gray-500">
                         {plan.monthlyPaymentCount}x de {formatCurrency(plan.monthlyPaymentAmount)}
                       </p>
                     )}
                   </td>
 
-                  <td className="py-5 text-gray-600">{paymentMethodsLabel(plan)}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{paymentMethodsLabel(plan)}</td>
 
-                  <td className="py-5 text-gray-600">{plan.contractCount}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-gray-600">{plan.contractCount}</td>
 
-                  <td className="py-5">
+                  <td className="whitespace-nowrap px-3 py-3">
                     <StatusBadge status={plan.status} />
                   </td>
 
-                  <td className="py-5">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEditClick(plan)}
-                        className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200"
-                      >
+                  <td className="whitespace-nowrap px-3 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <TableActionButton variant="accent" size="sm" onClick={() => handleEditClick(plan)}>
                         Editar
-                      </button>
+                      </TableActionButton>
 
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStatus(plan)}
-                        disabled={rowActionLoading === plan.id}
-                        className="rounded-lg bg-yellow-100 px-3 py-2 text-sm font-medium text-yellow-700 hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {plan.status === "active" ? "Inativar" : "Ativar"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteClick(plan)}
-                        disabled={rowActionLoading === plan.id || plan.status === "inactive"}
-                        title={
-                          plan.status === "inactive"
-                            ? "Este plano já está inativo."
-                            : undefined
-                        }
-                        className="rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Remover
-                      </button>
+                      <RowActionsMenu
+                        items={[
+                          {
+                            key: "toggle-status",
+                            label: plan.status === "active" ? "Inativar" : "Ativar",
+                            icon: Power,
+                            variant: "warning",
+                            disabled: rowActionLoading === plan.id,
+                            onClick: () => handleToggleStatus(plan),
+                          },
+                          {
+                            key: "remove",
+                            label: "Remover",
+                            icon: Trash2,
+                            variant: "danger",
+                            separator: true,
+                            disabled: rowActionLoading === plan.id || plan.status === "inactive",
+                            title: plan.status === "inactive" ? "Este plano já está inativo." : undefined,
+                            onClick: () => handleDeleteClick(plan),
+                          },
+                        ]}
+                      />
                     </div>
                   </td>
                 </tr>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { apiFetch } from "../../services/APIService";
 
 import ManagementPageShell from "../../components/ui/ManagementPageShell";
@@ -6,6 +7,8 @@ import AdminCreateEditModal from "../../components/admin/AdminCreateEditModal";
 import DeleteConfirmModal from "../../components/admin/AdminDeleteModal";
 import AdminTable from "../../components/admin/AdminTable";
 import AdminStatusFilter from "../../components/admin/AdminStatusFilter";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
+import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
 
 import StatusBadge from "../../components/ui/StatusBadge";
 
@@ -140,7 +143,7 @@ const filteredStudents = useMemo(() => {
     { key: "cpf", label: "CPF" },
     { key: "phone", label: "Telefone" },
     { key: "status", label: "Status" },
-    { key: "actions", label: "Ações" },
+    { key: "actions", label: "Ações", align: "right" },
   ];
 
   return (
@@ -182,41 +185,39 @@ const filteredStudents = useMemo(() => {
             emptyMessage="Nenhum aluno encontrado."
             renderRow={(student) => (
               <tr key={student.id} className="border-b border-gray-100">
-                <td className="py-5">
-                  <p className="font-semibold text-gray-900">{student.name}</p>
-                  <p className="text-sm text-gray-500">{student.email}</p>
+                <td className="px-3 py-3">
+                  <p className="text-sm font-semibold text-gray-900">{student.name}</p>
+                  <p className="text-xs text-gray-500">{student.email}</p>
                 </td>
 
-                <td className="py-5 text-gray-600">
+                <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                   {student.registration_number || "-"}
                 </td>
 
-                <td className="py-5 text-gray-600">{student.cpf || "-"}</td>
-                <td className="py-5 text-gray-600">{student.phone || "-"}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">{student.cpf || "-"}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">{student.phone || "-"}</td>
 
-                <td className="py-5">
+                <td className="whitespace-nowrap px-3 py-3">
                   <StatusBadge status={student.status} />
                 </td>
 
-                <td className="py-5">
-                  <div className="flex gap-2">
-                    <button className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200">
-                      Ver
-                    </button>
-
-                    <button
-                      onClick={() => handleEditClick(student)}
-                      className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200"
-                    >
+                <td className="whitespace-nowrap px-3 py-3">
+                  <div className="flex items-center justify-end gap-2">
+                    <TableActionButton variant="accent" size="sm" onClick={() => handleEditClick(student)}>
                       Editar
-                    </button>
+                    </TableActionButton>
 
-                    <button
-                      onClick={() => handleDeleteClick(student)}
-                      className="rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-200"
-                    >
-                      Remover
-                    </button>
+                    <RowActionsMenu
+                      items={[
+                        {
+                          key: "delete",
+                          label: "Remover",
+                          icon: Trash2,
+                          variant: "danger",
+                          onClick: () => handleDeleteClick(student),
+                        },
+                      ]}
+                    />
                   </div>
                 </td>
               </tr>

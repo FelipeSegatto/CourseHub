@@ -29,10 +29,6 @@ export default function NavbarAdmin() {
       to: "/admin/usuarios",
     },
     {
-      label: "Relatórios",
-      to: "/admin/relatorios",
-    },
-    {
       label: "Emissão",
       to: "/admin/emissao",
     },
@@ -100,6 +96,10 @@ export default function NavbarAdmin() {
     {
       label: "Turmas",
       to: "/admin/turmas",
+    },
+    {
+      label: "Encontros",
+      to: "/admin/encontros",
     },
   ];
 

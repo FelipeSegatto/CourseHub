@@ -91,7 +91,27 @@ const SELECT_COLUMNS = `
   adj_u.name AS admin_adjusted_by_name
 `;
 
+/**
+ * Um filtro puramente cosmético (status, ordenação) nunca basta
+ * sozinho para liberar uma consulta -- exige curso, turma, professor
+ * ou uma busca com pelo menos 3 caracteres normalizados. Validado
+ * aqui (backend) porque o frontend não pode ser a única barreira
+ * contra uma consulta institucional ampla disfarçada de "filtro".
+ */
+function hasValidScope(filters) {
+  const search = filters.search?.trim() || "";
+
+  return Boolean(filters.courseId || filters.classId || filters.teacherId || search.length >= 3);
+}
+
 function buildListFilters(filters) {
+  if (!hasValidScope(filters)) {
+    throw createServiceError(
+      "Selecione ao menos curso, turma, professor ou busque por pelo menos 3 caracteres antes de consultar.",
+      400
+    );
+  }
+
   const conditions = ["1 = 1"];
   const params = [];
 
@@ -131,15 +151,23 @@ function buildListFilters(filters) {
   return { whereClause: conditions.join(" AND "), params };
 }
 
-async function getGradesSummary(db) {
+/**
+ * Recebe o mesmo WHERE/params da listagem -- um resumo que ignorasse
+ * o filtro aplicado mostraria números que não batem com a tabela
+ * (e continuaria pagando o custo de uma varredura ampla, o problema
+ * que o filtro obrigatório existe pra evitar).
+ */
+async function getGradesSummary(db, whereClause, params) {
   const [rows] = await db.promise().query(
     `
       SELECT
         COUNT(*) AS total,
-        AVG(score) AS averageScore,
-        SUM(CASE WHEN admin_adjusted_at IS NOT NULL THEN 1 ELSE 0 END) AS adjustedCount
-      FROM grades
-    `
+        AVG(g.score) AS averageScore,
+        SUM(CASE WHEN g.admin_adjusted_at IS NOT NULL THEN 1 ELSE 0 END) AS adjustedCount
+      ${BASE_JOIN}
+      WHERE ${whereClause}
+    `,
+    params
   );
 
   const row = rows[0] || {};
@@ -156,7 +184,7 @@ async function listGrades(db, filters = {}) {
   const { page, limit, offset } = normalizePagination(filters.page, filters.limit);
 
   const [summary, [countRows], [rows]] = await Promise.all([
-    getGradesSummary(db),
+    getGradesSummary(db, whereClause, params),
     db.promise().query(`SELECT COUNT(*) AS total ${BASE_JOIN} WHERE ${whereClause}`, params),
     db.promise().query(
       `
@@ -296,6 +324,7 @@ async function adjustGrade(db, id, { score, reason }, actingUserId) {
 
 module.exports = {
   createServiceError,
+  hasValidScope,
   listGrades,
   getGradeById,
   adjustGrade,

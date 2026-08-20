@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { Send, XCircle } from "lucide-react";
 
 import {
   listFinancialContracts,
@@ -12,6 +13,8 @@ import AdminTable from "../../../components/admin/AdminTable";
 import DeleteConfirmModal from "../../../components/admin/AdminDeleteModal";
 import StatusBadge from "../../../components/ui/StatusBadge";
 import ContractCreationModal from "../../../components/financial/ContractCreationModal";
+import TableActionButton from "../../../components/ui/actions/TableActionButton";
+import RowActionsMenu from "../../../components/ui/actions/RowActionsMenu";
 import { formatDisplayDate } from "../../../utils/dateUtils";
 
 const STATUS_OPTIONS = [
@@ -151,12 +154,12 @@ export default function FinancialContractsAdmin() {
     { key: "student", label: "Aluno" },
     { key: "contracting_party", label: "Contratante" },
     { key: "course_plan", label: "Curso / Plano" },
-    { key: "amount", label: "Valor" },
+    { key: "amount", label: "Valor", align: "right" },
     { key: "status", label: "Status" },
     { key: "enrollment", label: "Matrícula" },
     { key: "origin", label: "Origem" },
     { key: "date", label: "Data" },
-    { key: "actions", label: "Ações" },
+    { key: "actions", label: "Ações", align: "right" },
   ];
 
   const inputClass =
@@ -173,20 +176,29 @@ export default function FinancialContractsAdmin() {
         stats={stats}
         tableTitle="Lista de contratos"
         tableActions={
-          <select
-            value={status}
-            onChange={(event) => {
-              setStatus(event.target.value);
-              setPage(1);
-            }}
-            className={inputClass}
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={status}
+              onChange={(event) => {
+                setStatus(event.target.value);
+                setPage(1);
+              }}
+              className={inputClass}
+            >
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+
+            <Link
+              to="/admin/financeiro/contratantes"
+              className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+            >
+              Contratantes
+            </Link>
+          </div>
         }
         searchValue={searchInput}
         onSearchChange={setSearchInput}
@@ -228,70 +240,74 @@ export default function FinancialContractsAdmin() {
               emptyMessage="Nenhum contrato encontrado."
               renderRow={(contract) => (
                 <tr key={contract.id} className="border-b border-gray-100">
-                  <td className="py-5 text-gray-600">#{contract.id}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">#{contract.id}</td>
 
-                  <td className="py-5">
-                    <p className="font-semibold text-gray-900">{contract.student?.name || "-"}</p>
+                  <td className="px-3 py-3">
+                    <p className="text-sm font-semibold text-gray-900">{contract.student?.name || "-"}</p>
                   </td>
 
-                  <td className="py-5 text-gray-600">{contract.contractingParty?.name || "-"}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{contract.contractingParty?.name || "-"}</td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="px-3 py-3 text-sm text-gray-600">
                     <p>{contract.course?.name || "-"}</p>
                     <p className="text-xs text-gray-500">{contract.planName}</p>
                   </td>
 
-                  <td className="py-5 text-gray-600">
-                    <p className="font-medium text-gray-900">{formatCurrency(contract.totalAmount)}</p>
+                  <td className="whitespace-nowrap px-3 py-3 text-right">
+                    <p className="text-sm font-semibold tabular-nums text-gray-900">{formatCurrency(contract.totalAmount)}</p>
                     {contract.billingType === "monthly_plan" && contract.monthlyPaymentCount && (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs tabular-nums text-gray-500">
                         {contract.monthlyPaymentCount}x de {formatCurrency(contract.monthlyPaymentAmount)}
                       </p>
                     )}
                   </td>
 
-                  <td className="py-5">
+                  <td className="whitespace-nowrap px-3 py-3">
                     <StatusBadge status={contract.status} />
                   </td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                     {contract.enrollmentId ? `#${contract.enrollmentId}` : "Não criada"}
                   </td>
 
-                  <td className="py-5 text-gray-600">{ORIGIN_LABEL[contract.origin] || contract.origin}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">{ORIGIN_LABEL[contract.origin] || contract.origin}</td>
 
-                  <td className="py-5 text-gray-600">{formatShortDate(contract.createdAt)}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">{formatShortDate(contract.createdAt)}</td>
 
-                  <td className="py-5">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
+                  <td className="whitespace-nowrap px-3 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <TableActionButton
+                        variant="accent"
+                        size="sm"
                         onClick={() => navigate(`/admin/financeiro/contratos/${contract.id}`)}
-                        className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
                       >
-                        Ver
-                      </button>
+                        Ver contrato
+                      </TableActionButton>
+
+                
 
                       {contract.status === "pending_payment" && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => handleSendInvoice(contract)}
-                            disabled={rowActionLoading === contract.id}
-                            className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Reenviar cobrança
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setCancelTarget(contract)}
-                            disabled={rowActionLoading === contract.id}
-                            className="rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Cancelar
-                          </button>
-                        </>
+                        <RowActionsMenu
+                          items={[
+                            {
+                              key: "resend-invoice",
+                              label: "Reenviar cobrança",
+                              icon: Send,
+                              variant: "neutral",
+                              disabled: rowActionLoading === contract.id,
+                              onClick: () => handleSendInvoice(contract),
+                            },
+                            {
+                              key: "cancel",
+                              label: "Cancelar contrato",
+                              icon: XCircle,
+                              variant: "danger",
+                              separator: true,
+                              disabled: rowActionLoading === contract.id,
+                              onClick: () => setCancelTarget(contract),
+                            },
+                          ]}
+                        />
                       )}
                     </div>
                   </td>

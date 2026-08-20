@@ -6,6 +6,7 @@ import { apiFetch } from "../../services/APIService";
 import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import TeacherTable from "../../components/teachers/TeacherTable";
 import TeacherStatusFilter from "../../components/teachers/TeacherStatusFilter";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
 
 import StatusBadge from "../../components/ui/StatusBadge";
 
@@ -255,8 +256,8 @@ export default function TeacherActivitySubmissions() {
     { key: "class", label: "Turma" },
     { key: "submittedAt", label: "Enviado em" },
     { key: "status", label: "Status" },
-    { key: "score", label: "Nota" },
-    { key: "actions", label: "Ações" },
+    { key: "score", label: "Nota", align: "right" },
+    { key: "actions", label: "Ações", align: "right" },
   ];
 
   const isExam =
@@ -364,67 +365,64 @@ export default function TeacherActivitySubmissions() {
                   key={submission.id}
                   className="border-b border-gray-100"
                 >
-                  <td className="py-5">
-                    <p className="font-semibold text-gray-900">
+                  <td className="px-3 py-3">
+                    <p className="text-sm font-semibold text-gray-900">
                       {submission.student_name ||
                         "Aluno sem nome"}
                     </p>
 
-                    <p className="mt-1 text-sm text-gray-500">
+                    <p className="mt-1 text-xs text-gray-500">
                       {submission.student_email || "-"}
                     </p>
                   </td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                     {submission.registration_number ||
                       "-"}
                   </td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="px-3 py-3 text-sm text-gray-600">
                     {submission.className ||
                       submission.class_name ||
                       "-"}
                   </td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                     {formatDate(
                       submission.submitted_at
                     )}
                   </td>
 
-                  <td className="py-5">
+                  <td className="whitespace-nowrap px-3 py-3">
                     <StatusBadge
                       status={submission.status}
                     />
                   </td>
 
-                  <td className="py-5 font-semibold text-gray-900">
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-sm font-semibold tabular-nums text-gray-900">
                     {formatScore(
                       submission.score,
                       activity?.max_score
                     )}
                   </td>
 
-                  <td className="py-5">
-                    <div className="flex flex-wrap gap-2">
-                      <Link
+                  <td className="whitespace-nowrap px-3 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <TableActionButton
+                        variant={canGrade ? "accent" : "neutral"}
+                        size="sm"
                         to={`/professor/envios/${submission.id}/corrigir`}
-                        className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
-                          canGrade
-                            ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                        }`}
                       >
                         {canGrade
                           ? "Corrigir"
                           : isGraded
                             ? "Ver correção"
                             : "Ver entrega"}
-                      </Link>
+                      </TableActionButton>
 
                       {submission.status ===
                         "returned" && (
-                        <span className="rounded-lg bg-orange-50 px-3 py-2 text-sm font-medium text-orange-700">
+                        <span className="whitespace-nowrap rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">
                           Aguardando reenvio
                         </span>
                       )}

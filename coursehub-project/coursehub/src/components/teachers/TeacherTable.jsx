@@ -1,3 +1,16 @@
+const ALIGN_CLASSES = {
+  left: "text-left",
+  right: "text-right",
+  center: "text-center",
+};
+
+/**
+ * Mesma melhoria de cabeçalho de AdminTable.jsx (compacto, com
+ * respiro horizontal) -- os dois componentes continuam separados de
+ * propósito (não foram unificados), só ganharam a mesma tipografia
+ * pra ficar consistente entre admin e professor. `column.align`/
+ * `column.headerClassName` são opcionais e retrocompatíveis.
+ */
 function TeacherTable({
   columns = [],
   data = [],
@@ -8,11 +21,13 @@ function TeacherTable({
     <div className="overflow-x-auto">
       <table className="w-full min-w-[750px] border-collapse">
         <thead>
-          <tr className="border-b border-gray-200 text-left">
+          <tr className="border-b border-gray-200">
             {columns.map((column) => (
               <th
                 key={column.key}
-                className="pb-4 text-sm font-semibold text-gray-500"
+                className={`px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 ${
+                  ALIGN_CLASSES[column.align] || ALIGN_CLASSES.left
+                } ${column.headerClassName || ""}`}
               >
                 {column.label}
               </th>
@@ -25,7 +40,7 @@ function TeacherTable({
             <tr>
               <td
                 colSpan={columns.length}
-                className="py-10 text-center text-gray-500"
+                className="px-3 py-10 text-center text-sm text-gray-500"
               >
                 {emptyMessage}
               </td>

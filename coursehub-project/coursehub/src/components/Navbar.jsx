@@ -42,7 +42,12 @@ export default function Navbar() {
             Sobre
           </NavLink>
 
-          
+          <NavLink
+            to="/fale-conosco"
+            className={linkClass}
+          >
+            Fale conosco
+          </NavLink>
         </nav>
 
         <div className="flex font-pt text-semibold items-center gap-3">

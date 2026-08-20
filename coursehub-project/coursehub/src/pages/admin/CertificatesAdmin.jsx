@@ -129,20 +129,22 @@ function EligibilityPanel({ enrollmentId }) {
 
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
-                <th className="pb-2">Critério</th>
-                <th className="pb-2">Exigido</th>
-                <th className="pb-2">Alcançado</th>
-                <th className="pb-2">Status</th>
+              <tr className="border-b border-slate-200">
+                <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Critério</th>
+                <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Exigido</th>
+                <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Alcançado</th>
+                <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
               </tr>
             </thead>
             <tbody>
               {evaluation.requirements.map((requirement) => (
                 <tr key={requirement.key} className="border-b border-slate-50">
-                  <td className="py-2">{requirement.label}</td>
-                  <td className="py-2">{String(requirement.required)}</td>
-                  <td className="py-2">{requirement.actual === null ? "—" : String(requirement.actual)}</td>
-                  <td className="py-2">
+                  <td className="px-3 py-3 text-sm font-medium text-slate-900">{requirement.label}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-slate-600">{String(requirement.required)}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-slate-600">
+                    {requirement.actual === null ? "—" : String(requirement.actual)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right">
                     <span className={requirement.met ? "text-emerald-600" : "text-red-600"}>
                       {requirement.met ? "✓" : "✗"}
                     </span>

@@ -61,10 +61,7 @@ export default function StudentCourses() {
                     {course.name}
                   </h2>
 
-                  <p className="mt-3 text-sm text-gray-600">
-                    {course.description ||
-                      "Sem descrição cadastrada."}
-                  </p>
+                  
                 </div>
 
                 <div className="mt-6">

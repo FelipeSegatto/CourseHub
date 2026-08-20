@@ -53,15 +53,17 @@ function ManagementPageShell({
           </h2>
 
           <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto">
-            <input
-              type="text"
-              value={searchValue}
-              onChange={(event) =>
-                onSearchChange?.(event.target.value)
-              }
-              placeholder={searchPlaceholder}
-              className="w-full rounded-xl border border-gray-300 px-4 py-2.5 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-80"
-            />
+            {onSearchChange && (
+              <input
+                type="text"
+                value={searchValue}
+                onChange={(event) =>
+                  onSearchChange(event.target.value)
+                }
+                placeholder={searchPlaceholder}
+                className="w-full rounded-xl border border-gray-300 px-4 py-2.5 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-80"
+              />
+            )}
 
             {tableActions}
           </div>

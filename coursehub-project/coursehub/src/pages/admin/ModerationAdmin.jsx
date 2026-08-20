@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { listReports, reviewReport } from "../../services/ChatService";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
 
 const STATUS_FILTERS = [
   { value: "open", label: "Abertos" },
@@ -151,22 +152,22 @@ export default function ModerationAdmin() {
                   />
 
                   <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleReview(report.id, "resolved")}
+                    <TableActionButton
+                      variant="accent"
+                      size="sm"
                       disabled={reviewingReportId === report.id}
-                      className="rounded-lg bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-200 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => handleReview(report.id, "resolved")}
                     >
                       Resolver
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleReview(report.id, "dismissed")}
+                    </TableActionButton>
+                    <TableActionButton
+                      variant="neutral"
+                      size="sm"
                       disabled={reviewingReportId === report.id}
-                      className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => handleReview(report.id, "dismissed")}
                     >
                       Descartar
-                    </button>
+                    </TableActionButton>
                   </div>
                 </div>
               ) : (

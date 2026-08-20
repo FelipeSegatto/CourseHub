@@ -7,6 +7,7 @@ import DeleteConfirmModal from "../../components/admin/AdminDeleteModal";
 import AdminTable from "../../components/admin/AdminTable";
 import AdminStatusFilter from "../../components/admin/AdminStatusFilter";
 import StatusBadge from "../../components/ui/StatusBadge";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
 
 function formatCurrency(value) {
   return Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -15,14 +16,14 @@ function formatCurrency(value) {
 /** course_pricing_plans é a única fonte de preço -- nunca course.price. */
 function PricingCell({ pricing }) {
   if (!pricing?.hasActivePlans) {
-    return <span className="text-gray-400">Consulte os valores</span>;
+    return <span className="text-sm text-gray-400">Consulte os valores</span>;
   }
 
   return (
     <div>
-      <p className="font-medium text-gray-900">A partir de {formatCurrency(pricing.startingPrice)}</p>
+      <p className="text-sm font-semibold tabular-nums text-gray-900">A partir de {formatCurrency(pricing.startingPrice)}</p>
       {pricing.monthlyPaymentFrom !== null && (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs tabular-nums text-gray-500">
           Mensalidades a partir de {formatCurrency(pricing.monthlyPaymentFrom)}
         </p>
       )}
@@ -245,8 +246,7 @@ export default function CourseAdmin() {
       title: "Gerenciar acessos",
       description:
         "Edite status, bloqueios e dados cadastrais.",
-      disabled: true,
-      disabledReason: "Em breve — ainda não há uma página dedicada para isso.",
+      to:"/admin/usuarios"
     },
     {
       title: "Acompanhar métricas dos cursos",
@@ -269,14 +269,17 @@ export default function CourseAdmin() {
     {
       key: "total_students",
       label: "Alunos matriculados",
+      align: "right",
     },
     {
       key: "workload_hours",
       label: "Carga horária",
+      align: "right",
     },
     {
       key: "pricing",
       label: "Preço",
+      align: "right",
     },
     {
       key: "status",
@@ -285,6 +288,7 @@ export default function CourseAdmin() {
     {
       key: "actions",
       label: "Ações",
+      align: "right",
     },
   ];
 
@@ -332,72 +336,63 @@ export default function CourseAdmin() {
                 key={course.id}
                 className="border-b border-gray-100"
               >
-                <td className="py-5">
-                  <p className="font-semibold text-gray-900">
+                <td className="px-3 py-3">
+                  <p className="text-sm font-semibold text-gray-900">
                     {course.name}
                   </p>
 
                   {course.category && (
-                    <p className="mt-1 text-sm text-gray-500">
+                    <p className="mt-1 text-xs text-gray-500">
                       {course.category}
                     </p>
                   )}
                 </td>
 
-                <td className="py-5 text-gray-600">
+                <td className="px-3 py-3 text-sm text-gray-600">
                   {course.teacher_name || "-"}
                 </td>
 
-                <td className="py-5 text-gray-600">
+                <td className="whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-gray-600">
                   {Number(
                     course.total_students || 0
                   )}
                 </td>
 
-                <td className="py-5 text-gray-600">
+                <td className="whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-gray-600">
                   {course.workload_hours
                     ? `${course.workload_hours}h`
                     : "-"}
                 </td>
 
-                <td className="py-5 text-sm">
+                <td className="whitespace-nowrap px-3 py-3 text-right">
                   <PricingCell pricing={course.pricing} />
                 </td>
 
-                <td className="py-5">
+                <td className="whitespace-nowrap px-3 py-3">
                   <StatusBadge
                     status={course.status}
                   />
                 </td>
 
-                <td className="py-5">
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-200"
-                    >
-                      Ver
-                    </button>
+                <td className="whitespace-nowrap px-3 py-3">
+                  <div className="flex justify-end gap-2">
+                    <TableActionButton variant="neutral" size="sm">Ver</TableActionButton>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleEditClick(course)
-                      }
-                      className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-200"
+                    <TableActionButton
+                      variant="accent"
+                      size="sm"
+                      onClick={() => handleEditClick(course)}
                     >
                       Editar
-                    </button>
+                    </TableActionButton>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleDeleteClick(course)
-                      }
-                      className="rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-200"
+                    <TableActionButton
+                      variant="danger"
+                      size="sm"
+                      onClick={() => handleDeleteClick(course)}
                     >
                       Remover
-                    </button>
+                    </TableActionButton>
                   </div>
                 </td>
               </tr>

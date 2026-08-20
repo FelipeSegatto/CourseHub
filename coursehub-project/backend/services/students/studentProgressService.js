@@ -647,6 +647,7 @@ async function getProgressOverview(db, { userId }) {
 
 module.exports = {
   createServiceError,
+  mapAcademicItem,
   summarizeAcademicItems,
   getAcademicProgress,
   getProgressOverview,

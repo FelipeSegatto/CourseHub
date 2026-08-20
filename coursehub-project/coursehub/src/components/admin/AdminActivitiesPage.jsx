@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Power, Trash2 } from "lucide-react";
 import { apiFetch } from "../../services/APIService";
 import { createAdminActivityService } from "../../services/AdminActivityService";
 import { listClasses } from "../../services/AdminClassService";
@@ -7,6 +8,8 @@ import ManagementPageShell from "../ui/ManagementPageShell";
 import ActivityModal from "../teachers/ActivityModal";
 import AdminTable from "./AdminTable";
 import StatusBadge from "../ui/StatusBadge";
+import TableActionButton from "../ui/actions/TableActionButton";
+import RowActionsMenu from "../ui/actions/RowActionsMenu";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const TYPE_OPTIONS = [
@@ -315,11 +318,11 @@ export default function AdminActivitiesPage({ activityKind }) {
     { key: "teacher", label: "Professor" },
     { key: "type", label: "Tipo" },
     { key: "due_date", label: "Prazo" },
-    { key: "max_score", label: "Nota máx." },
-    { key: "submissions", label: "Envios" },
-    { key: "pending", label: "Pendentes" },
+    { key: "max_score", label: "Nota máx.", align: "right" },
+    { key: "submissions", label: "Envios", align: "right" },
+    { key: "pending", label: "Pendentes", align: "right" },
     { key: "status", label: "Status" },
-    { key: "actions", label: "Ações" },
+    { key: "actions", label: "Ações", align: "right" },
   ];
 
   const inputClass =
@@ -477,65 +480,56 @@ export default function AdminActivitiesPage({ activityKind }) {
               emptyMessage={`Nenhuma ${isExam ? "avaliação" : "atividade"} encontrada.`}
               renderRow={(item) => (
                 <tr key={item.id} className="border-b border-gray-100">
-                  <td className="py-5">
-                    <p className="font-semibold text-gray-900">{item.title}</p>
+                  <td className="px-3 py-3">
+                    <p className="text-sm font-semibold text-gray-900">{item.title}</p>
                   </td>
 
-                  <td className="py-5 text-gray-600">{item.course?.name || "-"}</td>
-                  <td className="py-5 text-gray-600">{item.scopeLabel}</td>
-                  <td className="py-5 text-gray-600">{item.teacher?.name || "-"}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{item.course?.name || "-"}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{item.scopeLabel}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{item.teacher?.name || "-"}</td>
 
-                  <td className="py-5 text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">
                     {TYPE_OPTIONS.find((option) => option.value === item.type)?.label ||
                       item.type}
                   </td>
 
-                  <td className="py-5 text-gray-600">{formatShortDateTime(item.dueDate)}</td>
-                  <td className="py-5 text-gray-600">{item.maxScore}</td>
-                  <td className="py-5 text-gray-600">{item.submissionCounts.total}</td>
-                  <td className="py-5 text-gray-600">{item.submissionCounts.pendingReview}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-gray-600">{formatShortDateTime(item.dueDate)}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-gray-600">{item.maxScore}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-gray-600">{item.submissionCounts.total}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-gray-600">{item.submissionCounts.pendingReview}</td>
 
-                  <td className="py-5">
+                  <td className="whitespace-nowrap px-3 py-3">
                     <StatusBadge status={item.status} />
                   </td>
 
-                  <td className="py-5">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEditClick(item)}
-                        className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200"
-                      >
+                  <td className="whitespace-nowrap px-3 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <TableActionButton variant="accent" size="sm" onClick={() => handleEditClick(item)}>
                         Editar
-                      </button>
+                      </TableActionButton>
 
-                      {item.status === "active" ? (
-                        <button
-                          type="button"
-                          onClick={() => handleStatusChange(item, "inactive")}
-                          disabled={actionLoading}
-                          className="rounded-lg bg-yellow-100 px-3 py-2 text-sm font-medium text-yellow-700 hover:bg-yellow-200 disabled:opacity-50"
-                        >
-                          Inativar
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleStatusChange(item, "active")}
-                          disabled={actionLoading}
-                          className="rounded-lg bg-green-100 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-200 disabled:opacity-50"
-                        >
-                          Ativar
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveClick(item)}
-                        className="rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-200"
-                      >
-                        Remover
-                      </button>
+                      <RowActionsMenu
+                        items={[
+                          {
+                            key: "toggle-status",
+                            label: item.status === "active" ? "Inativar" : "Ativar",
+                            icon: Power,
+                            variant: "warning",
+                            disabled: actionLoading,
+                            onClick: () =>
+                              handleStatusChange(item, item.status === "active" ? "inactive" : "active"),
+                          },
+                          {
+                            key: "remove",
+                            label: "Remover",
+                            icon: Trash2,
+                            variant: "danger",
+                            separator: true,
+                            disabled: actionLoading,
+                            onClick: () => handleRemoveClick(item),
+                          },
+                        ]}
+                      />
                     </div>
                   </td>
                 </tr>
