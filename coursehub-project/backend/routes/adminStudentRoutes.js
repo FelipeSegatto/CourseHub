@@ -37,7 +37,11 @@ router.get(
   authorizeRoles("admin"),
   async (req, res) => {
     try {
-      const students = await listStudents(db);
+      const students = await listStudents(db, {
+        courseId: req.query.courseId,
+        classId: req.query.classId,
+        status: req.query.status,
+      });
 
       return res.status(200).json(students);
     } catch (error) {

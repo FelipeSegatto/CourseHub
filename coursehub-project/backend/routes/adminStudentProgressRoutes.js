@@ -60,8 +60,10 @@ router.get(
   reportExportRateLimiter,
   async (req, res) => {
     try {
+      const detail = await getEnrollmentProgressDetail(db, req.params.enrollmentId);
+
       const { buffer, filename } = await generateStudentProgressPdf(db, {
-        enrollmentId: req.params.enrollmentId,
+        detail,
         actorUserId: req.auth.userId,
       });
 

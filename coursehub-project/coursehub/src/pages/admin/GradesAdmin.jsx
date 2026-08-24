@@ -211,7 +211,7 @@ export default function GradesAdmin() {
   ];
 
   const inputClass =
-    "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
+    "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-36 truncate";
 
   const canApply = hasValidScope(draft);
 
@@ -224,7 +224,7 @@ export default function GradesAdmin() {
         stats={stats}
         tableTitle="Lista de notas"
         tableActions={
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-3">
             <select
               value={draft.courseId}
               onChange={(event) => updateDraft({ courseId: event.target.value })}
@@ -265,7 +265,7 @@ export default function GradesAdmin() {
               ))}
             </select>
 
-            <label className="flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700">
+            <label className="flex items-center gap-2 whitespace-nowrap rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700">
               <input
                 type="checkbox"
                 checked={draft.adjustedOnly}
@@ -274,37 +274,40 @@ export default function GradesAdmin() {
               Só ajustadas
             </label>
 
-            <button
-              type="button"
-              onClick={apply}
-              disabled={!canApply}
-              className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Aplicar filtros
-            </button>
-
-            {hasApplied && (
+            <div className="ml-1 flex shrink-0 items-center gap-x-3">
               <button
                 type="button"
-                onClick={clear}
-                className="text-sm font-semibold text-gray-500 hover:text-gray-700 hover:underline"
+                onClick={apply}
+                disabled={!canApply}
+                className="whitespace-nowrap rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Limpar filtros
+                Aplicar filtros
               </button>
-            )}
 
-            {hasApplied && (
-              <ExportPdfButton
-                basePath="/api/admin/reports/grades"
-                filters={{
-                  search: applied.search,
-                  courseId: applied.courseId,
-                  classId: applied.classId,
-                  teacherId: applied.teacherId,
-                  adjustedOnly: applied.adjustedOnly || undefined,
-                }}
-              />
-            )}
+              {hasApplied && (
+                <button
+                  type="button"
+                  onClick={clear}
+                  className="whitespace-nowrap text-xs font-semibold text-gray-500 hover:text-gray-700 hover:underline"
+                >
+                  Limpar filtros
+                </button>
+              )}
+
+              {hasApplied && (
+                <ExportPdfButton
+                  basePath="/api/admin/reports/grades"
+                  filters={{
+                    search: applied.search,
+                    courseId: applied.courseId,
+                    classId: applied.classId,
+                    teacherId: applied.teacherId,
+                    adjustedOnly: applied.adjustedOnly || undefined,
+                  }}
+                  className="inline-flex min-h-[38px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                />
+              )}
+            </div>
           </div>
         }
         searchValue={draft.search}

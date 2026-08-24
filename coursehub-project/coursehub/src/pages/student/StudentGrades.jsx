@@ -457,7 +457,7 @@ export default function StudentGrades() {
                         grade.activityKind === "exam"
                           ? "/aluno/avaliacoes"
                           : "/aluno/atividades"
-                      }/${grade.activityId}`}
+                      }/${grade.activityId}?from=notas`}
                     >
                       Ver correção
                     </TableActionButton>

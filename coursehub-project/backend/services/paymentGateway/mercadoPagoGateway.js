@@ -35,6 +35,25 @@ function getConfig() {
  * (paymentStateMachine.js). pending/in_process/authorized/
  * in_mediation todos colapsam para "pending": nenhum deles
  * representa dinheiro que o CourseHub já pode agir sobre.
+ *
+ * NÃO existe um valor "expired" aqui de propósito, não por descuido:
+ * o Mercado Pago não expõe um `payment.status` top-level distinto
+ * para PIX/boleto vencido -- confirmado tanto pelo contrato já
+ * documentado acima (GatewayPaymentResult.status só documenta
+ * "pending"|"approved"|"rejected"|"cancelled") quanto pelo próprio
+ * `.d.ts` do SDK instalado (`clients/payment/commonTypes.d.ts`), cujo
+ * comentário de `status` só exemplifica approved/pending/rejected/
+ * cancelled. Na prática o provider representa "PIX/boleto vencido sem
+ * pagamento" como `status: "cancelled"` com `status_detail`
+ * carregando o motivo -- já preservado sem perda em
+ * gateway_status/gateway_status_detail por mapPaymentResponse abaixo.
+ * O conceito de tentativa "expired" do CourseHub (ver
+ * invoicePaymentService.js#expireDuePaymentAttempts) é, portanto,
+ * puramente local/lazy -- baseado em pix_expires_at/boleto_due_date
+ * já salvos aqui, não em uma notificação do gateway -- e não depende
+ * deste normalizeStatus. Se o Mercado Pago um dia passar a emitir um
+ * status distinto e documentado para isso, mapeie-o explicitamente
+ * aqui em vez de deixá-lo continuar caindo no default abaixo.
  */
 function normalizeStatus(gatewayStatus) {
   switch (gatewayStatus) {

@@ -305,4 +305,11 @@ async function getEnrollmentProgressDetail(db, enrollmentId) {
   };
 }
 
-module.exports = { createServiceError, hasValidScope, listEnrollmentsForProgress, getEnrollmentProgressDetail };
+module.exports = {
+  createServiceError,
+  hasValidScope,
+  listEnrollmentsForProgress,
+  getEnrollmentProgressDetail,
+  loadContentProgress,
+  loadAttendanceSummary,
+};

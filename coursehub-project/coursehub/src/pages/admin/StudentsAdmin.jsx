@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { apiFetch } from "../../services/APIService";
+import { listClasses } from "../../services/AdminClassService";
+import { useAppliedFilters } from "../../hooks/useAppliedFilters";
 
 import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminCreateEditModal from "../../components/admin/AdminCreateEditModal";
@@ -12,12 +14,35 @@ import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
 
 import StatusBadge from "../../components/ui/StatusBadge";
 
+const studentStatusOptions = [
+  { value: "active", label: "Ativos" },
+  { value: "inactive", label: "Inativos" },
+  { value: "cancelled", label: "Cancelados" },
+];
+
+const INITIAL_DRAFT = { courseId: "", classId: "", status: "active" };
+
+const inputClass =
+  "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
+
+/**
+ * Não carrega todos os alunos da plataforma de cara -- exige um
+ * curso selecionado (turma refina, opcional) antes de consultar,
+ * mesmo padrão de escopo obrigatório já usado em Notas/Frequência/
+ * Progressão administrativas (useAppliedFilters).
+ */
 export default function StudentsAdmin() {
+  const { draft, updateDraft, applied, hasApplied, isStale, apply, clear } =
+    useAppliedFilters(INITIAL_DRAFT);
+
   const [students, setStudents] = useState([]);
   const [busca, setBusca] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const [courses, setCourses] = useState([]);
+  const [filterClasses, setFilterClasses] = useState([]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create");
@@ -26,22 +51,23 @@ export default function StudentsAdmin() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [loadingDelete, setLoadingDelete] = useState(false);
 
-  const [statusFilter, setStatusFilter] = useState("active");
-  const studentStatusOptions = [
-    { value: "active", label: "Ativos" },
-    { value: "inactive", label: "Inativos" },
-    { value: "cancelled", label: "Cancelados" },
-  ];
-
   async function fetchStudents() {
+    if (!applied) return;
+
     try {
       setLoading(true);
       setError("");
 
-      const data = await apiFetch("/api/admin/students");
+      const params = new URLSearchParams();
+      if (applied.courseId) params.set("courseId", applied.courseId);
+      if (applied.classId) params.set("classId", applied.classId);
+      if (applied.status) params.set("status", applied.status);
+
+      const data = await apiFetch(`/api/admin/students?${params.toString()}`);
       setStudents(Array.isArray(data) ? data : []);
     } catch (error) {
       setError(error.message || "Erro ao buscar alunos.");
+      setStudents([]);
     } finally {
       setLoading(false);
     }
@@ -49,7 +75,55 @@ export default function StudentsAdmin() {
 
   useEffect(() => {
     fetchStudents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applied]);
+
+  useEffect(() => {
+    let ignoreRequest = false;
+
+    async function loadCourses() {
+      try {
+        const response = await apiFetch("/api/admin/courses");
+
+        if (!ignoreRequest) setCourses(Array.isArray(response) ? response : []);
+      } catch (requestError) {
+        if (!ignoreRequest) console.error("Erro ao carregar cursos:", requestError);
+      }
+    }
+
+    loadCourses();
+
+    return () => {
+      ignoreRequest = true;
+    };
   }, []);
+
+  useEffect(() => {
+    if (!draft.courseId) {
+      setFilterClasses([]);
+      if (draft.classId) updateDraft({ classId: "" });
+      return;
+    }
+
+    let ignoreRequest = false;
+
+    async function loadClassesForFilter() {
+      try {
+        const response = await listClasses({ courseId: draft.courseId, limit: 100 });
+
+        if (!ignoreRequest) setFilterClasses(Array.isArray(response?.data) ? response.data : []);
+      } catch (requestError) {
+        if (!ignoreRequest) console.error("Erro ao carregar turmas do curso:", requestError);
+      }
+    }
+
+    loadClassesForFilter();
+
+    return () => {
+      ignoreRequest = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.courseId]);
 
   function handleCreateClick() {
     setModalMode("create");
@@ -88,27 +162,22 @@ export default function StudentsAdmin() {
     }
   }
 
-const filteredStudents = useMemo(() => {
-  const term = busca.trim().toLowerCase();
+  const filteredStudents = useMemo(() => {
+    const term = busca.trim().toLowerCase();
 
-  return students.filter((student) => {
-    const matchesSearch =
-      !term ||
-      student.name?.toLowerCase().includes(term) ||
-      student.email?.toLowerCase().includes(term) ||
-      student.registration_number?.toLowerCase().includes(term);
-
-    const matchesStatus =
-      !statusFilter ||
-      student.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-}, [students, busca, statusFilter]);
+    return students.filter((student) => {
+      return (
+        !term ||
+        student.name?.toLowerCase().includes(term) ||
+        student.email?.toLowerCase().includes(term) ||
+        student.registration_number?.toLowerCase().includes(term)
+      );
+    });
+  }, [students, busca]);
 
   const stats = useMemo(() => {
     return [
-      { title: "Total de alunos", value: students.length },
+      { title: "Total encontrado", value: students.length },
       {
         title: "Alunos ativos",
         value: students.filter((student) => student.status === "active").length,
@@ -154,35 +223,95 @@ const filteredStudents = useMemo(() => {
         description="Acompanhe alunos cadastrados, cursos, status e progresso."
         createButtonText="+ Novo Aluno"
         onCreateClick={handleCreateClick}
-        stats={stats}
+        stats={hasApplied ? stats : []}
         tableTitle="Lista de alunos"
         tableActions={
-          <AdminStatusFilter
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={studentStatusOptions}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={draft.courseId}
+              onChange={(event) => updateDraft({ courseId: event.target.value, classId: "" })}
+              className={inputClass}
+            >
+              <option value="">Todos os cursos</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={draft.classId}
+              onChange={(event) => updateDraft({ classId: event.target.value })}
+              disabled={!draft.courseId}
+              className={inputClass}
+            >
+              <option value="">Todas as turmas</option>
+              {filterClasses.map((classItem) => (
+                <option key={classItem.id} value={classItem.id}>
+                  {classItem.name}
+                </option>
+              ))}
+            </select>
+
+            <AdminStatusFilter
+              value={draft.status}
+              onChange={(value) => updateDraft({ status: value })}
+              options={studentStatusOptions}
+            />
+
+            <button
+              type="button"
+              onClick={apply}
+              className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+            >
+              Aplicar filtros
+            </button>
+
+            {hasApplied && (
+              <button
+                type="button"
+                onClick={clear}
+                className="text-sm font-semibold text-gray-500 hover:text-gray-700 hover:underline"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
         }
         searchValue={busca}
         onSearchChange={setBusca}
         searchPlaceholder="Buscar aluno..."
         quickActions={quickActions}
       >
-        {loading && (
+        {!hasApplied && (
+          <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center">
+            <p className="font-semibold text-gray-700">Selecione um filtro para consultar os alunos.</p>
+            <p className="mt-2 text-sm text-gray-500">Escolha um curso específico ou deixe em "Todos os cursos"; turma e status são refinamentos opcionais.</p>
+          </div>
+        )}
+
+        {hasApplied && isStale && (
+          <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+            Os filtros foram alterados -- clique em "Aplicar filtros" para atualizar os resultados abaixo.
+          </p>
+        )}
+
+        {hasApplied && loading && (
           <p className="py-6 text-center text-gray-500">
             Carregando alunos...
           </p>
         )}
 
-        {!loading && error && (
+        {hasApplied && !loading && error && (
           <p className="py-6 text-center text-red-500">{error}</p>
         )}
 
-        {!loading && !error && (
+        {hasApplied && !loading && !error && (
           <AdminTable
             columns={columns}
             data={filteredStudents}
-            emptyMessage="Nenhum aluno encontrado."
+            emptyMessage="Nenhum aluno encontrado para os filtros aplicados."
             renderRow={(student) => (
               <tr key={student.id} className="border-b border-gray-100">
                 <td className="px-3 py-3">

@@ -89,6 +89,8 @@ import TeacherSubmissionReview from "../pages/teacher/TeacherSubmissionReview";
 import TeacherAttendance from "../pages/teacher/TeacherAttendance";
 import TeacherAttendanceHistory from "../pages/teacher/TeacherAttendanceHistory";
 import TeacherGrades from "../pages/teacher/TeacherGrades";
+import TeacherStudentProgressPage from "../pages/teacher/TeacherStudentProgressPage";
+import TeacherStudentProgressDetailPage from "../pages/teacher/TeacherStudentProgressDetailPage";
 import TeacherEligibility from "../pages/teacher/TeacherEligibility";
 import TeacherCalendar from "../pages/teacher/TeacherCalendar";
 import TeacherNotifications from "../pages/teacher/TeacherNotifications";
@@ -650,6 +652,14 @@ export const router = createBrowserRouter([
               {
                 path: "notas",
                 element: <TeacherGrades />,
+              },
+              {
+                path: "progressao",
+                element: <TeacherStudentProgressPage />,
+              },
+              {
+                path: "progressao/matriculas/:enrollmentId",
+                element: <TeacherStudentProgressDetailPage />,
               },
               {
                 path: "elegibilidade",

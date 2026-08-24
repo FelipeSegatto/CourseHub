@@ -149,7 +149,14 @@ async function getStudentActivityAccess(
         a.updated_at,
 
         c.name AS course_title,
-        cl.name AS class_name
+        cl.name AS class_name,
+
+        sub.id AS submission_id,
+        sub.status AS submission_status,
+        sub.score AS submission_score,
+        sub.feedback AS submission_feedback,
+        sub.submitted_at,
+        sub.graded_at
 
       FROM activities a
 
@@ -159,13 +166,17 @@ async function getStudentActivityAccess(
       LEFT JOIN classes cl
         ON cl.id = a.class_id
 
+      LEFT JOIN submissions sub
+        ON sub.activity_id = a.id
+        AND sub.student_id = ?
+
       WHERE a.id = ?
         AND a.status = 'active'
         AND c.status = 'active'
 
       LIMIT 1
     `,
-    [activityId]
+    [studentId, activityId]
   );
 
   const activity = activityRows[0] || null;

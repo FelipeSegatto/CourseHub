@@ -1,3 +1,9 @@
+const {
+  processGatewayPaymentUpdate,
+} = require(
+  "../services/financial/paymentProcessingService"
+);
+
 /**
  * Checkout privado de invoice -- link seguro para um contratante
  * (com ou sem conta CourseHub) pagar uma cobrança específica sem
@@ -119,26 +125,183 @@ router.post("/payments", requireInvoicePaymentSession, publicInvoicePaymentCreat
  * verificado contra req.invoicePaymentSession.invoiceId, nunca contra
  * algo enviado pelo cliente além do próprio paymentId na URL.
  */
-router.get("/payments/:paymentId", requireInvoicePaymentSession, async (req, res) => {
-  try {
-    const paymentId = Number(req.params.paymentId);
+router.get(
+  "/payments/:paymentId",
+  requireInvoicePaymentSession,
+  async (req, res) => {
+    try {
+      const paymentId =
+        Number(req.params.paymentId);
 
-    const payment = await getInvoicePaymentByAccessContext(db, {
-      paymentId,
-      accessContext: { scope: "invoice", invoiceId: req.invoicePaymentSession.invoiceId },
-    });
+      if (
+        !Number.isInteger(paymentId) ||
+        paymentId <= 0
+      ) {
+        return res.status(400).json({
+          message:
+            "Identificador de pagamento inválido.",
+        });
+      }
 
-    res.set("Cache-Control", "no-store");
+      const accessContext = {
+        scope: "invoice",
+        invoiceId:
+          req.invoicePaymentSession.invoiceId,
+      };
 
-    return res.status(200).json({ data: payment });
-  } catch (error) {
-    console.error("Erro ao consultar pagamento via link privado:", error.message);
 
-    return res.status(error.statusCode || 500).json({
-      message: error.message || "Não foi possível consultar o pagamento.",
-    });
+      /*
+       * =====================================================
+       * 1. LÊ O PAGAMENTO LOCAL
+       * =====================================================
+       */
+      let payment =
+        await getInvoicePaymentByAccessContext(
+          db,
+          {
+            paymentId,
+            accessContext,
+          }
+        );
+
+
+      /*
+       * =====================================================
+       * 2. DEV + GATEWAY SIMULADO
+       * =====================================================
+       *
+       * No gateway real, a atualização normalmente chega
+       * pelo webhook.
+       *
+       * O gateway simulado não possui servidor externo nem
+       * webhook real.
+       *
+       * Portanto, durante o polling em desenvolvimento,
+       * sincronizamos explicitamente o estado do gateway.
+       */
+      if (
+        process.env.NODE_ENV !==
+          "production" &&
+        process.env.PAYMENT_GATEWAY ===
+          "simulated" &&
+        payment.status === "pending"
+      ) {
+        try {
+          const [
+            rows,
+          ] =
+            await db
+              .promise()
+              .query(
+                `
+                  SELECT
+                    gateway,
+                    gateway_payment_id
+                  FROM payments
+                  WHERE id = ?
+                  LIMIT 1
+                `,
+                [paymentId]
+              );
+
+
+          const storedPayment =
+            rows[0];
+
+
+          if (
+            storedPayment?.gateway ===
+              "simulated" &&
+            storedPayment
+              ?.gateway_payment_id
+          ) {
+
+            /*
+             * Mesmo pipeline usado pelo webhook.
+             *
+             * Ele consulta o gateway,
+             * valida transição,
+             * atualiza payment,
+             * invoice,
+             * contrato,
+             * matrícula etc.
+             */
+            await processGatewayPaymentUpdate(
+              db,
+              {
+                gateway:
+                  "simulated",
+
+                gatewayPaymentId:
+                  storedPayment
+                    .gateway_payment_id,
+
+                gatewayEventId:
+                  null,
+
+                source:
+                  "simulated_gateway",
+              }
+            );
+
+            /*
+             * Relê depois da sincronização.
+             */
+            payment =
+              await getInvoicePaymentByAccessContext(
+                db,
+                {
+                  paymentId,
+                  accessContext,
+                }
+              );
+          }
+
+        } catch (syncError) {
+
+          /*
+           * Não quebramos o polling inteiro
+           * por uma falha temporária de sync.
+           */
+          console.error(
+            "[publicInvoicePaymentRoutes] " +
+            "erro ao sincronizar gateway simulado:",
+            syncError.message
+          );
+        }
+      }
+
+
+      res.set(
+        "Cache-Control",
+        "no-store"
+      );
+
+
+      return res.status(200).json({
+        data: payment,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "Erro ao consultar pagamento público:",
+        error.message
+      );
+
+
+      return res
+        .status(
+          error.statusCode || 500
+        )
+        .json({
+          message:
+            error.message ||
+            "Não foi possível consultar o pagamento.",
+        });
+    }
   }
-});
+);
 
 /**
  * POST /api/public/invoice-payment/request-link

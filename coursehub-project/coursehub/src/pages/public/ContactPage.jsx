@@ -90,7 +90,7 @@ export default function ContactPage() {
       <header>
         <h1 className="text-3xl font-bold text-gray-950">Fale conosco</h1>
         <p className="mt-2 text-gray-600">
-          Informações de contato e acesso seguro à sua fatura.
+          Informações de contato.
         </p>
       </header>
 
@@ -124,60 +124,7 @@ export default function ContactPage() {
         )}
       </section>
 
-      <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-gray-900">Acesse sua fatura</h2>
-
-        <p className="mt-2 text-sm leading-6 text-gray-600">
-          Se você é contratante de um curso na CourseHub, pode pagar sua cobrança por um link individual e
-          seguro, recebido por e-mail ou WhatsApp -- sem precisar de login.
-        </p>
-
-        <Link
-          to="/pagamento/fatura"
-          className="mt-4 inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
-        >
-          Abrir link de pagamento
-        </Link>
-
-        <div className="mt-6 border-t border-gray-100 pt-6">
-          <h3 className="font-semibold text-gray-900">Não encontrou seu link?</h3>
-
-          <p className="mt-1 text-sm text-gray-500">
-            Informe o e-mail cadastrado como contratante e, se houver uma cobrança em aberto, enviaremos um
-            novo link de acesso.
-          </p>
-
-          <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3 sm:flex-row">
-            <label className="flex-1">
-              <span className="sr-only">E-mail</span>
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="seu-email@exemplo.com"
-                disabled={submitting}
-                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
-            </label>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="shrink-0 rounded-xl bg-gray-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting ? "Enviando..." : "Solicitar novo link"}
-            </button>
-          </form>
-
-          {formError && <p className="mt-3 text-sm text-red-600">{formError}</p>}
-          {resultMessage && <p className="mt-3 text-sm text-green-700">{resultMessage}</p>}
-
-          <p className="mt-4 text-xs text-gray-400">
-            Por segurança, nosso atendimento financeiro nunca solicita senha, número de cartão ou código de
-            pagamento por e-mail ou WhatsApp.
-          </p>
-        </div>
-      </section>
+     
     </main>
   );
 }

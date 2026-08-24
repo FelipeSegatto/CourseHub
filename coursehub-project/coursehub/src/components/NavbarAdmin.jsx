@@ -128,14 +128,20 @@ export default function NavbarAdmin() {
   }
 
   return (
-    <header className="sticky top-0 z-50 mb-6 border-b border-gray-200 bg-white/80 backdrop-blur">
-      <div className="mx-auto grid w-full max-w-[1500px] grid-cols-[auto_1fr_auto] items-center gap-8 px-6 py-4">
+    <header className="sticky top-0 z-50 mb-6 border-b border-gray-200 bg-white/85 backdrop-blur-xl">
+      <div className="mx-auto grid max-w-[1500px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-8 px-5 py-4">
         {/* Logo */}
         <Link
           to="/admin"
-          className="flex items-center gap-2 justify-self-start"
+          className="flex items-center gap-3 justify-self-start"
         >
-          <CourseHubLogo />
+          <div>
+            <CourseHubLogo />
+
+            <p className="-mt-2 text-center text-xs text-gray-500">
+              Learn. Build. Grow.
+            </p>
+          </div>
         </Link>
 
         {/* Menu central */}

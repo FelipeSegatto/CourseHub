@@ -29,7 +29,10 @@ const STATUS_OPTIONS = [
 const INITIAL_DRAFT = { courseId: "", teacherId: "", classId: "", status: "", sessionType: "", from: "", to: "" };
 
 const inputClass =
-  "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
+  "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-40 truncate";
+
+const dateInputClass =
+  "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-36";
 
 /**
  * Encontros administrativos -- mesmo componente de card/formulário do
@@ -221,7 +224,7 @@ export default function AdminSessionsPage() {
       </section>
 
       <section className="rounded-2xl bg-white p-6 shadow">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-4">
           <select
             value={draft.teacherId}
             onChange={(event) => updateDraft({ teacherId: event.target.value, classId: "" })}
@@ -292,7 +295,7 @@ export default function AdminSessionsPage() {
             type="date"
             value={draft.from}
             onChange={(event) => updateDraft({ from: event.target.value })}
-            className={inputClass}
+            className={dateInputClass}
             title="De"
           />
 
@@ -300,7 +303,7 @@ export default function AdminSessionsPage() {
             type="date"
             value={draft.to}
             onChange={(event) => updateDraft({ to: event.target.value })}
-            className={inputClass}
+            className={dateInputClass}
             title="Até"
           />
 

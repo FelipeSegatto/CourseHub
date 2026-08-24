@@ -256,7 +256,7 @@ export default function ClassesAdmin() {
   ];
 
   const inputClass =
-    "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
+    "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-40 truncate";
 
   return (
     <>
@@ -269,7 +269,7 @@ export default function ClassesAdmin() {
         stats={stats}
         tableTitle="Lista de turmas"
         tableActions={
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-4">
             <select
               value={courseId}
               onChange={(event) => {

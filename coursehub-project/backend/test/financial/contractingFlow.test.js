@@ -17,6 +17,7 @@ const {
   activateContractFromPaidInvoice,
 } = require("../../services/financial/activateContractService");
 const { registerManualPayment } = require("../../services/financial/paymentService");
+const { changeInvoiceAmount } = require("../../services/financial/invoiceAmountService");
 const {
   activateAccount,
   validateActivationToken,
@@ -449,6 +450,288 @@ test("cancelar um contrato pending_payment cancela a fatura de ativacao e nunca 
     ]);
 
   assert.equal(Number(enrollmentCountRows[0].total), 0);
+});
+
+// -----------------------------------------------------------------
+// invoiceAmountService.changeInvoiceAmount: ownership/curso direto de
+// financial_contracts, nunca dependente de enrollments -- um contrato
+// de checkout tem enrollment_id = NULL desde a criacao ate a ativacao
+// (ver contractCreationService.js#createStudentContractWithInitialInvoice,
+// INSERT com enrollment_id = NULL)
+// -----------------------------------------------------------------
+
+test("changeInvoiceAmount localiza e altera a fatura mesmo quando o contrato ainda nao tem matricula (enrollment_id NULL)", async () => {
+  const email = testEmail("amount-no-enrollment");
+
+  const result = await createStudentContractWithInitialInvoice(
+    db,
+    {
+      newStudentData: {
+        name: "Aluno Teste Valor Sem Matricula",
+        email,
+        birth_date: "2000-05-01",
+        cpf: testCpf(5),
+        phone: "11999990005",
+      },
+      contractingPartyMode: "self",
+      courseId,
+      pricingPlanId: planId,
+      billingData: { dueDate: "2026-12-01" },
+    },
+    adminUserId
+  );
+
+  const [[contractRow]] = await db
+    .promise()
+    .query(`SELECT enrollment_id FROM financial_contracts WHERE id = ?`, [result.contractId]);
+
+  assert.equal(contractRow.enrollment_id, null);
+
+  const changeResult = await changeInvoiceAmount(db, {
+    invoiceId: result.invoiceId,
+    newAmount: 650,
+    reason: "Ajuste de valor antes da ativacao (sem matricula ainda)",
+    actorUserId: adminUserId,
+  });
+
+  assert.equal(changeResult.newAmount, 650);
+
+  const [[invoiceRow]] = await db.promise().query(`SELECT amount FROM invoices WHERE id = ?`, [
+    result.invoiceId,
+  ]);
+
+  assert.equal(Number(invoiceRow.amount), 650);
+});
+
+test("changeInvoiceAmount continua funcionando normalmente para um contrato que ja tem matricula", async () => {
+  const email = testEmail("amount-with-enrollment");
+
+  const result = await createStudentContractWithInitialInvoice(
+    db,
+    {
+      newStudentData: {
+        name: "Aluno Teste Valor Com Matricula",
+        email,
+        birth_date: "2000-05-01",
+        cpf: testCpf(6),
+        phone: "11999990006",
+      },
+      contractingPartyMode: "self",
+      courseId,
+      pricingPlanId: planId,
+      billingData: { dueDate: "2026-12-01" },
+    },
+    adminUserId
+  );
+
+  await registerManualPayment(db, {
+    invoiceId: result.invoiceId,
+    amount: 500,
+    paymentMethod: "pix",
+    paymentDate: new Date().toISOString(),
+    reason: "Ativacao para teste de alteracao de valor",
+    actorUserId: adminUserId,
+  });
+
+  const [[contractRow]] = await db
+    .promise()
+    .query(`SELECT enrollment_id FROM financial_contracts WHERE id = ?`, [result.contractId]);
+
+  assert.ok(contractRow.enrollment_id);
+
+  const [secondInvoiceResult] = await db.promise().query(
+    `
+      INSERT INTO invoices (financial_contract_id, invoice_type, installment_number, description, amount, due_date, status, created_at, updated_at)
+      VALUES (?, 'monthly_payment', 2, 'Segunda parcela - teste alteracao de valor', 500, DATE_ADD(CURDATE(), INTERVAL 30 DAY), 'pending', NOW(), NOW())
+    `,
+    [result.contractId]
+  );
+
+  const secondInvoiceId = secondInvoiceResult.insertId;
+
+  const changeResult = await changeInvoiceAmount(db, {
+    invoiceId: secondInvoiceId,
+    newAmount: 480,
+    reason: "Desconto aplicado apos matricula ativa",
+    actorUserId: adminUserId,
+  });
+
+  assert.equal(changeResult.newAmount, 480);
+
+  const [[invoiceRow]] = await db.promise().query(`SELECT amount FROM invoices WHERE id = ?`, [
+    secondInvoiceId,
+  ]);
+
+  assert.equal(Number(invoiceRow.amount), 480);
+});
+
+// -----------------------------------------------------------------
+// paymentService.registerManualPayment: contrato reason/metodo entre
+// frontend e backend, metodos administrativos ampliados, regra de
+// pagamento integral preservada
+// -----------------------------------------------------------------
+
+test("registerManualPayment exige reason -- sem ele, erro de validacao e nenhum payment e criado", async () => {
+  const email = testEmail("manual-payment-no-reason");
+
+  const result = await createStudentContractWithInitialInvoice(
+    db,
+    {
+      newStudentData: {
+        name: "Aluno Teste Sem Motivo",
+        email,
+        birth_date: "2000-05-01",
+        cpf: testCpf(7),
+        phone: "11999990007",
+      },
+      contractingPartyMode: "self",
+      courseId,
+      pricingPlanId: planId,
+      billingData: { dueDate: "2026-12-01" },
+    },
+    adminUserId
+  );
+
+  await assert.rejects(
+    () =>
+      registerManualPayment(db, {
+        invoiceId: result.invoiceId,
+        amount: 500,
+        paymentMethod: "pix",
+        paymentDate: new Date().toISOString(),
+        reason: "",
+        actorUserId: adminUserId,
+      }),
+    (error) => {
+      assert.equal(error.statusCode, 400);
+      return true;
+    }
+  );
+
+  const [paymentRows] = await db.promise().query(`SELECT id FROM payments WHERE invoice_id = ?`, [
+    result.invoiceId,
+  ]);
+
+  assert.equal(paymentRows.length, 0);
+});
+
+test("registerManualPayment aceita os metodos administrativos ampliados (cash, bank_transfer, other) e rejeita um metodo invalido", async () => {
+  const methodsToAccept = ["cash", "bank_transfer", "other"];
+
+  for (const [index, method] of methodsToAccept.entries()) {
+    const email = testEmail(`manual-payment-method-${method}`);
+
+    const result = await createStudentContractWithInitialInvoice(
+      db,
+      {
+        newStudentData: {
+          name: `Aluno Teste Metodo ${method}`,
+          email,
+          birth_date: "2000-05-01",
+          cpf: testCpf(20 + index),
+          phone: `1199999${20 + index}`,
+        },
+        contractingPartyMode: "self",
+        courseId,
+        pricingPlanId: planId,
+        billingData: { dueDate: "2026-12-01" },
+      },
+      adminUserId
+    );
+
+    const paymentResult = await registerManualPayment(db, {
+      invoiceId: result.invoiceId,
+      amount: 500,
+      paymentMethod: method,
+      paymentDate: new Date().toISOString(),
+      reason: `Pagamento registrado via ${method}`,
+      actorUserId: adminUserId,
+    });
+
+    assert.equal(paymentResult.paymentStatus, "approved");
+
+    const [[paymentRow]] = await db.promise().query(`SELECT payment_method FROM payments WHERE id = ?`, [
+      paymentResult.paymentId,
+    ]);
+
+    assert.equal(paymentRow.payment_method, method);
+  }
+
+  const invalidMethodResult = await createStudentContractWithInitialInvoice(
+    db,
+    {
+      newStudentData: {
+        name: "Aluno Teste Metodo Invalido",
+        email: testEmail("manual-payment-invalid-method"),
+        birth_date: "2000-05-01",
+        cpf: testCpf(30),
+        phone: "11999990030",
+      },
+      contractingPartyMode: "self",
+      courseId,
+      pricingPlanId: planId,
+      billingData: { dueDate: "2026-12-01" },
+    },
+    adminUserId
+  );
+
+  await assert.rejects(
+    () =>
+      registerManualPayment(db, {
+        invoiceId: invalidMethodResult.invoiceId,
+        amount: 500,
+        paymentMethod: "wire_fraud",
+        paymentDate: new Date().toISOString(),
+        reason: "Nao deveria funcionar",
+        actorUserId: adminUserId,
+      }),
+    (error) => {
+      assert.equal(error.statusCode, 400);
+      return true;
+    }
+  );
+});
+
+test("registerManualPayment continua exigindo o valor integral da fatura -- valor diferente e rejeitado", async () => {
+  const result = await createStudentContractWithInitialInvoice(
+    db,
+    {
+      newStudentData: {
+        name: "Aluno Teste Valor Parcial",
+        email: testEmail("manual-payment-partial-amount"),
+        birth_date: "2000-05-01",
+        cpf: testCpf(31),
+        phone: "11999990031",
+      },
+      contractingPartyMode: "self",
+      courseId,
+      pricingPlanId: planId,
+      billingData: { dueDate: "2026-12-01" },
+    },
+    adminUserId
+  );
+
+  await assert.rejects(
+    () =>
+      registerManualPayment(db, {
+        invoiceId: result.invoiceId,
+        amount: 250,
+        paymentMethod: "pix",
+        paymentDate: new Date().toISOString(),
+        reason: "Pagamento parcial nao deveria ser aceito",
+        actorUserId: adminUserId,
+      }),
+    (error) => {
+      assert.equal(error.statusCode, 400);
+      return true;
+    }
+  );
+
+  const [paymentRows] = await db.promise().query(`SELECT id FROM payments WHERE invoice_id = ?`, [
+    result.invoiceId,
+  ]);
+
+  assert.equal(paymentRows.length, 0);
 });
 
 test("contractingPartyService: rejeita CPF invalido ao criar contratante terceiro", async () => {

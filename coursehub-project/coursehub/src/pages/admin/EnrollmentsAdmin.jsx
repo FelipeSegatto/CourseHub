@@ -269,7 +269,13 @@ export default function EnrollmentsAdmin() {
   ];
 
   const inputClass =
-    "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
+    "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-40 truncate";
+
+  const dateInputClass =
+    "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+
+  const exportButtonClass =
+    "inline-flex min-h-[38px] w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2";
 
   return (
     <>
@@ -280,9 +286,18 @@ export default function EnrollmentsAdmin() {
         createButtonText="+ Nova matrícula"
         onCreateClick={() => setModalOpen(true)}
         stats={stats}
-        tableTitle="Lista de matrículas"
+        tableTitle={
+          <span className="flex items-center gap-2">
+            Lista de matrículas
+            {!loading && (
+              <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-500">
+                {pagination.total} {pagination.total === 1 ? "resultado" : "resultados"}
+              </span>
+            )}
+          </span>
+        }
         tableActions={
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-3 items-center gap-x-3 gap-y-4">
             <select
               value={courseId}
               onChange={(event) => {
@@ -339,7 +354,7 @@ export default function EnrollmentsAdmin() {
                 setFrom(event.target.value);
                 setPage(1);
               }}
-              className={inputClass}
+              className={dateInputClass}
               title="De"
             />
 
@@ -350,13 +365,14 @@ export default function EnrollmentsAdmin() {
                 setTo(event.target.value);
                 setPage(1);
               }}
-              className={inputClass}
+              className={dateInputClass}
               title="Até"
             />
 
             <ExportPdfButton
               basePath="/api/admin/reports/enrollments"
               filters={{ search, courseId, classId, status, from, to }}
+              className={exportButtonClass}
             />
           </div>
         }

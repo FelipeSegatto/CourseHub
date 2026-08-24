@@ -9,9 +9,11 @@ const db = require("../../db");
 const { retryOnDeadlock } = require("../testHelpers");
 
 const { createInvoicePayment, getInvoicePaymentByUser } = require("../../services/financial/studentPaymentService");
+const { startInvoicePayment, expireDuePaymentAttempts } = require("../../services/financial/invoicePaymentService");
 const { registerManualPayment } = require("../../services/financial/paymentService");
 const { refundPayment } = require("../../services/financial/paymentRefundService");
 const { processGatewayPaymentUpdate } = require("../../services/financial/paymentProcessingService");
+const { withTransaction } = require("../../utils/dbTransaction");
 const simulatedGateway = require("../../services/paymentGateway/simulatedGateway");
 const mercadoPagoGateway = require("../../services/paymentGateway/mercadoPagoGateway");
 const { WebhookSignatureValidator } = require("mercadopago");
@@ -331,6 +333,176 @@ test("a double click (two sequential create calls) reuses the same pending attem
   const [rows] = await db.promise().query("SELECT id FROM payments WHERE invoice_id = ?", [invoiceId]);
 
   assert.equal(rows.length, 1);
+});
+
+// -----------------------------------------------------------------
+// Normalização do status 'expired' -- expiração lazy de tentativas
+// PIX/boleto vencidas, disparada dentro de startInvoicePayment antes
+// da decisão de reaproveitamento (isReusableAttempt)
+// -----------------------------------------------------------------
+
+test("a boleto attempt still within its due date stays pending and is reused, no new payment row is created", async () => {
+  const invoiceId = await createTestInvoice(360);
+
+  const first = await createInvoicePayment(db, { userId: STUDENT_USER_ID, invoiceId, paymentMethod: "boleto" });
+  const second = await createInvoicePayment(db, { userId: STUDENT_USER_ID, invoiceId, paymentMethod: "boleto" });
+
+  assert.equal(second.paymentId, first.paymentId);
+  assert.equal(second.status, "pending");
+
+  const [rows] = await db.promise().query("SELECT id FROM payments WHERE invoice_id = ?", [invoiceId]);
+  assert.equal(rows.length, 1);
+});
+
+test("a PIX attempt past its own pix_expires_at is normalized to expired, a fresh attempt gets a different id, and the invoice stays pending", async () => {
+  const invoiceId = await createTestInvoice(210);
+
+  const first = await createInvoicePayment(db, { userId: STUDENT_USER_ID, invoiceId, paymentMethod: "pix" });
+
+  await db.promise().query("UPDATE payments SET pix_expires_at = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE id = ?", [
+    first.paymentId,
+  ]);
+
+  const second = await createInvoicePayment(db, { userId: STUDENT_USER_ID, invoiceId, paymentMethod: "pix" });
+
+  assert.notEqual(second.paymentId, first.paymentId);
+  assert.equal(second.status, "pending");
+
+  const [[firstRow]] = await db.promise().query("SELECT status FROM payments WHERE id = ?", [first.paymentId]);
+  assert.equal(firstRow.status, "expired");
+
+  const [[invoiceRow]] = await db.promise().query("SELECT status FROM invoices WHERE id = ?", [invoiceId]);
+  assert.equal(invoiceRow.status, "pending");
+
+  const [events] = await db.promise().query(
+    "SELECT event_type, previous_status, new_status, source FROM payment_events WHERE payment_id = ? ORDER BY id DESC LIMIT 1",
+    [first.paymentId]
+  );
+  assert.equal(events[0].event_type, "payment_expired");
+  assert.equal(events[0].previous_status, "pending");
+  assert.equal(events[0].new_status, "expired");
+  assert.equal(events[0].source, "system");
+});
+
+test("a boleto attempt past its own boleto_due_date is normalized to expired and a new attempt can be created", async () => {
+  const invoiceId = await createTestInvoice(360);
+
+  const first = await createInvoicePayment(db, { userId: STUDENT_USER_ID, invoiceId, paymentMethod: "boleto" });
+
+  await db.promise().query("UPDATE payments SET boleto_due_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY) WHERE id = ?", [
+    first.paymentId,
+  ]);
+
+  const second = await createInvoicePayment(db, { userId: STUDENT_USER_ID, invoiceId, paymentMethod: "boleto" });
+
+  assert.notEqual(second.paymentId, first.paymentId);
+  assert.equal(second.status, "pending");
+
+  const [[firstRow]] = await db.promise().query("SELECT status FROM payments WHERE id = ?", [first.paymentId]);
+  assert.equal(firstRow.status, "expired");
+});
+
+test("expireDuePaymentAttempts never touches an approved payment even with a past pix_expires_at", async () => {
+  const invoiceId = await createTestInvoice(300);
+
+  const payment = await createInvoicePayment(db, { userId: STUDENT_USER_ID, invoiceId, paymentMethod: "pix" });
+
+  const [[row]] = await db.promise().query("SELECT gateway_payment_id FROM payments WHERE id = ?", [payment.paymentId]);
+  await approveViaSimulatedGateway(row.gateway_payment_id);
+
+  await db.promise().query("UPDATE payments SET pix_expires_at = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE id = ?", [
+    payment.paymentId,
+  ]);
+
+  await withTransaction(db, (connection) => expireDuePaymentAttempts(connection, invoiceId));
+
+  const [[after]] = await db.promise().query("SELECT status FROM payments WHERE id = ?", [payment.paymentId]);
+  assert.equal(after.status, "approved");
+});
+
+test("expireDuePaymentAttempts never touches rejected, cancelled or refunded payments even past their own deadline", async () => {
+  const invoiceId = await createTestInvoice(150);
+
+  async function insertTerminalAttempt(status, paymentMethod, extraColumn, extraValue) {
+    const [result] = await db.promise().query(
+      `
+        INSERT INTO payments (invoice_id, gateway, gateway_payment_id, source, payment_method, amount, currency, status, ${extraColumn})
+        VALUES (?, 'simulated', ?, 'gateway', ?, 150, 'BRL', ?, ?)
+      `,
+      [invoiceId, `sim_${status}_${invoiceId}`, paymentMethod, status, extraValue]
+    );
+
+    return result.insertId;
+  }
+
+  const rejectedId = await insertTerminalAttempt("rejected", "pix", "pix_expires_at", "2000-01-01 00:00:00");
+  const cancelledId = await insertTerminalAttempt("cancelled", "pix", "pix_expires_at", "2000-01-01 00:00:00");
+  const refundedId = await insertTerminalAttempt("refunded", "boleto", "boleto_due_date", "2000-01-01");
+
+  await withTransaction(db, (connection) => expireDuePaymentAttempts(connection, invoiceId));
+
+  const [rows] = await db.promise().query("SELECT id, status FROM payments WHERE id IN (?, ?, ?)", [
+    rejectedId,
+    cancelledId,
+    refundedId,
+  ]);
+
+  const statusById = Object.fromEntries(rows.map((row) => [row.id, row.status]));
+
+  assert.equal(statusById[rejectedId], "rejected");
+  assert.equal(statusById[cancelledId], "cancelled");
+  assert.equal(statusById[refundedId], "refunded");
+});
+
+test("selecting credit_card without a cardToken returns a 400 validation error and never inserts a payment row", async () => {
+  const invoiceId = await createTestInvoice(500);
+
+  await assert.rejects(
+    () => createInvoicePayment(db, { userId: STUDENT_USER_ID, invoiceId, paymentMethod: "credit_card" }),
+    (error) => {
+      assert.equal(error.statusCode, 400);
+      return true;
+    }
+  );
+
+  const [rows] = await db.promise().query("SELECT id FROM payments WHERE invoice_id = ?", [invoiceId]);
+  assert.equal(rows.length, 0);
+});
+
+test("a credit_card attempt with a valid token is approved immediately (simulated gateway), never subject to time-based expiration", async () => {
+  const invoiceId = await createTestInvoice(400);
+
+  const result = await startInvoicePayment(db, {
+    invoiceId,
+    paymentMethod: "credit_card",
+    cardToken: "sim_card_valid_token",
+    cardInstallments: 1,
+    accessContext: { scope: "student", studentId: STUDENT_ID, userId: STUDENT_USER_ID },
+  });
+
+  assert.equal(result.status, "approved");
+
+  const [[invoiceRow]] = await db.promise().query("SELECT status FROM invoices WHERE id = ?", [invoiceId]);
+  assert.equal(invoiceRow.status, "paid");
+});
+
+test("a credit_card attempt with the simulated declined token is rejected, and stays rejected (never expired) afterwards", async () => {
+  const invoiceId = await createTestInvoice(400);
+
+  const result = await startInvoicePayment(db, {
+    invoiceId,
+    paymentMethod: "credit_card",
+    cardToken: simulatedGateway.SIMULATED_DECLINED_CARD_TOKEN,
+    cardInstallments: 1,
+    accessContext: { scope: "student", studentId: STUDENT_ID, userId: STUDENT_USER_ID },
+  });
+
+  assert.equal(result.status, "rejected");
+
+  await withTransaction(db, (connection) => expireDuePaymentAttempts(connection, invoiceId));
+
+  const [[row]] = await db.promise().query("SELECT status FROM payments WHERE id = ?", [result.paymentId]);
+  assert.equal(row.status, "rejected");
 });
 
 test("GET payment by id enforces the same ownership chain -- another student gets 404", async () => {
