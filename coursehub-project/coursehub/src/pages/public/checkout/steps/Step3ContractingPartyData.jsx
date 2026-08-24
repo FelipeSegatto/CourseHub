@@ -115,8 +115,14 @@ export default function Step3ContractingPartyData({
             label={partyType === "company" ? "CNPJ" : "CPF"}
             value={contractingPartyData?.document_number || ""}
             onChange={(v) => {
-              updateParty("document_number", v);
-              updateParty("document_type", partyType === "company" ? "cnpj" : "cpf");
+            onChangeContractingParty({
+                ...contractingPartyData,
+                document_number: v,
+                document_type:
+                  partyType === "company"
+                    ? "cnpj"
+                    : "cpf",
+              });
             }}
           />
           <TextField

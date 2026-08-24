@@ -1,33 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { apiFetch } from "../../services/APIService";
 
 import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminCreateEditModal from "../../components/admin/AdminCreateEditModal";
 import DeleteConfirmModal from "../../components/admin/AdminDeleteModal";
+import CourseDetailsModal from "../../components/admin/CourseDetailsModal";
 import AdminTable from "../../components/admin/AdminTable";
 import AdminStatusFilter from "../../components/admin/AdminStatusFilter";
 import StatusBadge from "../../components/ui/StatusBadge";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
+import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
 
 function formatCurrency(value) {
   return Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-/** course_pricing_plans é a única fonte de preço -- nunca course.price. */
+/**
+ * course_pricing_plans é a única fonte de preço -- nunca course.price.
+ * Só a primeira linha (o valor que importa pra comparar cursos numa
+ * lista) aparece aqui -- o detalhamento de mensalidade fica no modal
+ * "Ver", pra a coluna não brigar por espaço com o nome do curso.
+ */
 function PricingCell({ pricing }) {
   if (!pricing?.hasActivePlans) {
-    return <span className="text-sm text-gray-400">Consulte os valores</span>;
+    return <span className="text-xs text-gray-400">Consulte os valores</span>;
   }
 
   return (
-    <div>
-      <p className="text-sm font-semibold tabular-nums text-gray-900">A partir de {formatCurrency(pricing.startingPrice)}</p>
-      {pricing.monthlyPaymentFrom !== null && (
-        <p className="text-xs tabular-nums text-gray-500">
-          Mensalidades a partir de {formatCurrency(pricing.monthlyPaymentFrom)}
-        </p>
-      )}
-    </div>
+    <p className="whitespace-nowrap text-xs font-semibold tabular-nums text-gray-900">
+      A partir de {formatCurrency(pricing.startingPrice)}
+    </p>
   );
 }
 
@@ -52,6 +55,8 @@ export default function CourseAdmin() {
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [loadingDelete, setLoadingDelete] = useState(false);
+
+  const [viewTarget, setViewTarget] = useState(null);
 
   const [statusFilter, setStatusFilter] = useState("active");
 
@@ -375,8 +380,14 @@ export default function CourseAdmin() {
                 </td>
 
                 <td className="whitespace-nowrap px-3 py-3">
-                  <div className="flex justify-end gap-2">
-                    <TableActionButton variant="neutral" size="sm">Ver</TableActionButton>
+                  <div className="flex items-center justify-end gap-2">
+                    <TableActionButton
+                      variant="neutral"
+                      size="sm"
+                      onClick={() => setViewTarget(course)}
+                    >
+                      Ver
+                    </TableActionButton>
 
                     <TableActionButton
                       variant="accent"
@@ -386,13 +397,17 @@ export default function CourseAdmin() {
                       Editar
                     </TableActionButton>
 
-                    <TableActionButton
-                      variant="danger"
-                      size="sm"
-                      onClick={() => handleDeleteClick(course)}
-                    >
-                      Remover
-                    </TableActionButton>
+                    <RowActionsMenu
+                      items={[
+                        {
+                          key: "delete",
+                          label: "Remover",
+                          icon: Trash2,
+                          variant: "danger",
+                          onClick: () => handleDeleteClick(course),
+                        },
+                      ]}
+                    />
                   </div>
                 </td>
               </tr>
@@ -421,6 +436,12 @@ export default function CourseAdmin() {
           onConfirm={handleConfirmDelete}
         />
       )}
+
+      <CourseDetailsModal
+        open={Boolean(viewTarget)}
+        course={viewTarget}
+        onClose={() => setViewTarget(null)}
+      />
     </>
   );
 }

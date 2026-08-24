@@ -540,73 +540,324 @@ async function searchActiveContractingParties(db, term) {
  * financeiro". Roda DENTRO da transação do chamador (createStudentContractWithInitialInvoice),
  * por isso recebe `connection`, nunca `db`.
  */
-async function findOrCreateSelfContractingPartyForStudent(connection, { studentId }) {
-  const [existingLinkRows] = await connection.query(
-    `
-      SELECT cp.id
-      FROM student_contracting_parties scp
-      INNER JOIN contracting_parties cp ON cp.id = scp.contracting_party_id
-      WHERE scp.student_id = ? AND scp.relationship_type = 'self'
-      LIMIT 1
-    `,
-    [studentId]
-  );
+async function findOrCreateSelfContractingPartyForStudent(
+  connection,
+  { studentId }
+) {
+  /*
+   * ==========================================================
+   * 1. O ALUNO JÁ POSSUI UM CONTRATANTE "SELF"?
+   * ==========================================================
+   */
+  const [existingLinkRows] =
+    await connection.query(
+      `
+        SELECT
+          cp.id
+
+        FROM student_contracting_parties scp
+
+        INNER JOIN contracting_parties cp
+          ON cp.id = scp.contracting_party_id
+
+        WHERE scp.student_id = ?
+          AND scp.relationship_type = 'self'
+
+        LIMIT 1
+      `,
+      [studentId]
+    );
+
 
   if (existingLinkRows.length > 0) {
     return existingLinkRows[0].id;
   }
 
-  const [studentRows] = await connection.query(
-    `SELECT id, user_id, name, email, phone, cpf, address FROM students WHERE id = ? LIMIT 1`,
-    [studentId]
-  );
+
+  /*
+   * ==========================================================
+   * 2. CARREGA O ALUNO
+   * ==========================================================
+   */
+  const [studentRows] =
+    await connection.query(
+      `
+        SELECT
+          id,
+          user_id,
+          name,
+          email,
+          phone,
+          cpf,
+          address
+
+        FROM students
+
+        WHERE id = ?
+
+        LIMIT 1
+      `,
+      [studentId]
+    );
+
 
   if (studentRows.length === 0) {
-    throw createServiceError("Aluno não encontrado.", 404);
+    throw createServiceError(
+      "Aluno não encontrado.",
+      404
+    );
   }
 
-  const student = studentRows[0];
-  const normalizedCpf = normalizeDocumentNumber(student.cpf);
 
-  const [existingPartyByUserRows] = await connection.query(
-    `SELECT id FROM contracting_parties WHERE user_id = ? LIMIT 1`,
-    [student.user_id]
-  );
+  const student =
+    studentRows[0];
+
+
+  const normalizedCpf =
+    normalizeDocumentNumber(
+      student.cpf
+    );
+
+
+  /*
+   * ==========================================================
+   * 3. PROCURA PELO USER_ID
+   * ==========================================================
+   *
+   * Caso normal:
+   *
+   * esse usuário já possui seu registro em
+   * contracting_parties.
+   */
+  const [existingPartyByUserRows] =
+    await connection.query(
+      `
+        SELECT
+          id
+
+        FROM contracting_parties
+
+        WHERE user_id = ?
+
+        LIMIT 1
+      `,
+      [student.user_id]
+    );
+
 
   let contractingPartyId;
 
-  if (existingPartyByUserRows.length > 0) {
-    contractingPartyId = existingPartyByUserRows[0].id;
-  } else {
-    const [result] = await connection.query(
-      `
-        INSERT INTO contracting_parties
-          (user_id, party_type, name, document_type, document_number, email, phone,
-           billing_address_line, status, created_at, updated_at)
-        VALUES (?, 'individual', ?, 'cpf', ?, ?, ?, ?, 'active', NOW(), NOW())
-      `,
-      [
-        student.user_id,
-        student.name,
-        normalizedCpf,
-        student.email,
-        student.phone,
-        student.address,
-      ]
-    );
 
-    contractingPartyId = result.insertId;
+  if (
+    existingPartyByUserRows.length > 0
+  ) {
+    contractingPartyId =
+      existingPartyByUserRows[0].id;
+
+  } else {
+
+    /*
+     * ========================================================
+     * 4. PROCURA PELO CPF
+     * ========================================================
+     *
+     * IMPORTANTE:
+     *
+     * Pode existir um contracting_party antigo com o mesmo CPF
+     * mas ainda sem vínculo com o usuário recém-criado.
+     *
+     * Antes, o código tentava INSERT direto.
+     *
+     * Como existe:
+     *
+     * UNIQUE(document_type, document_number)
+     *
+     * isso causava:
+     *
+     * ER_DUP_ENTRY
+     */
+    const [existingPartyByDocumentRows] =
+      await connection.query(
+        `
+          SELECT
+            id,
+            user_id
+
+          FROM contracting_parties
+
+          WHERE document_type = 'cpf'
+            AND document_number = ?
+
+          LIMIT 1
+        `,
+        [normalizedCpf]
+      );
+
+
+    /*
+     * ========================================================
+     * 5. CPF JÁ EXISTE
+     * ========================================================
+     */
+    if (
+      existingPartyByDocumentRows.length >
+      0
+    ) {
+      const existingParty =
+        existingPartyByDocumentRows[0];
+
+
+      contractingPartyId =
+        existingParty.id;
+
+
+      /*
+       * Se esse contracting_party ainda não possui user_id,
+       * podemos vinculá-lo ao usuário atual.
+       *
+       * NÃO sobrescrevemos um user_id diferente, pois isso
+       * poderia tomar a identidade financeira de outra conta.
+       */
+      if (
+        existingParty.user_id === null
+      ) {
+        await connection.query(
+          `
+            UPDATE contracting_parties
+
+            SET
+              user_id = ?,
+              name = ?,
+              email = ?,
+              phone = ?,
+              billing_address_line =
+                COALESCE(?, billing_address_line),
+              status = 'active',
+              updated_at = NOW()
+
+            WHERE id = ?
+          `,
+          [
+            student.user_id,
+            student.name,
+            student.email,
+            student.phone,
+            student.address,
+            existingParty.id,
+          ]
+        );
+
+      } else if (
+        Number(existingParty.user_id) !==
+        Number(student.user_id)
+      ) {
+
+        /*
+         * O CPF pertence a outro usuário.
+         *
+         * Não criamos duplicata e não roubamos o registro.
+         */
+        throw createServiceError(
+          "Já existe um responsável financeiro vinculado a este CPF. Utilize os dados da conta existente ou procure a instituição.",
+          409
+        );
+      }
+
+    } else {
+
+      /*
+       * ======================================================
+       * 6. NÃO EXISTE NADA: CRIA
+       * ======================================================
+       */
+      const [result] =
+        await connection.query(
+          `
+            INSERT INTO contracting_parties
+            (
+              user_id,
+              party_type,
+              name,
+              document_type,
+              document_number,
+              email,
+              phone,
+              billing_address_line,
+              status,
+              created_at,
+              updated_at
+            )
+
+            VALUES
+            (
+              ?,
+              'individual',
+              ?,
+              'cpf',
+              ?,
+              ?,
+              ?,
+              ?,
+              'active',
+              NOW(),
+              NOW()
+            )
+          `,
+          [
+            student.user_id,
+            student.name,
+            normalizedCpf,
+            student.email,
+            student.phone,
+            student.address,
+          ]
+        );
+
+
+      contractingPartyId =
+        result.insertId;
+    }
   }
 
+
+  /*
+   * ==========================================================
+   * 7. VINCULA O ALUNO AO CONTRATANTE
+   * ==========================================================
+   */
   await connection.query(
     `
       INSERT INTO student_contracting_parties
-        (student_id, contracting_party_id, relationship_type, is_primary, created_at)
-      VALUES (?, ?, 'self', 1, NOW())
-      ON DUPLICATE KEY UPDATE relationship_type = relationship_type
+      (
+        student_id,
+        contracting_party_id,
+        relationship_type,
+        is_primary,
+        created_at
+      )
+
+      VALUES
+      (
+        ?,
+        ?,
+        'self',
+        1,
+        NOW()
+      )
+
+      ON DUPLICATE KEY UPDATE
+
+        relationship_type =
+          VALUES(relationship_type),
+
+        is_primary = 1
     `,
-    [studentId, contractingPartyId]
+    [
+      studentId,
+      contractingPartyId,
+    ]
   );
+
 
   return contractingPartyId;
 }

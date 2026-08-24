@@ -310,28 +310,7 @@ export default function DashboardAdmin() {
               </div>
             </section>
 
-            <section className="print-hide mt-8 rounded-2xl bg-blue-600 p-8 text-white">
-              <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold">
-                    Próximo passo recomendado
-                  </h2>
-
-                  <p className="mt-2 max-w-2xl text-blue-100">
-                    {pendingItems.length > 0
-                      ? `Você tem ${pendingItems.length} pendência(s) administrativa(s) para revisar.`
-                      : "Nenhuma pendência crítica no momento."}
-                  </p>
-                </div>
-
-                <Link
-                  to="/admin/financeiro"
-                  className="rounded-xl bg-white px-5 py-3 font-semibold text-blue-600 transition hover:bg-blue-50"
-                >
-                  Ver financeiro
-                </Link>
-              </div>
-            </section>
+            
           </>
         )}
       </div>

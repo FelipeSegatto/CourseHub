@@ -72,7 +72,6 @@ export default function StudentActivitiesList({
   actionPendingLabel,
   detailsPath,
   activityKind,
-  infoCards = [],
 }) {
   const [activities, setActivities] = useState([]);
   const [busca, setBusca] = useState("");
@@ -278,32 +277,6 @@ export default function StudentActivitiesList({
   activityKind,
 ]);
 
-  const quickActions = [
-    {
-      title:
-        activityKind === "exam"
-          ? "Avaliações pendentes"
-          : "Atividades pendentes",
-      description:
-        activityKind === "exam"
-          ? "Veja quais avaliações ainda precisam ser realizadas."
-          : "Veja quais atividades ainda precisam ser concluídas.",
-      onClick: () => setStatusFilter("pending"),
-    },
-    {
-      title: "Entregas realizadas",
-      description:
-        "Consulte os envios que ainda aguardam correção.",
-      onClick: () => setStatusFilter("submitted"),
-    },
-    {
-      title: "Notas e feedbacks",
-      description:
-        "Veja atividades corrigidas, notas e comentários do professor.",
-      onClick: () => setStatusFilter("graded"),
-    },
-  ];
-
   const columns = [
     { key: "title", label: "Título" },
     { key: "course", label: "Curso" },
@@ -317,7 +290,6 @@ export default function StudentActivitiesList({
       title={title}
       description={description}
       stats={stats}
-      quickActions={quickActions}
       tableTitle={listTitle}
       tableActions={
         <StudentStatusFilter
@@ -329,7 +301,6 @@ export default function StudentActivitiesList({
       searchValue={busca}
       onSearchChange={setBusca}
       searchPlaceholder={searchPlaceholder}
-      infoCards={infoCards}
       backTo="/aluno/dashboard-aluno"
       backLabel="Voltar ao dashboard"
     >

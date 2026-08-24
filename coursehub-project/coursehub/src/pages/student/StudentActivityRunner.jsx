@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../../services/APIService";
 
 export default function StudentActivityRunner() {
   const { activityId } = useParams();
+  const [searchParams] = useSearchParams();
+  const cameFromGrades = searchParams.get("from") === "notas";
 
 
   const [activity, setActivity] = useState(null);
@@ -32,13 +34,17 @@ export default function StudentActivityRunner() {
 
   const entityLabel = isExam ? "avaliação" : "atividade";
 
-  const pluralEntityLabel = isExam
-    ? "avaliações"
-    : "atividades";
+  const pluralEntityLabel = cameFromGrades
+    ? "notas"
+    : isExam
+      ? "avaliações"
+      : "atividades";
 
-  const backRoute = isExam
-    ? "/aluno/avaliacoes"
-    : "/aluno/atividades";
+  const backRoute = cameFromGrades
+    ? "/aluno/notas"
+    : isExam
+      ? "/aluno/avaliacoes"
+      : "/aluno/atividades";
 
   useEffect(() => {
   if (!activityId) {

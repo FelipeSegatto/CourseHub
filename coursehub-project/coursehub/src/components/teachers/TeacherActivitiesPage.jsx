@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
 
@@ -8,6 +9,7 @@ import DeleteModal from "./DeleteModal";
 import TeacherTable from "./TeacherTable";
 import TeacherStatusFilter from "./TeacherStatusFilter";
 import TableActionButton from "../ui/actions/TableActionButton";
+import RowActionsMenu from "../ui/actions/RowActionsMenu";
 
 import StatusBadge from "../ui/StatusBadge";
 
@@ -513,13 +515,17 @@ export default function TeacherActivitiesPage({
                       Editar
                     </TableActionButton>
 
-                    <TableActionButton
-                      variant="danger"
-                      size="sm"
-                      onClick={() => handleDeleteClick(activity)}
-                    >
-                      Remover
-                    </TableActionButton>
+                    <RowActionsMenu
+                      items={[
+                        {
+                          key: "remove",
+                          label: "Remover",
+                          icon: Trash2,
+                          variant: "danger",
+                          onClick: () => handleDeleteClick(activity),
+                        },
+                      ]}
+                    />
                   </div>
                 </td>
               </tr>

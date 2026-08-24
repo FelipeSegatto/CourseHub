@@ -3,22 +3,30 @@ import CourseHubLogo from "./logo/Logo";
 
 export default function Navbar() {
   const linkClass = ({ isActive }) =>
-    isActive
-      ? "font-medium text-gray-950"
-      : "text-gray-600 transition hover:text-gray-950";
+    `text-sm transition ${
+      isActive
+        ? "font-semibold text-blue-600"
+        : "text-gray-600 hover:text-blue-600"
+    }`;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/90 backdrop-blur">
-      <div className="mx-auto grid w-full max-w-[1500px] grid-cols-[auto_1fr_auto] items-center gap-8 px-6 py-4">
+    <header className="sticky top-0 z-50 mb-6 border-b border-gray-200 bg-white/85 backdrop-blur-xl">
+      <div className="mx-auto grid max-w-[1500px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-8 px-5 py-4">
         <Link
           to="/"
           aria-label="Ir para a página inicial"
-          className="flex shrink-0 items-center"
+          className="flex items-center gap-3 justify-self-start"
         >
-          <CourseHubLogo />
+          <div>
+            <CourseHubLogo />
+
+            <p className="-mt-2 text-center text-xs text-gray-500">
+              Learn. Build. Grow.
+            </p>
+          </div>
         </Link>
 
-        <nav className="hidden w-full font-pt  text-lg items-center justify-center gap-22 lg:flex">
+        <nav className="hidden w-full items-center justify-center gap-16 lg:flex">
           <NavLink
             to="/courses"
             className={linkClass}

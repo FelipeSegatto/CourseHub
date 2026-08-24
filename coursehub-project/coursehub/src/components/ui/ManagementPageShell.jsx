@@ -52,7 +52,7 @@ function ManagementPageShell({
             {tableTitle}
           </h2>
 
-          <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto">
+          <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto md:flex-1 md:justify-end">
             {onSearchChange && (
               <input
                 type="text"

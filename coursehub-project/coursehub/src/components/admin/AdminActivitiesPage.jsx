@@ -326,7 +326,7 @@ export default function AdminActivitiesPage({ activityKind }) {
   ];
 
   const inputClass =
-    "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
+    "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-48 truncate";
 
   return (
     <>
@@ -343,7 +343,7 @@ export default function AdminActivitiesPage({ activityKind }) {
         stats={stats}
         tableTitle={isExam ? "Lista de avaliações" : "Lista de atividades"}
         tableActions={
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-3 items-center gap-x-4 gap-y-3">
             <select
               value={courseId}
               onChange={(event) => {

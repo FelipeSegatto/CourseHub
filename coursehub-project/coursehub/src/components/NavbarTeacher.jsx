@@ -34,7 +34,7 @@ export default function NavbarTeacher() {
     },
      {
       label: "Progresso",
-      to: "/professor/progresso"
+      to: "/professor/progressao"
     },
   ];
 
@@ -75,22 +75,20 @@ export default function NavbarTeacher() {
     >
       <div
         className="
-          mx-auto grid max-w-7xl
-          grid-cols-[auto_1fr_auto]
-          items-center text-center gap-8
-          px-6 py-4
+          mx-auto grid max-w-[1500px]
+          grid-cols-[auto_minmax(0,1fr)_auto]
+          items-center gap-8
+          px-5 py-4
         "
       >
         <Link
           to="/professor/dashboard-professor"
           className="flex items-center gap-3 justify-self-start"
         >
-          
+          <div>
+            <CourseHubLogo />
 
-          <div>            
-              <CourseHubLogo />                       
-
-            <p className="text-xs text-gray-500">
+            <p className="-mt-2 text-center text-xs text-gray-500">
               Learn. Build. Grow.
             </p>
           </div>

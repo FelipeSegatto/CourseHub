@@ -57,6 +57,7 @@ const teacherContentRoutes = require("./routes/teacherContentRoutes");
 const teacherActivityRoutes = require("./routes/teacherActivityRoutes");
 const teacherCalendarRoutes = require("./routes/teacherCalendarRoutes");
 const teacherAttendanceHistoryRoutes = require("./routes/teacherAttendanceHistoryRoutes");
+const teacherStudentProgressRoutes = require("./routes/teacherStudentProgressRoutes");
 const teacherGradeRoutes = require("./routes/teacherGradeRoutes");
 const teacherDashboardRoutes = require("./routes/teacherDashboardRoutes");
 
@@ -168,6 +169,7 @@ app.use("/api", teacherContentRoutes);
 app.use("/api", teacherActivityRoutes);
 app.use("/api", teacherCalendarRoutes);
 app.use("/api", teacherAttendanceHistoryRoutes);
+app.use("/api", teacherStudentProgressRoutes);
 app.use("/api", teacherGradeRoutes);
 app.use("/api", teacherDashboardRoutes);
 

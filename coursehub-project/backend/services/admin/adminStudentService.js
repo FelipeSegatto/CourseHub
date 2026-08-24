@@ -10,10 +10,55 @@ function createServiceError(message, statusCode) {
 }
 
 /**
- * Lista todos os alunos cadastrados, com total de matrículas e
- * nomes dos cursos associados.
+ * Lista alunos cadastrados, com total de matrículas e nomes dos
+ * cursos associados. courseId/classId filtram por matrícula (EXISTS
+ * separado da junção usada para agregar "courses" -- assim a coluna
+ * de cursos continua mostrando TODOS os cursos do aluno, não só o
+ * curso do filtro). status filtra por students.status (o status do
+ * cadastro do aluno, não da matrícula).
  */
-async function listStudents(db) {
+async function listStudents(db, filters = {}) {
+  const { courseId, classId, status } = filters;
+
+  const conditions = [];
+  const params = [];
+
+  const normalizedCourseId = courseId ? Number(courseId) : null;
+  const normalizedClassId = classId ? Number(classId) : null;
+
+  if (courseId && (!Number.isInteger(normalizedCourseId) || normalizedCourseId <= 0)) {
+    throw createServiceError("Curso inválido.", 400);
+  }
+
+  if (classId && (!Number.isInteger(normalizedClassId) || normalizedClassId <= 0)) {
+    throw createServiceError("Turma inválida.", 400);
+  }
+
+  if (normalizedCourseId) {
+    conditions.push(
+      "EXISTS (SELECT 1 FROM enrollments ec WHERE ec.student_id = s.id AND ec.course_id = ?)"
+    );
+    params.push(normalizedCourseId);
+  }
+
+  if (normalizedClassId) {
+    conditions.push(
+      "EXISTS (SELECT 1 FROM enrollments ecl WHERE ecl.student_id = s.id AND ecl.class_id = ?)"
+    );
+    params.push(normalizedClassId);
+  }
+
+  if (status) {
+    if (!ALLOWED_STUDENT_STATUSES.includes(status)) {
+      throw createServiceError("Status do aluno inválido.", 400);
+    }
+
+    conditions.push("s.status = ?");
+    params.push(status);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
   const [students] = await db.promise().query(
     `
       SELECT
@@ -26,11 +71,13 @@ async function listStudents(db) {
       INNER JOIN users u ON u.id = s.user_id
       LEFT JOIN enrollments e ON e.student_id = s.id
       LEFT JOIN courses c ON c.id = e.course_id
+      ${whereClause}
       GROUP BY
         s.id, s.user_id, s.registration_number, s.birth_date, s.cpf,
         s.phone, s.address, s.status, u.name, u.email, u.gender, u.status
       ORDER BY u.name ASC
-    `
+    `,
+    params
   );
 
   return students.map((student) => ({

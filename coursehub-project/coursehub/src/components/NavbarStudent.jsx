@@ -56,21 +56,22 @@ export default function NavbarStudent() {
     >
       <div
         className="
-          mx-auto grid w-full max-w-7xl
+          mx-auto grid max-w-[1500px]
           grid-cols-[auto_minmax(0,1fr)_auto]
           items-center gap-8
-          px-6 py-4
+          px-5 py-4
         "
       >
         <Link
-          to="/aluno/dashboard-aluno"
+          to="/aluno"
           className="flex items-center gap-3 justify-self-start"
         >
-         
-
           <div>
-          <CourseHubLogo />
-           <p className="text-xs text-gray-500 font-sans">Learn. Build. Grow.</p>
+            <CourseHubLogo />
+
+            <p className="-mt-2 text-center text-xs text-gray-500">
+              Learn. Build. Grow.
+            </p>
           </div>
         </Link>
 
@@ -89,12 +90,6 @@ export default function NavbarStudent() {
             Área do Aluno
           </NavLink>
 
-          <NavLink
-            to="/aluno/meus-cursos"
-            className={linkClass}
-          >
-            Meus Cursos
-          </NavLink>
 
           <NavbarDropdown
             title="Estudos"
