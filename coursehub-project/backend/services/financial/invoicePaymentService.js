@@ -34,6 +34,95 @@ const { buildExternalReference, buildIdempotencyKey } = require("../paymentGatew
 const ALLOWED_PAYMENT_METHODS = ["pix", "boleto", "credit_card"];
 const OPEN_INVOICE_STATUSES = new Set(["pending", "processing", "overdue"]);
 
+/**
+ * Expira, em lote, as tentativas PIX/boleto pending desta invoice cujo
+ * próprio prazo já venceu -- chamada dentro da mesma transação que já
+ * trava a invoice (lockInvoiceForPayment), antes de decidir se a
+ * última tentativa pode ser reaproveitada (isReusableAttempt), então
+ * uma tentativa vencida nunca chega a ser considerada reutilizável.
+ *
+ * 'pending' é a única origem válida para 'expired' na máquina de
+ * estados (paymentStateMachine.js). O UPDATE abaixo não passa cada
+ * linha por assertValidTransition individualmente (é um lote, não uma
+ * linha travada por vez) -- em vez disso a query só pode enxergar/
+ * atualizar linhas com status = 'pending', o que a torna equivalente
+ * em efeito a chamar assertValidTransition('pending', 'expired') em
+ * cada uma. A chamada abaixo existe só para documentar essa garantia
+ * e falhar alto se um dia alguém remover 'pending' -> 'expired' da
+ * tabela sem atualizar esta função.
+ *
+ * Cartão nunca entra aqui -- não tem prazo próprio (ver seção 4 do
+ * briefing: um cartão pending significa que o provider está
+ * processando a transação, precisa ser reconciliado/sincronizado, não
+ * expirado por tempo).
+ *
+ * Nunca toca invoices.status -- a fatura continua aberta mesmo depois
+ * de uma tentativa expirar, exatamente como já acontece com
+ * rejected/cancelled.
+ */
+async function expireDuePaymentAttempts(connection, invoiceId) {
+  assertValidTransition("pending", "expired");
+
+  const [dueAttempts] = await connection.execute(
+    `
+      SELECT id, payment_method, pix_expires_at, boleto_due_date
+      FROM payments
+      WHERE invoice_id = ?
+        AND status = 'pending'
+        AND (
+          (payment_method = 'pix' AND pix_expires_at IS NOT NULL AND pix_expires_at <= NOW())
+          OR (payment_method = 'boleto' AND boleto_due_date IS NOT NULL AND boleto_due_date < CURDATE())
+        )
+      FOR UPDATE
+    `,
+    [invoiceId]
+  );
+
+  if (dueAttempts.length === 0) {
+    return [];
+  }
+
+  const dueAttemptIds = dueAttempts.map((row) => row.id);
+  const placeholders = dueAttemptIds.map(() => "?").join(",");
+
+  await connection.execute(
+    `
+      UPDATE payments
+      SET status = 'expired', last_synced_at = NOW()
+      WHERE id IN (${placeholders}) AND status = 'pending'
+    `,
+    dueAttemptIds
+  );
+
+  for (const attempt of dueAttempts) {
+    await connection.execute(
+      `
+        INSERT INTO payment_events (payment_id, event_type, previous_status, new_status, source, payload)
+        VALUES (?, 'payment_expired', 'pending', 'expired', 'system', ?)
+      `,
+      [
+        attempt.id,
+        JSON.stringify({
+          paymentMethod: attempt.payment_method,
+          pixExpiresAt: attempt.pix_expires_at || null,
+          boletoDueDate: attempt.boleto_due_date || null,
+        }),
+      ]
+    );
+  }
+
+  return dueAttemptIds;
+}
+
+/**
+ * Regras de reaproveitamento de uma tentativa pending já existente.
+ * Cartão nunca é reaproveitado; PIX/boleto pending dentro do prazo
+ * são. Depois de expireDuePaymentAttempts rodar antes desta função
+ * (ver startInvoicePayment), uma tentativa PIX/boleto vencida já
+ * chega aqui com status 'expired', não mais 'pending' -- os checks de
+ * prazo abaixo continuam como uma segunda barreira defensiva, não uma
+ * lógica de vencimento duplicada/nova.
+ */
 function isReusableAttempt(payment, paymentMethod) {
   if (payment.status !== "pending" || payment.payment_method !== paymentMethod) {
     return false;
@@ -213,6 +302,8 @@ async function startInvoicePayment(
     if (!Number.isFinite(amount) || amount <= 0) {
       throw createServiceError("Valor da fatura inválido.", 500);
     }
+
+    await expireDuePaymentAttempts(connection, normalizedInvoiceId);
 
     const [attemptRows] = await connection.execute(
       `
@@ -471,4 +562,5 @@ module.exports = {
   startInvoicePayment,
   getInvoicePaymentByAccessContext,
   toPaymentDto,
+  expireDuePaymentAttempts,
 };

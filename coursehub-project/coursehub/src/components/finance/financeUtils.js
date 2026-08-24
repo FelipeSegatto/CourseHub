@@ -48,6 +48,7 @@ export function getPaymentStatusLabel(status) {
     cancelled: "Cancelado",
     refunded: "Reembolsado",
     chargeback: "Pagamento contestado",
+    expired: "Tentativa expirada",
   };
 
   return labels[status] || "Não informado";

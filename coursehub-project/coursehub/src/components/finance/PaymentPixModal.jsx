@@ -12,6 +12,7 @@ const STATUS_LABEL = {
   cancelled: "Cobrança expirada",
   refunded: "Pagamento reembolsado",
   chargeback: "Pagamento contestado",
+  expired: "Tentativa expirada",
 };
 
 /**
@@ -83,7 +84,7 @@ export default function PaymentPixModal({ invoice, onClose, onApproved }) {
     }
   }
 
-  const isTerminalFailure = status === "rejected" || status === "cancelled";
+  const isTerminalFailure = status === "rejected" || status === "cancelled" || status === "expired";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -170,8 +171,8 @@ export default function PaymentPixModal({ invoice, onClose, onApproved }) {
 
             {isTerminalFailure && (
               <p className="text-center text-sm text-slate-500">
-                {status === "cancelled"
-                  ? "Esta cobrança expirou. Feche esta janela e clique em pagar novamente para gerar uma nova."
+                {status === "cancelled" || status === "expired"
+                  ? "Esta tentativa de pagamento expirou. Feche esta janela e clique em pagar novamente para gerar uma nova."
                   : "O pagamento não foi aprovado. Você pode fechar esta janela e tentar novamente."}
               </p>
             )}

@@ -13,6 +13,10 @@ import {
 import { getFinancialInvoiceDetails } from "../../../services/FinancialService";
 
 import InvoiceStatusBadge from "../../../components/financial/InvoiceStatusBadge";
+import {
+  getPaymentMethodLabel,
+  getPaymentStatusLabel,
+} from "../../../components/financial/paymentLabels";
 import ChangeInvoiceDueDateModal from "../../../components/financial/ChangeInvoiceDueDateModal";
 import ChangeInvoiceAmountModal from "../../../components/financial/ChangeInvoiceAmountModal";
 import RegisterManualPaymentModal from "../../../components/financial/RegisterManualPaymentModal";
@@ -570,13 +574,14 @@ export default function FinancialInvoicesDetails() {
                       </td>
 
                       <td className="px-5 py-4 text-sm text-slate-600">
-                        {payment.paymentMethod ??
-                          payment.payment_method ??
-                          "—"}
+                        {getPaymentMethodLabel(
+                          payment.paymentMethod ??
+                            payment.payment_method
+                        )}
                       </td>
 
                       <td className="px-5 py-4 text-sm text-slate-600">
-                        {payment.status ?? "—"}
+                        {getPaymentStatusLabel(payment.status)}
                       </td>
 
                       <td className="px-5 py-4 text-sm text-slate-600">

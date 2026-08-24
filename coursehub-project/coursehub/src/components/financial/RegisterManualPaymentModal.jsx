@@ -1,32 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { registerManualPayment } from "../../services/FinancialService";
+import { PAYMENT_METHOD_LABELS } from "./paymentLabels";
 
 import FinancialModal from "./FinancialModal";
 
-const PAYMENT_METHODS = {
-  cash: "Dinheiro",
-  pix: "Pix",
-  bank_transfer: "Transferência bancária",
-  credit_card: "Cartão de crédito",
-  debit_card: "Cartão de débito",
-  boleto: "Boleto",
-  other: "Outro",
-};
-
+/**
+ * O modelo atual não tem pagamento parcial -- o backend
+ * (paymentService.js#registerManualPayment) exige que o valor
+ * registrado seja exatamente igual a invoices.amount, sem exceção.
+ * Por isso o valor aqui nunca é digitado pelo admin: vem sempre da
+ * própria invoice, para não dar a impressão de que um valor arbitrário
+ * seria aceito.
+ */
 function getInvoiceAmount(invoice) {
   return Number(
     invoice?.amount ??
       invoice?.totalAmount ??
       invoice?.total_amount ??
-      0
-  );
-}
-
-function getPaidAmount(invoice) {
-  return Number(
-    invoice?.paidAmount ??
-      invoice?.paid_amount ??
       0
   );
 }
@@ -41,22 +32,16 @@ export default function RegisterManualPaymentModal({
   onClose,
   onSuccess,
 }) {
-  const remainingAmount = useMemo(() => {
-    return Math.max(
-      getInvoiceAmount(invoice) -
-        getPaidAmount(invoice),
-      0
-    );
-  }, [invoice]);
+  const invoiceAmount = useMemo(
+    () => getInvoiceAmount(invoice),
+    [invoice]
+  );
 
-  const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] =
     useState("");
   const [paymentMethod, setPaymentMethod] =
     useState("pix");
-  const [reference, setReference] =
-    useState("");
-  const [notes, setNotes] = useState("");
+  const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] =
     useState(false);
@@ -66,43 +51,34 @@ export default function RegisterManualPaymentModal({
       return;
     }
 
-    setAmount(
-      remainingAmount > 0
-        ? String(remainingAmount)
-        : ""
-    );
-
     setPaymentDate(getToday());
     setPaymentMethod("pix");
-    setReference("");
-    setNotes("");
+    setReason("");
     setError("");
-  }, [open, remainingAmount]);
+  }, [open, invoice]);
 
   async function handleSubmit(event) {
     event.preventDefault();
 
-    const numericAmount = Number(amount);
-
     if (
-      !Number.isFinite(numericAmount) ||
-      numericAmount <= 0
+      !Number.isFinite(invoiceAmount) ||
+      invoiceAmount <= 0
     ) {
       setError(
-        "Informe um valor de pagamento válido."
-      );
-      return;
-    }
-
-    if (numericAmount > remainingAmount) {
-      setError(
-        "O pagamento não pode ser maior que o saldo da fatura."
+        "Não foi possível determinar o valor integral desta fatura."
       );
       return;
     }
 
     if (!paymentDate) {
       setError("Informe a data do pagamento.");
+      return;
+    }
+
+    if (!reason.trim()) {
+      setError(
+        "Informe o motivo/observações do registro manual."
+      );
       return;
     }
 
@@ -113,12 +89,10 @@ export default function RegisterManualPaymentModal({
       await registerManualPayment(
         invoice.id,
         {
-          amount: numericAmount,
+          amount: invoiceAmount,
           paymentDate,
           paymentMethod,
-          reference:
-            reference.trim() || null,
-          notes: notes.trim() || null,
+          reason: reason.trim(),
         }
       );
 
@@ -142,9 +116,10 @@ export default function RegisterManualPaymentModal({
       submitLabel="Registrar pagamento"
       loading={loading}
       submitDisabled={
-        !amount ||
+        !invoiceAmount ||
         !paymentDate ||
-        !paymentMethod
+        !paymentMethod ||
+        !reason.trim()
       }
       onClose={onClose}
       onSubmit={handleSubmit}
@@ -157,14 +132,18 @@ export default function RegisterManualPaymentModal({
 
       <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
-          Saldo disponível
+          Valor integral da fatura
         </p>
 
         <p className="mt-1 text-lg font-semibold text-blue-900">
           {new Intl.NumberFormat("pt-BR", {
             style: "currency",
             currency: "BRL",
-          }).format(remainingAmount)}
+          }).format(invoiceAmount)}
+        </p>
+
+        <p className="mt-1 text-xs text-blue-700">
+          O registro manual não aceita pagamento parcial -- o valor é sempre o da fatura inteira.
         </p>
       </div>
 
@@ -174,21 +153,17 @@ export default function RegisterManualPaymentModal({
             htmlFor="manual-payment-amount"
             className="mb-1.5 block text-sm font-semibold text-slate-700"
           >
-            Valor recebido
+            Valor recebido (integral, não editável)
           </label>
 
           <input
             id="manual-payment-amount"
             type="number"
-            min="0.01"
-            max={remainingAmount}
             step="0.01"
-            value={amount}
-            onChange={(event) =>
-              setAmount(event.target.value)
-            }
+            value={invoiceAmount}
+            readOnly
             disabled={loading}
-            className="min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="min-h-11 w-full cursor-not-allowed rounded-lg border border-slate-300 bg-slate-100 px-3 text-sm text-slate-500 focus:outline-none"
           />
         </div>
 
@@ -230,7 +205,7 @@ export default function RegisterManualPaymentModal({
           disabled={loading}
           className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
         >
-          {Object.entries(PAYMENT_METHODS).map(
+          {Object.entries(PAYMENT_METHOD_LABELS).map(
             ([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -242,45 +217,28 @@ export default function RegisterManualPaymentModal({
 
       <div>
         <label
-          htmlFor="manual-payment-reference"
+          htmlFor="manual-payment-reason"
           className="mb-1.5 block text-sm font-semibold text-slate-700"
         >
-          Referência
-        </label>
-
-        <input
-          id="manual-payment-reference"
-          type="text"
-          maxLength={255}
-          value={reference}
-          onChange={(event) =>
-            setReference(event.target.value)
-          }
-          disabled={loading}
-          placeholder="Identificador do comprovante ou transação"
-          className="min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-        />
-      </div>
-
-      <div>
-        <label
-          htmlFor="manual-payment-notes"
-          className="mb-1.5 block text-sm font-semibold text-slate-700"
-        >
-          Observações
+          Motivo / observações
         </label>
 
         <textarea
-          id="manual-payment-notes"
+          id="manual-payment-reason"
           rows={3}
           maxLength={500}
-          value={notes}
+          value={reason}
           onChange={(event) =>
-            setNotes(event.target.value)
+            setReason(event.target.value)
           }
           disabled={loading}
+          placeholder="Ex.: comprovante recebido por e-mail, transferência confirmada no extrato do dia..."
           className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
         />
+
+        <p className="mt-1 text-right text-xs text-slate-400">
+          {reason.length}/500
+        </p>
       </div>
     </FinancialModal>
   );

@@ -1,3 +1,8 @@
+import {
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_STATUS_LABELS,
+} from "./paymentLabels";
+
 const EVENT_TYPE_LABELS = {
   // Contratação e cobrança
   contract_created: "Contrato criado",
@@ -76,27 +81,19 @@ const VALUE_KEY_LABELS = {
 // Valores de enum que também aparecem dentro desses blocos (status,
 // origem, forma de pagamento, canal de envio) -- traduzidos à parte da
 // chave, já que o mesmo valor ("admin", por exemplo) pode aparecer em
-// campos diferentes.
+// campos diferentes. As entradas de forma de pagamento e status de
+// pagamento vêm de paymentLabels.js (fonte única, compartilhada com a
+// tabela de pagamentos em FinancialInvoicesDetails.jsx) em vez de
+// duplicadas aqui -- o restante do mapa cobre enums que não são de
+// payments (status de invoice/contrato, origem, canal de envio).
 const VALUE_ENUM_LABELS = {
   pending_payment: "Aguardando pagamento",
-  pending: "Pendente",
-  processing: "Processando",
   active: "Ativo",
   overdue: "Atrasada",
   completed: "Concluído",
-  cancelled: "Cancelado",
   paid: "Paga",
-  refunded: "Reembolsado",
-  approved: "Aprovado",
-  chargeback: "Chargeback",
   locked: "Bloqueada",
   financial_overdue: "Inadimplência",
-  pix: "Pix",
-  boleto: "Boleto",
-  credit_card: "Cartão de crédito",
-  bank_transfer: "Transferência bancária",
-  cash: "Dinheiro",
-  other: "Outro",
   email: "E-mail",
   manual_link: "Link manual",
   admin: "Comercial (admin)",
@@ -105,6 +102,8 @@ const VALUE_ENUM_LABELS = {
   migration: "Migração",
   scholarship: "Bolsa",
   courtesy: "Cortesia",
+  ...PAYMENT_METHOD_LABELS,
+  ...PAYMENT_STATUS_LABELS,
 };
 
 function formatDateTime(value) {

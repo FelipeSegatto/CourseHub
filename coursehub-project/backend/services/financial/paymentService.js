@@ -121,15 +121,23 @@ async function registerManualPayment(
     );
   }
 
+  // Registro manual é um fluxo administrativo, não o checkout online
+  // processado por gateway (invoicePaymentService.js) -- por isso
+  // aceita um conjunto maior de métodos, incluindo os que nunca
+  // passam por um gateway de pagamento automatizado.
   const allowedPaymentMethods = [
     "pix",
     "boleto",
     "credit_card",
+    "debit_card",
+    "bank_transfer",
+    "cash",
+    "other",
   ];
 
   if (!allowedPaymentMethods.includes(paymentMethod)) {
     throw createServiceError(
-      "O método de pagamento informado é inválido. Utilize pix, boleto ou credit_card.",
+      `O método de pagamento informado é inválido. Utilize um dos seguintes: ${allowedPaymentMethods.join(", ")}.`,
       400
     );
   }
