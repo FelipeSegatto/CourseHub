@@ -550,6 +550,7 @@ async function getFinancialContractDetails(
             fc.start_date,
             fc.completed_at,
             fc.cancelled_at,
+            fc.cancellation_reason,
             fc.created_at,
             fc.updated_at,
             s.name AS student_name,
@@ -788,6 +789,8 @@ async function getFinancialContractDetails(
           contract.completed_at,
         cancelledAt:
           contract.cancelled_at,
+        cancellationReason:
+          contract.cancellation_reason,
         createdAt: contract.created_at,
         updatedAt: contract.updated_at,
       },
@@ -1113,6 +1116,7 @@ async function listFinancialInvoices(
             fc.billing_type,
             fc.plan_name,
             fc.status AS contract_status,
+            s.name AS student_name,
 
             COUNT(p.id) AS payment_count,
 
@@ -1131,6 +1135,9 @@ async function listFinancialInvoices(
 
           INNER JOIN financial_contracts fc
             ON fc.id = i.financial_contract_id
+
+          LEFT JOIN students s
+            ON s.id = fc.student_id
 
           LEFT JOIN payments p
             ON p.invoice_id = i.id
@@ -1157,7 +1164,8 @@ async function listFinancialInvoices(
             fc.enrollment_id,
             fc.billing_type,
             fc.plan_name,
-            fc.status
+            fc.status,
+            s.name
 
           ORDER BY
             CASE
@@ -1245,6 +1253,9 @@ async function listFinancialInvoices(
 
           contractStatus:
             invoice.contract_status,
+
+          studentName:
+            invoice.student_name,
 
           paymentCount:
             Number(

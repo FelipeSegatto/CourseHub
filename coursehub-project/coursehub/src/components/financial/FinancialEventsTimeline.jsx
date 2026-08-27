@@ -66,6 +66,7 @@ const VALUE_KEY_LABELS = {
   invoiceStatus: "Status da fatura",
   paymentStatus: "Status do pagamento",
   enrollmentStatus: "Status da matrícula",
+  cancellationReason: "Motivo do cancelamento",
   lockReason: "Motivo do bloqueio",
   paidAt: "Pago em",
   cancelledAt: "Cancelado em",
@@ -102,6 +103,8 @@ const VALUE_ENUM_LABELS = {
   migration: "Migração",
   scholarship: "Bolsa",
   courtesy: "Cortesia",
+  withdrawn: "Desistente",
+  student_withdrawal: "Desistência do aluno",
   ...PAYMENT_METHOD_LABELS,
   ...PAYMENT_STATUS_LABELS,
 };

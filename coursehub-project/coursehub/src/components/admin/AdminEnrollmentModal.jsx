@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../services/APIService";
 import { createEnrollment } from "../../services/AdminEnrollmentService";
 import { listClasses } from "../../services/AdminClassService";
@@ -29,6 +29,9 @@ function AdminEnrollmentModal({ handleCloseModal, onSuccess }) {
     pricing_plan_id: "",
     enrolled_at: "",
   });
+
+  const [studentQuery, setStudentQuery] = useState("");
+  const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
 
   useEffect(() => {
     let ignoreRequest = false;
@@ -132,6 +135,38 @@ function AdminEnrollmentModal({ handleCloseModal, onSuccess }) {
     });
   }
 
+  const selectedStudent = students.find(
+    (student) => String(student.id) === String(formData.student_id)
+  );
+
+  // Mesma lógica de busca client-side já usada em StudentsAdmin.jsx
+  // (nome, e-mail ou matrícula) -- a lista de alunos ativos já vem
+  // inteira do backend, então a busca aqui só filtra o que já está em
+  // memória, sem round-trip novo por letra digitada.
+  const filteredStudents = useMemo(() => {
+    const term = studentQuery.trim().toLowerCase();
+
+    if (!term) return students;
+
+    return students.filter(
+      (student) =>
+        student.name?.toLowerCase().includes(term) ||
+        student.email?.toLowerCase().includes(term) ||
+        student.registration_number?.toLowerCase().includes(term)
+    );
+  }, [students, studentQuery]);
+
+  function handleSelectStudent(student) {
+    setFormData((previous) => ({ ...previous, student_id: String(student.id) }));
+    setStudentQuery("");
+    setStudentDropdownOpen(false);
+  }
+
+  function handleClearStudent() {
+    setFormData((previous) => ({ ...previous, student_id: "" }));
+    setStudentQuery("");
+  }
+
   function validateForm() {
     if (!formData.student_id) return "Selecione um aluno.";
     if (!formData.course_id) return "Selecione um curso.";
@@ -218,24 +253,91 @@ function AdminEnrollmentModal({ handleCloseModal, onSuccess }) {
 
           <label className={labelClass}>
             Aluno
-            <select
-              name="student_id"
-              value={formData.student_id}
-              onChange={handleChange}
-              required
-              disabled={loadingStudents}
-              className={inputClass}
-            >
-              <option value="">
-                {loadingStudents ? "Carregando alunos..." : "Selecione um aluno"}
-              </option>
+            <div className="relative mt-1">
+              <input
+                type="text"
+                value={
+                  studentDropdownOpen
+                    ? studentQuery
+                    : selectedStudent
+                      ? `${selectedStudent.name} · ${selectedStudent.registration_number}`
+                      : studentQuery
+                }
+                onChange={(event) => {
+                  setStudentQuery(event.target.value);
 
-              {students.map((student) => (
-                <option key={student.id} value={student.id}>
-                  {student.name} · {student.registration_number}
-                </option>
-              ))}
-            </select>
+                  if (formData.student_id) {
+                    setFormData((previous) => ({ ...previous, student_id: "" }));
+                  }
+                }}
+                onFocus={() => {
+                  setStudentDropdownOpen(true);
+                  setStudentQuery("");
+                }}
+                onBlur={() => setStudentDropdownOpen(false)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setStudentDropdownOpen(false);
+                    event.currentTarget.blur();
+                    return;
+                  }
+
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+
+                    if (filteredStudents.length === 1) {
+                      handleSelectStudent(filteredStudents[0]);
+                    }
+                  }
+                }}
+                placeholder={
+                  loadingStudents ? "Carregando alunos..." : "Busque por nome, e-mail ou matrícula"
+                }
+                disabled={loadingStudents}
+                autoComplete="off"
+                className={`${inputClass} pr-9`}
+              />
+
+              {formData.student_id && !studentDropdownOpen && (
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={handleClearStudent}
+                  aria-label="Limpar aluno selecionado"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              )}
+
+              {studentDropdownOpen && (
+                <div className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                  {loadingStudents ? (
+                    <p className="px-4 py-3 text-sm text-gray-500">Carregando alunos...</p>
+                  ) : filteredStudents.length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-gray-500">Nenhum aluno encontrado.</p>
+                  ) : (
+                    filteredStudents.map((student) => (
+                      <button
+                        key={student.id}
+                        type="button"
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          handleSelectStudent(student);
+                        }}
+                        className="block w-full px-4 py-2.5 text-left text-sm text-gray-800 transition hover:bg-blue-50"
+                      >
+                        <span className="font-medium">{student.name}</span>
+                        <span className="ml-1 text-xs text-gray-500">
+                          · {student.registration_number}
+                          {student.email ? ` · ${student.email}` : ""}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </label>
 
           <label className={labelClass}>

@@ -174,14 +174,20 @@ async function gradeSubmission(
           ON c.id = a.course_id
 
         INNER JOIN teachers t
-          ON t.id = c.teacher_id
+          ON t.user_id = ?
 
         WHERE s.id = ?
-          AND t.user_id = ?
+          AND (
+            EXISTS (
+              SELECT 1 FROM course_teachers ct
+              WHERE ct.course_id = c.id AND ct.teacher_id = t.id AND ct.status = 'active'
+            )
+            OR c.teacher_id = t.id
+          )
 
         LIMIT 1
       `,
-      [normalizedSubmissionId, userId]
+      [userId, normalizedSubmissionId]
     );
 
     if (submissionRows.length === 0) {
@@ -561,14 +567,20 @@ async function quickGradeSubmission(db, { userId, submissionId, score, feedback 
           ON c.id = a.course_id
 
         INNER JOIN teachers t
-          ON t.id = c.teacher_id
+          ON t.user_id = ?
 
         WHERE s.id = ?
-          AND t.user_id = ?
+          AND (
+            EXISTS (
+              SELECT 1 FROM course_teachers ct
+              WHERE ct.course_id = c.id AND ct.teacher_id = t.id AND ct.status = 'active'
+            )
+            OR c.teacher_id = t.id
+          )
 
         LIMIT 1
       `,
-      [normalizedSubmissionId, userId]
+      [userId, normalizedSubmissionId]
     );
 
     if (submissionRows.length === 0) {

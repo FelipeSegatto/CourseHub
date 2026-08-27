@@ -15,6 +15,7 @@ const { createMessage, computeNextConversationStatus } = require("../../services
 // Teacher 9 (user 19) teaches course 9; student 49 (user 69) has an
 // active enrollment there (class 18); user 31 has none.
 const TEACHER_USER_ID = 19;
+const TEACHER_ID = 9; // teachers.id for TEACHER_USER_ID -- openTeacherQuestion now requires an explicit teacherId (multi-teacher courses can't auto-resolve "the" responsible teacher).
 const COURSE_ID = 9;
 const ENROLLED_STUDENT_USER_ID = 69;
 const NOT_ENROLLED_STUDENT_USER_ID = 31;
@@ -25,6 +26,7 @@ async function openTestQuestion(overrides = {}) {
   const result = await openTeacherQuestion(db, {
     userId: ENROLLED_STUDENT_USER_ID,
     courseId: COURSE_ID,
+    teacherId: TEACHER_ID,
     topic: "content",
     subject: `TEST ETAPA9 subject ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     body: "Não entendi o conteúdo da aula passada.",
@@ -140,11 +142,29 @@ test("openTeacherQuestion rejects a student without an active enrollment in the 
       openTeacherQuestion(db, {
         userId: NOT_ENROLLED_STUDENT_USER_ID,
         courseId: COURSE_ID,
+        teacherId: TEACHER_ID,
         topic: "content",
         subject: "TEST ETAPA9 should fail",
         body: "Não deveria conseguir abrir.",
       }),
     (error) => error.statusCode === 403
+  );
+});
+
+test("openTeacherQuestion rejects a missing/invalid teacherId", async () => {
+  await assert.rejects(
+    () =>
+      openTeacherQuestion(db, {
+        userId: ENROLLED_STUDENT_USER_ID,
+        courseId: COURSE_ID,
+        topic: "content",
+        subject: "TEST ETAPA9 sem teacherId",
+        body: "corpo",
+      }),
+    (error) => {
+      assert.equal(error.statusCode, 400);
+      return true;
+    }
   );
 });
 
@@ -154,6 +174,7 @@ test("openTeacherQuestion rejects an invalid topic", async () => {
       openTeacherQuestion(db, {
         userId: ENROLLED_STUDENT_USER_ID,
         courseId: COURSE_ID,
+        teacherId: TEACHER_ID,
         topic: "not_a_real_topic",
         subject: "TEST ETAPA9",
         body: "corpo",
@@ -168,6 +189,7 @@ test("openTeacherQuestion rejects a missing subject or empty body", async () => 
       openTeacherQuestion(db, {
         userId: ENROLLED_STUDENT_USER_ID,
         courseId: COURSE_ID,
+        teacherId: TEACHER_ID,
         topic: "general",
         subject: "   ",
         body: "corpo",
@@ -180,6 +202,7 @@ test("openTeacherQuestion rejects a missing subject or empty body", async () => 
       openTeacherQuestion(db, {
         userId: ENROLLED_STUDENT_USER_ID,
         courseId: COURSE_ID,
+        teacherId: TEACHER_ID,
         topic: "general",
         subject: "TEST ETAPA9",
         body: "   ",

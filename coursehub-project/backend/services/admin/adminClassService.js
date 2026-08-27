@@ -1,3 +1,7 @@
+const {
+  assertTeacherAssignedToCourse,
+} = require("../courses/courseTeacherService");
+
 const ALLOWED_CLASS_STATUSES = ["active", "inactive", "finished"];
 const ALLOWED_SHIFTS = ["morning", "afternoon", "night", "online"];
 
@@ -362,6 +366,15 @@ async function createClass(db, payload) {
       );
     }
 
+    // Só professores vinculados ao curso da turma podem ser
+    // responsáveis por ela -- validado no backend independente do
+    // que o frontend já filtra (ver courseTeacherService.js).
+    await assertTeacherAssignedToCourse(
+      connection,
+      { courseId, teacherId },
+      { statusCode: 400, message: "Professor não está vinculado ao curso." }
+    );
+
     const [duplicateRows] = await connection.query(
       `
         SELECT id FROM classes
@@ -485,6 +498,15 @@ async function updateClass(db, id, payload) {
         409
       );
     }
+
+    // Só professores vinculados ao curso da turma podem ser
+    // responsáveis por ela -- validado no backend independente do
+    // que o frontend já filtra (ver courseTeacherService.js).
+    await assertTeacherAssignedToCourse(
+      connection,
+      { courseId, teacherId },
+      { statusCode: 400, message: "Professor não está vinculado ao curso." }
+    );
 
     const [duplicateRows] = await connection.query(
       `

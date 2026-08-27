@@ -525,7 +525,8 @@ router.post(
       });
 
       return res.status(200).json({
-        message: "Desistência registrada com sucesso.",
+        message:
+          "Desistência registrada. O contrato foi encerrado e a matrícula do aluno foi desativada.",
         data: result,
       });
     } catch (error) {

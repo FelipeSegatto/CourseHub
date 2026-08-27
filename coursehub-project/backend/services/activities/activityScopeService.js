@@ -252,11 +252,17 @@ async function validateTeacherActivityAccess(
         ON c.id = a.course_id
 
       WHERE a.id = ?
-        AND c.teacher_id = ?
+        AND (
+          EXISTS (
+            SELECT 1 FROM course_teachers ct
+            WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
+          )
+          OR c.teacher_id = ?
+        )
 
       LIMIT 1
     `,
-    [activityId, teacherId]
+    [activityId, teacherId, teacherId]
   );
 
   const activity = activityRows[0] || null;

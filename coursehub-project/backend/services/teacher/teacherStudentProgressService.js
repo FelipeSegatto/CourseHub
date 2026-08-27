@@ -95,14 +95,18 @@ const SELECT_COLUMNS = `
   cl.id AS class_id, cl.name AS class_name
 `;
 
+// Ramo de curso (sem turma) migrado para course_teachers, com
+// courses.teacher_id legado como vínculo elegível -- 3 placeholders
+// no total agora (2 no ramo de curso + 1 no ramo de turma), sempre o
+// mesmo teacherId repetido, nunca valores diferentes.
 const TEACHER_SCOPE_CONDITION =
-  "((e.class_id IS NULL AND co.teacher_id = ?) OR (e.class_id IS NOT NULL AND cl.teacher_id = ?))";
+  "((e.class_id IS NULL AND (EXISTS (SELECT 1 FROM course_teachers ct WHERE ct.course_id = co.id AND ct.teacher_id = ? AND ct.status = 'active') OR co.teacher_id = ?)) OR (e.class_id IS NOT NULL AND cl.teacher_id = ?))";
 
 async function listEnrollmentsForProgress(db, { userId, courseId, classId, page, limit }) {
   const teacherId = await resolveTeacherId(db, userId);
 
   const conditions = ["e.status = 'active'", TEACHER_SCOPE_CONDITION];
-  const params = [teacherId, teacherId];
+  const params = [teacherId, teacherId, teacherId];
 
   if (courseId) {
     const normalizedCourseId = normalizeId(courseId, "ID do curso inválido.");
@@ -162,7 +166,7 @@ async function getOwnedEnrollmentRow(db, { userId, enrollmentId }) {
       WHERE e.id = ? AND ${TEACHER_SCOPE_CONDITION}
       LIMIT 1
     `,
-    [normalizedEnrollmentId, teacherId, teacherId]
+    [normalizedEnrollmentId, teacherId, teacherId, teacherId]
   );
 
   if (rows.length === 0) {

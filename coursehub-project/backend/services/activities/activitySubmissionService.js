@@ -59,7 +59,13 @@ async function listActivitySubmissions(
       FROM teachers t
 
       INNER JOIN courses c
-        ON c.teacher_id = t.id
+        ON (
+          EXISTS (
+            SELECT 1 FROM course_teachers ct
+            WHERE ct.course_id = c.id AND ct.teacher_id = t.id AND ct.status = 'active'
+          )
+          OR c.teacher_id = t.id
+        )
 
       INNER JOIN activities a
         ON a.course_id = c.id
@@ -272,14 +278,20 @@ async function getSubmissionFull(db, { userId, submissionId }) {
         ON cl.id = a.class_id
 
       INNER JOIN teachers t
-        ON t.id = c.teacher_id
+        ON t.user_id = ?
 
       WHERE s.id = ?
-        AND t.user_id = ?
+        AND (
+          EXISTS (
+            SELECT 1 FROM course_teachers ct
+            WHERE ct.course_id = c.id AND ct.teacher_id = t.id AND ct.status = 'active'
+          )
+          OR c.teacher_id = t.id
+        )
 
       LIMIT 1
     `,
-    [normalizedSubmissionId, userId]
+    [userId, normalizedSubmissionId]
   );
 
   const notFoundError = createServiceError(

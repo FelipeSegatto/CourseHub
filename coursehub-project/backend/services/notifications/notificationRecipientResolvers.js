@@ -51,6 +51,15 @@ async function resolveActiveStudentsForCourseOrClass(runner, { courseId, classId
  * (used by submission-received). courses.teacher_id is nullable and
  * a teacher can be inactive, so this can legitimately return null --
  * callers must treat that as "nobody to notify", not an error.
+ *
+ * Deliberately still single-recipient via courses.teacher_id, not
+ * migrated to course_teachers, after the N:N multi-teacher-per-course
+ * change (see docs/course-teacher-model.md). Fanning submission
+ * notifications out to every teacher now linked to a course is a
+ * product decision explicitly left out of scope by that task ("NÃO
+ * implementar notifications para todos os professores
+ * automaticamente... preserve o comportamento atual"), not an
+ * oversight.
  */
 async function resolveTeacherForCourse(runner, { courseId }) {
   const [rows] = await runner.query(

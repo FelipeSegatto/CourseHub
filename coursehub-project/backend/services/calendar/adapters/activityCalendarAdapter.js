@@ -135,14 +135,20 @@ async function getTeacherActivityCalendarEvents(runner, { userId, from, to }) {
       LEFT JOIN classes cl
         ON cl.id = a.class_id
 
-      WHERE c.teacher_id = ?
+      WHERE (
+          EXISTS (
+            SELECT 1 FROM course_teachers ct
+            WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
+          )
+          OR c.teacher_id = ?
+        )
         AND a.status = 'active'
         AND a.due_date IS NOT NULL
         AND DATE(a.due_date) BETWEEN ? AND ?
 
       ORDER BY a.due_date ASC
     `,
-    [teacherId, from, to]
+    [teacherId, teacherId, from, to]
   );
 
   return rows.map((row) => toBasicDto(row, { role: "teacher" }));

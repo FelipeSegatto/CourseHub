@@ -9,19 +9,17 @@ function InfoRow({ label, value }) {
 
   return (
     <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-2">
-      <span className="text-sm font-semibold text-gray-500">{label}:</span>
-      <span className="text-sm text-gray-900">{value}</span>
+      <span className="text-sm font-semibold text-gray-500">
+        {label}:
+      </span>
+
+      <span className="text-sm text-gray-900">
+        {value}
+      </span>
     </div>
   );
 }
 
-/**
- * Página pública "Fale conosco" -- dados institucionais configuráveis
- * (nunca hardcoded no JSX, sempre lidos de GET /api/public/institution)
- * e o bloco "Acesse sua fatura", incluindo a recuperação segura de um
- * link de pagamento perdido. Não é um chat/CRM: só os dois blocos
- * pedidos, nada além disso.
- */
 export default function ContactPage() {
   const [institution, setInstitution] = useState(null);
   const [institutionError, setInstitutionError] = useState("");
@@ -36,15 +34,24 @@ export default function ContactPage() {
 
     async function loadInstitution() {
       try {
-        const response = await getPublicInstitutionInfo();
+        const response =
+          await getPublicInstitutionInfo();
 
         if (!ignoreRequest) {
-          setInstitution(response?.data || null);
+          setInstitution(
+            response?.data || null
+          );
         }
       } catch (requestError) {
         if (!ignoreRequest) {
-          console.error("Erro ao carregar dados institucionais:", requestError);
-          setInstitutionError("Não foi possível carregar as informações de contato agora.");
+          console.error(
+            "Erro ao carregar dados institucionais:",
+            requestError
+          );
+
+          setInstitutionError(
+            "Não foi possível carregar as informações de contato agora."
+          );
         }
       }
     }
@@ -64,67 +71,239 @@ export default function ContactPage() {
 
     const trimmedEmail = email.trim();
 
-    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setFormError("Informe um e-mail válido.");
+    if (
+      !trimmedEmail ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        trimmedEmail
+      )
+    ) {
+      setFormError(
+        "Informe um e-mail válido."
+      );
+
       return;
     }
 
     try {
       setSubmitting(true);
 
-      const response = await requestInvoicePaymentLinkByEmail(trimmedEmail);
+      const response =
+        await requestInvoicePaymentLinkByEmail(
+          trimmedEmail
+        );
 
       setResultMessage(
-        response?.message || "Se houver uma cobrança disponível para este e-mail, enviaremos as instruções de acesso."
+        response?.message ||
+          "Se houver uma cobrança disponível para este e-mail, enviaremos as instruções de acesso."
       );
+
       setEmail("");
     } catch (requestError) {
-      setFormError(requestError.message || "Não foi possível processar sua solicitação agora. Tente novamente.");
+      setFormError(
+        requestError.message ||
+          "Não foi possível processar sua solicitação agora. Tente novamente."
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-6 py-12">
-      <header>
-        <h1 className="text-3xl font-bold text-gray-950">Fale conosco</h1>
-        <p className="mt-2 text-gray-600">
-          Informações de contato.
-        </p>
-      </header>
+    <main className="min-h-screen bg-slate-50">
+      {/* HERO */}
+      <section className="relative isolate overflow-hidden bg-slate-900">
+        <img
+          src="/images/contact-coursehub-hero.jpeg"
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center"
+        />
 
-      <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-gray-900">Informações institucionais</h2>
+        {/* Escurecimento superior para leitura */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/70 via-slate-950/35 to-slate-950/10" />
 
-        {institutionError && <p className="mt-3 text-sm text-red-600">{institutionError}</p>}
+        <div className="relative mx-auto flex min-h-[460px] max-w-7xl items-start px-6 py-16 lg:min-h-[520px] lg:px-8 lg:py-20">
+          <div className="max-w-[620px]">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-200">
+              Fale conosco
+            </p>
 
-        {!institutionError && !institution && <p className="mt-3 text-sm text-gray-500">Carregando...</p>}
+            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl">
+              Estamos aqui para ajudar.
+            </h1>
 
-        {institution && (
-          <div className="mt-4 space-y-2">
-            <InfoRow label="Instituição" value={institution.name} />
-            <InfoRow label="E-mail de atendimento" value={institution.supportEmail} />
-            <InfoRow label="Telefone" value={institution.phone} />
-            <InfoRow label="WhatsApp" value={institution.whatsapp} />
-            <InfoRow label="Horário de atendimento" value={institution.businessHours} />
-            <InfoRow label="Endereço" value={institution.address} />
-            <InfoRow label="CNPJ" value={institution.cnpj} />
-            {institution.websiteUrl && (
-              <InfoRow
-                label="Site"
-                value={
-                  <a href={institution.websiteUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-                    {institution.websiteUrl}
-                  </a>
-                }
-              />
-            )}
+            <p className="mt-6 max-w-[540px] text-base leading-7 text-slate-200 sm:text-lg sm:leading-8">
+              Encontre nossos canais de atendimento e
+              informações institucionais em um único lugar.
+            </p>
           </div>
-        )}
+        </div>
       </section>
 
-     
+      {/* CONTEÚDO */}
+      <section className="mx-auto max-w-5xl px-6 py-16 lg:px-8 lg:py-20">
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* INFORMAÇÕES INSTITUCIONAIS */}
+          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-7 shadow-sm md:p-8">
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">
+              Atendimento
+            </p>
+
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+              Informações institucionais
+            </h2>
+
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              Consulte nossos principais canais de contato e
+              informações da instituição.
+            </p>
+
+            {institutionError && (
+              <p className="mt-5 text-sm text-red-600">
+                {institutionError}
+              </p>
+            )}
+
+            {!institutionError &&
+              !institution && (
+                <p className="mt-5 text-sm text-gray-500">
+                  Carregando...
+                </p>
+              )}
+
+            {institution && (
+              <div className="mt-7 space-y-4 border-t border-slate-100 pt-6">
+                <InfoRow
+                  label="Instituição"
+                  value={institution.name}
+                />
+
+                <InfoRow
+                  label="E-mail de atendimento"
+                  value={
+                    institution.supportEmail
+                  }
+                />
+
+                <InfoRow
+                  label="Telefone"
+                  value={institution.phone}
+                />
+
+                <InfoRow
+                  label="WhatsApp"
+                  value={
+                    institution.whatsapp
+                  }
+                />
+
+                <InfoRow
+                  label="Horário de atendimento"
+                  value={
+                    institution.businessHours
+                  }
+                />
+
+                <InfoRow
+                  label="Endereço"
+                  value={
+                    institution.address
+                  }
+                />
+
+                <InfoRow
+                  label="CNPJ"
+                  value={institution.cnpj}
+                />
+
+                {institution.websiteUrl && (
+                  <InfoRow
+                    label="Site"
+                    value={
+                      <a
+                        href={
+                          institution.websiteUrl
+                        }
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium text-blue-600 hover:underline"
+                      >
+                        {
+                          institution.websiteUrl
+                        }
+                      </a>
+                    }
+                  />
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* ACESSO À FATURA */}
+          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-7 shadow-sm md:p-8">
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">
+              Financeiro
+            </p>
+
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+              Acesse sua fatura
+            </h2>
+
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              Perdeu o link de pagamento? Informe o e-mail
+              utilizado na contratação para receber novamente
+              as instruções de acesso.
+            </p>
+
+            <form
+              onSubmit={handleSubmit}
+              className="mt-7"
+            >
+              <label
+                htmlFor="invoice-email"
+                className="text-sm font-semibold text-slate-700"
+              >
+                E-mail
+              </label>
+
+              <input
+                id="invoice-email"
+                type="email"
+                value={email}
+                onChange={(event) =>
+                  setEmail(
+                    event.target.value
+                  )
+                }
+                placeholder="voce@exemplo.com"
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+              />
+
+              {formError && (
+                <p className="mt-3 text-sm text-red-600">
+                  {formError}
+                </p>
+              )}
+
+              {resultMessage && (
+                <p className="mt-3 text-sm leading-6 text-emerald-700">
+                  {resultMessage}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitting
+                  ? "Enviando..."
+                  : "Solicitar link da fatura"}
+              </button>
+            </form>
+          </section>
+        </div>
+      </section>
     </main>
   );
 }

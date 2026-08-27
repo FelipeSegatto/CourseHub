@@ -140,8 +140,14 @@ async function getTeacherAcademicCalendarEvents(runner, { userId, from, to }) {
             AND ace.course_id IN (
               SELECT c2.id
               FROM courses c2
-              INNER JOIN teachers t ON t.id = c2.teacher_id
-              WHERE t.user_id = ?
+              INNER JOIN teachers t ON t.user_id = ?
+              WHERE (
+                EXISTS (
+                  SELECT 1 FROM course_teachers ct
+                  WHERE ct.course_id = c2.id AND ct.teacher_id = t.id AND ct.status = 'active'
+                )
+                OR c2.teacher_id = t.id
+              )
             )
           )
           OR (

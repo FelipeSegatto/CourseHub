@@ -1,3 +1,7 @@
+const {
+  assertTeacherAssignedToCourse,
+} = require("../courses/courseTeacherService");
+
 /**
  * Cria um erro de negócio com status HTTP associado.
  */
@@ -46,8 +50,16 @@ async function getStudentIdByUserId(runner, userId) {
 }
 
 /**
- * Confirma que o curso pertence ao professor autenticado.
- * Lança 403 quando não pertence, 404 quando o curso não existe.
+ * Confirma que o professor tem membership ativa no curso (via
+ * course_teachers, incluindo courses.teacher_id legado como vínculo
+ * elegível -- ver courseTeacherService.js#isTeacherAssignedToCourse).
+ * Lança 403 quando não há membership, 404 quando o curso não existe.
+ *
+ * Antes desta migração para N:N, isto comparava diretamente
+ * courses.teacher_id === teacherId (um único professor por curso).
+ * Migrado aqui, no helper central, para que todo chamador already
+ * ganhe suporte a múltiplos professores automaticamente, sem precisar
+ * editar cada service individualmente.
  */
 async function assertCourseBelongsToTeacher(runner, { courseId, teacherId }) {
   const [rows] = await runner.execute(
@@ -64,12 +76,7 @@ async function assertCourseBelongsToTeacher(runner, { courseId, teacherId }) {
     throw createServiceError("Curso não encontrado.", 404);
   }
 
-  if (Number(rows[0].teacher_id) !== Number(teacherId)) {
-    throw createServiceError(
-      "O curso selecionado não pertence ao professor.",
-      403
-    );
-  }
+  await assertTeacherAssignedToCourse(runner, { courseId, teacherId });
 
   return rows[0];
 }

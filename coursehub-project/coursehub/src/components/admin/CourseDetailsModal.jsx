@@ -56,7 +56,14 @@ export default function CourseDetailsModal({ open, course, onClose }) {
 
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <DetailItem label="Docente" value={course.teacher_name || "Sem docente vinculado"} />
+            <DetailItem
+              label="Professores"
+              value={
+                Array.isArray(course.teachers) && course.teachers.length > 0
+                  ? course.teachers.map((teacher) => teacher.name).join(", ")
+                  : course.teacher_name || "Nenhum professor vinculado"
+              }
+            />
             <DetailItem label="Nível" value={LEVEL_LABEL[course.nivel] || course.nivel || "-"} />
             <DetailItem
               label="Carga horária"

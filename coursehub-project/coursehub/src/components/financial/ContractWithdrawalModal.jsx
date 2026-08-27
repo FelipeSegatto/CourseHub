@@ -95,13 +95,13 @@ export default function ContractWithdrawalModal({ open, contractId, onClose, onS
       setSubmitting(true);
       setSubmitError("");
 
-      await registerContractWithdrawal(contractId, {
+      const response = await registerContractWithdrawal(contractId, {
         reason: reason.trim(),
         notes: notes.trim() || undefined,
         overdueInvoiceAction,
       });
 
-      await onSuccess?.();
+      await onSuccess?.(response?.message);
       onClose();
     } catch (requestError) {
       setSubmitError(requestError?.message || "Não foi possível registrar a desistência.");

@@ -27,7 +27,8 @@ function AdminClassModal({ mode = "create", initialData = null, handleCloseModal
   const [error, setError] = useState("");
 
   const [courses, setCourses] = useState([]);
-  const [teachers, setTeachers] = useState([]);
+  const [eligibleTeachers, setEligibleTeachers] = useState([]);
+  const [loadingEligibleTeachers, setLoadingEligibleTeachers] = useState(false);
 
   const [formData, setFormData] = useState({
     name: initialData?.name || "",
@@ -47,10 +48,7 @@ function AdminClassModal({ mode = "create", initialData = null, handleCloseModal
         setLoadingOptions(true);
         setError("");
 
-        const [coursesResponse, teachersResponse] = await Promise.all([
-          apiFetch("/api/admin/courses"),
-          apiFetch("/api/admin/teachers"),
-        ]);
+        const coursesResponse = await apiFetch("/api/admin/courses");
 
         if (ignoreRequest) return;
 
@@ -60,21 +58,12 @@ function AdminClassModal({ mode = "create", initialData = null, handleCloseModal
             ? coursesResponse.data
             : [];
 
-        const teacherList = Array.isArray(teachersResponse)
-          ? teachersResponse
-          : Array.isArray(teachersResponse?.data)
-            ? teachersResponse.data
-            : [];
-
         setCourses(courseList);
-        setTeachers(teacherList.filter((teacher) => teacher.status === "active"));
       } catch (requestError) {
         if (ignoreRequest) return;
 
-        console.error("Erro ao carregar cursos/professores:", requestError);
-        setError(
-          requestError.message || "Não foi possível carregar cursos e professores."
-        );
+        console.error("Erro ao carregar cursos:", requestError);
+        setError(requestError.message || "Não foi possível carregar a lista de cursos.");
       } finally {
         if (!ignoreRequest) {
           setLoadingOptions(false);
@@ -89,10 +78,68 @@ function AdminClassModal({ mode = "create", initialData = null, handleCloseModal
     };
   }, []);
 
+  // O professor responsável só pode ser alguém vinculado ao curso da
+  // turma (course_teachers ativo, com courses.teacher_id legado como
+  // vínculo elegível) -- refeito sempre que o curso muda, e já roda
+  // no mount em modo de edição (course_id vem preenchido).
+  useEffect(() => {
+    const courseId = formData.course_id;
+
+    if (!courseId) {
+      setEligibleTeachers([]);
+      return undefined;
+    }
+
+    let ignoreRequest = false;
+
+    async function loadEligibleTeachers() {
+      try {
+        setLoadingEligibleTeachers(true);
+        setError("");
+
+        const response = await apiFetch(`/api/admin/courses/${courseId}`);
+        const course = response?.course || response?.data || response;
+        const teacherList = Array.isArray(course?.teachers) ? course.teachers : [];
+
+        if (!ignoreRequest) {
+          setEligibleTeachers(
+            teacherList.filter((teacher) => teacher.teacher_status === "active")
+          );
+        }
+      } catch (requestError) {
+        if (ignoreRequest) return;
+
+        console.error("Erro ao carregar professores do curso:", requestError);
+        setError(
+          requestError.message || "Não foi possível carregar os professores do curso."
+        );
+        setEligibleTeachers([]);
+      } finally {
+        if (!ignoreRequest) {
+          setLoadingEligibleTeachers(false);
+        }
+      }
+    }
+
+    loadEligibleTeachers();
+
+    return () => {
+      ignoreRequest = true;
+    };
+  }, [formData.course_id]);
+
   function handleChange(event) {
     const { name, value } = event.target;
 
     setFormData((previous) => ({ ...previous, [name]: value }));
+  }
+
+  // Trocar o curso invalida a escolha anterior de professor -- ela só
+  // fazia sentido para o curso antigo.
+  function handleCourseChange(event) {
+    const { value } = event.target;
+
+    setFormData((previous) => ({ ...previous, course_id: value, teacher_id: "" }));
   }
 
   function validateForm() {
@@ -222,7 +269,7 @@ function AdminClassModal({ mode = "create", initialData = null, handleCloseModal
             <select
               name="course_id"
               value={formData.course_id}
-              onChange={handleChange}
+              onChange={handleCourseChange}
               required
               disabled={isEditMode || loadingOptions}
               className={inputClass}
@@ -252,23 +299,27 @@ function AdminClassModal({ mode = "create", initialData = null, handleCloseModal
               value={formData.teacher_id}
               onChange={handleChange}
               required
-              disabled={loadingOptions}
+              disabled={!formData.course_id || loadingOptions || loadingEligibleTeachers}
               className={inputClass}
             >
               <option value="">
-                {loadingOptions ? "Carregando professores..." : "Selecione um professor"}
+                {!formData.course_id
+                  ? "Selecione um curso primeiro"
+                  : loadingEligibleTeachers
+                    ? "Carregando professores..."
+                    : "Selecione um professor"}
               </option>
 
-              {teachers.map((teacher) => (
+              {eligibleTeachers.map((teacher) => (
                 <option key={teacher.id} value={teacher.id}>
                   {teacher.name}
                 </option>
               ))}
             </select>
 
-            {!loadingOptions && teachers.length === 0 && (
+            {formData.course_id && !loadingEligibleTeachers && eligibleTeachers.length === 0 && (
               <p className="mt-2 text-xs font-medium text-red-600">
-                Nenhum professor ativo foi encontrado.
+                Nenhum professor ativo está vinculado a este curso.
               </p>
             )}
           </label>

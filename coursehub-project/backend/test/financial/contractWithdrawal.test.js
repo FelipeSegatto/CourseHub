@@ -21,6 +21,7 @@ const {
   getContractWithdrawalImpact,
   registerContractWithdrawal,
 } = require("../../services/financial/contractWithdrawalService");
+const { getActiveEnrollmentForStudent } = require("../../services/classes/classAccessService");
 
 const COURSE_NAME = "TEST CONTRACT WITHDRAWAL COURSE";
 const RUN_ID = Date.now();
@@ -471,18 +472,23 @@ test("registerContractWithdrawal: contrato active permite desistência, cancela 
   });
 
   assert.equal(result.status, "cancelled");
+  assert.equal(result.cancellationReason, "student_withdrawal");
+  assert.equal(result.enrollmentStatus, "withdrawn");
   assert.equal(result.enrollmentId, fixture.enrollmentId);
 
   const [contractRows] = await db
     .promise()
-    .query(`SELECT status, cancelled_at FROM financial_contracts WHERE id = ?`, [fixture.contractId]);
+    .query(`SELECT status, cancelled_at, cancellation_reason FROM financial_contracts WHERE id = ?`, [
+      fixture.contractId,
+    ]);
   assert.equal(contractRows[0].status, "cancelled");
   assert.ok(contractRows[0].cancelled_at, "cancelled_at deveria ter sido preenchido");
+  assert.equal(contractRows[0].cancellation_reason, "student_withdrawal");
 
   const [enrollmentRows] = await db
     .promise()
     .query(`SELECT status FROM enrollments WHERE id = ?`, [fixture.enrollmentId]);
-  assert.equal(enrollmentRows[0].status, "cancelled");
+  assert.equal(enrollmentRows[0].status, "withdrawn");
 
   // Fatura de ativação, já paga, permanece paga -- nunca tocada.
   const [invoiceRows] = await db
@@ -518,6 +524,82 @@ test("registerContractWithdrawal: contrato active permite desistência, cancela 
   );
 
   assert.equal(await countFinancialEvents("contract_withdrawal_registered", fixture.contractId), 1);
+});
+
+test("registerContractWithdrawal: matrícula withdrawn perde acesso acadêmico pelo mesmo gate já usado pelo checkout/CoursePlayer", async () => {
+  const fixture = await createActiveContractFixture();
+
+  // Antes da desistência, o gate de acesso (o mesmo usado por "Meus
+  // cursos"/CoursePlayer/atividades) enxerga a matrícula normalmente.
+  const beforeWithdrawal = await getActiveEnrollmentForStudent(db.promise(), {
+    studentId: fixture.studentId,
+    courseId,
+  });
+  assert.ok(beforeWithdrawal, "matrícula deveria estar ativa antes da desistência");
+  assert.equal(beforeWithdrawal.id, fixture.enrollmentId);
+
+  await registerContractWithdrawal(db, fixture.contractId, {
+    reason: "Teste automatizado (perda de acesso)",
+    overdueInvoiceAction: "keep",
+    actorUserId: adminUserId,
+  });
+
+  // getActiveEnrollmentForStudent só exige status = 'active' -- nenhuma
+  // query nova foi necessária para isso, 'withdrawn' já cai fora
+  // naturalmente.
+  const afterWithdrawal = await getActiveEnrollmentForStudent(db.promise(), {
+    studentId: fixture.studentId,
+    courseId,
+  });
+  assert.equal(afterWithdrawal, null, "matrícula withdrawn não deveria conceder acesso ativo ao curso");
+});
+
+test("registerContractWithdrawal: contrato ativo excepcionalmente sem matrícula vinculada é recusado, sem inventar matrícula e sem cancelar o contrato sozinho", async () => {
+  const fixture = await createActiveContractFixture();
+
+  // Cenário excepcional documentado no código (não alcançável pelo
+  // fluxo normal de produção, já que activateContractFromPaidInvoice
+  // sempre define enrollment_id no mesmo passo que ativa o contrato)
+  // -- forçado aqui via SQL direto para exercitar a guarda defensiva.
+  await db.promise().query(`UPDATE financial_contracts SET enrollment_id = NULL WHERE id = ?`, [
+    fixture.contractId,
+  ]);
+
+  await assert.rejects(
+    () =>
+      registerContractWithdrawal(db, fixture.contractId, {
+        reason: "Não deveria funcionar",
+        overdueInvoiceAction: "keep",
+        actorUserId: adminUserId,
+      }),
+    (error) => {
+      assert.equal(error.statusCode, 409);
+      assert.match(error.message, /não possui matrícula vinculada/);
+      return true;
+    }
+  );
+
+  // Nem o contrato nem a matrícula (ainda ativa, só desvinculada) foram
+  // tocados -- a operação falhou por inteiro, não parcialmente.
+  const [contractRows] = await db
+    .promise()
+    .query(`SELECT status, cancellation_reason FROM financial_contracts WHERE id = ?`, [fixture.contractId]);
+  assert.equal(contractRows[0].status, "active");
+  assert.equal(contractRows[0].cancellation_reason, null);
+
+  const [enrollmentRows] = await db.promise().query(`SELECT status FROM enrollments WHERE id = ?`, [
+    fixture.enrollmentId,
+  ]);
+  assert.equal(enrollmentRows[0].status, "active");
+
+  assert.equal(await countFinancialEvents("contract_withdrawal_registered", fixture.contractId), 0);
+
+  // Restaura o vínculo para o cleanup padrão do arquivo conseguir
+  // encontrar/apagar esta matrícula normalmente.
+  await db.promise().query(`UPDATE financial_contracts SET enrollment_id = ? WHERE id = ?`, [
+    fixture.enrollmentId,
+    fixture.contractId,
+  ]);
 });
 
 test("registerContractWithdrawal: contrato overdue permite desistência", async () => {
@@ -828,7 +910,7 @@ test("webhook atrasado após a desistência: nunca reativa contrato/matrícula, 
   const [enrollmentAfterRows] = await db
     .promise()
     .query(`SELECT status FROM enrollments WHERE id = ?`, [fixture.enrollmentId]);
-  assert.equal(enrollmentAfterRows[0].status, "cancelled");
+  assert.equal(enrollmentAfterRows[0].status, "withdrawn");
 
   // Nenhuma segunda matrícula foi criada para este aluno/curso.
   const [enrollmentCountRows] = await db

@@ -120,43 +120,61 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen bg-slate-50">
       {/* HERO */}
-      <section className="relative overflow-hidden bg-slate-950">
-        <div className="absolute inset-0">
-          <div className="absolute -left-32 top-10 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
+      {/* HERO */}
+        <section
+          className="relative isolate overflow-hidden bg-emerald-900"
+          style={{
+          backgroundImage:
+            "url('/images/coursehub-catalog-hero.jpeg')",
+          backgroundSize: "100%",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "right",
+        }}
+        >
+          {/* Overlay para leitura do texto */}
+          <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/70 via-emerald-950/30 to-transparent" />
 
-          <div className="absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
+          {/* Escurecimento discreto geral */}
+          <div className="absolute inset-0 bg-black/5" />
 
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:64px_64px]" />
-        </div>
+          <div className="relative mx-auto flex min-h-[520px] max-w-7xl items-center px-6 py-16 sm:min-h-[580px] lg:min-h-[640px] lg:px-8">
+            <div className="max-w-[650px]">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-50/90">
+                Catálogo CourseHub
+              </p>
 
-        <div className="relative mx-auto max-w-7xl px-6 py-20 lg:px-8 lg:py-28">
-          <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-300">
-              Catálogo CourseHub
-            </p>
+              <h1 className="mt-5 max-w-[620px] text-4xl font-semibold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
+                Aprenda hoje.
+                <span className="block">
+                  Transforme o amanhã.
+                </span>
+              </h1>
 
-            <h1 className="mt-5 text-4xl font-semibold tracking-tight text-white md:text-5xl lg:text-6xl">
-              Conhecimento para transformar seus próximos passos
-            </h1>
+              <p className="mt-6 max-w-[560px] text-base leading-7 text-emerald-50/90 sm:text-lg sm:leading-8">
+                Explore novas áreas, desenvolva habilidades e
+                encontre a formação certa para o seu próximo passo.
+              </p>
 
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-              Explore formações em diferentes áreas,
-              desenvolva novas competências e encontre um
-              curso alinhado aos seus objetivos.
-            </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <div className="rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm">
+                  {courses.length} cursos disponíveis
+                </div>
 
-            <div className="mt-8 flex flex-wrap gap-3">
-              <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 backdrop-blur">
-                {courses.length} cursos disponíveis
+                <div className="rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm">
+                  {totalCategories} áreas de estudo
+                </div>
               </div>
 
-              <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 backdrop-blur">
-                {totalCategories} áreas de estudo
-              </div>
+              <a
+                href="#catalogo"
+                className="mt-9 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-50"
+              >
+                Explorar cursos
+                <ArrowRight size={17} />
+              </a>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
       {/* INDICADORES */}
       <section className="border-b border-slate-200 bg-white">
@@ -430,37 +448,51 @@ export default function DashboardPage() {
       </section>
 
       {/* CTA */}
+      {/* CTA */}
       <section className="mx-auto max-w-7xl px-6 pb-20 lg:px-8">
-        <div className="overflow-hidden rounded-[2rem] bg-blue-700 px-7 py-12 text-center md:px-16 md:py-16">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-200">
-            Comece sua jornada
-          </p>
+        <div className="relative isolate overflow-hidden rounded-[2rem] px-7 py-12 text-center md:px-16 md:py-16">
+          {/* BACKGROUND */}
+          <img
+            src="/images/coursehub-cta-background.png"
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center"
+          />
 
-          <h2 className="mx-auto mt-4 max-w-2xl text-3xl font-semibold tracking-tight text-white md:text-4xl">
-            Crie sua conta e acompanhe toda a sua evolução
-          </h2>
+          {/* Overlay discreto para manter contraste */}
+          <div className="absolute inset-0 bg-blue-950/20" />
 
-          <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-blue-100">
-            Acesse conteúdos, realize atividades, acompanhe
-            seu progresso e mantenha toda a sua formação
-            organizada.
-          </p>
+          {/* CONTEÚDO */}
+          <div className="relative">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-100">
+              Comece sua jornada
+            </p>
 
-          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link
-              to="/register"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-blue-800 transition hover:bg-blue-50"
-            >
-              Criar conta
-              <ArrowRight size={17} />
-            </Link>
+            <h2 className="mx-auto mt-4 max-w-2xl text-3xl font-semibold tracking-tight text-white md:text-4xl">
+              Crie sua conta e acompanhe toda a sua evolução
+            </h2>
 
-            <Link
-              to="/login"
-              className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/10 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
-            >
-              Já tenho uma conta
-            </Link>
+            <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-blue-50/90">
+              Acesse conteúdos, realize atividades, acompanhe seu progresso e
+              mantenha toda a sua formação organizada.
+            </p>
+
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+              <Link
+                to="/register"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-blue-900 transition hover:bg-blue-50"
+              >
+                Criar conta
+                <ArrowRight size={17} />
+              </Link>
+
+              <Link
+                to="/login"
+                className="inline-flex items-center justify-center rounded-full border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/15"
+              >
+                Já tenho uma conta
+              </Link>
+            </div>
           </div>
         </div>
       </section>

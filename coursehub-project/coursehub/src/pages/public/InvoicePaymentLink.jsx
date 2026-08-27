@@ -156,122 +156,242 @@ export default function InvoicePaymentLink() {
   }
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-14 sm:px-6">
-      <div className="mb-8 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-          <Receipt size={21} aria-hidden="true" />
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-blue-600">Pagamento de cobrança</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">CourseHub</h1>
+  <main className="min-h-screen bg-slate-50">
+    <section className="border-b border-slate-200 bg-white">
+      <div className="mx-auto max-w-6xl px-6 py-10 lg:px-8">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+            <Receipt size={22} aria-hidden="true" />
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-600">
+              Pagamento de cobrança
+            </p>
+
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
+              Finalize seu pagamento
+            </h1>
+
+            <p className="mt-2 text-sm text-slate-500">
+              Revise os dados e escolha a forma de pagamento.
+            </p>
+          </div>
         </div>
       </div>
+    </section>
 
+    <section className="mx-auto max-w-6xl px-6 py-10 lg:px-8 lg:py-14">
       {pageState === "loading" && (
-        <p className="text-sm text-slate-500">Carregando cobrança...</p>
+        <p className="text-sm text-slate-500">
+          Carregando cobrança...
+        </p>
       )}
 
       {pageState === "invalid-or-expired-link" && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm leading-6 text-red-700">
-          <div className="mb-1 flex items-center gap-2 font-semibold">
-            <AlertTriangle size={16} /> Link inválido ou expirado
+        <div className="mx-auto max-w-xl rounded-2xl border border-red-200 bg-red-50 p-6 text-sm leading-6 text-red-700">
+          <div className="mb-2 flex items-center gap-2 font-semibold">
+            <AlertTriangle size={18} />
+            Link inválido ou expirado
           </div>
-          Este link de pagamento não é mais válido. Solicite um novo link à instituição.
+
+          Este link de pagamento não é mais válido.
+          Solicite um novo link à instituição.
         </div>
       )}
 
-      {invoice && (pageState === "overdue" || pageState === "cancelled") && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-6 text-amber-700">
-          {STATE_LABEL[pageState]}. Entre em contato com a instituição para regularizar.
-        </div>
-      )}
+      {invoice &&
+        (pageState === "overdue" ||
+          pageState === "cancelled") && (
+          <div className="mx-auto max-w-xl rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm leading-6 text-amber-700">
+            {STATE_LABEL[pageState]}. Entre em
+            contato com a instituição para
+            regularizar.
+          </div>
+        )}
 
-      {invoice && pageState !== "loading" && pageState !== "invalid-or-expired-link" && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Aluno</dt>
-              <dd className="font-medium text-slate-900">{invoice.studentDisplayName}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Curso</dt>
-              <dd className="font-medium text-slate-900">{invoice.courseName}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Valor</dt>
-              <dd className="font-semibold text-slate-900">{formatCurrency(invoice.amount)}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Vencimento</dt>
-              <dd className="font-medium text-slate-900">{formatDate(invoice.dueDate)}</dd>
-            </div>
-          </dl>
+      {invoice &&
+        pageState !== "loading" &&
+        pageState !==
+          "invalid-or-expired-link" &&
+        pageState !== "overdue" &&
+        pageState !== "cancelled" && (
+          <div className="grid gap-8 lg:grid-cols-[1fr_380px] lg:items-start">
+            {/* PAGAMENTO */}
+            <div className="space-y-6">
+              {pageState === "confirmed" && (
+                <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm font-medium text-emerald-700">
+                  <ShieldCheck size={20} />
 
-          {pageState === "confirmed" && (
-            <div className="mt-6 flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-              <ShieldCheck size={18} />
-              Esta cobrança já foi paga.
-            </div>
-          )}
-
-          {pageState === "available" && (
-            <div className="mt-6 space-y-4">
-              <PaymentMethodSelector
-                acceptedMethods={invoice.acceptedMethods}
-                selected={selectedMethod}
-                onSelect={handleSelectMethod}
-                disabled={starting}
-              />
-
-              {selectedMethod === "credit_card" && (
-                <CreditCardPaymentPanel
-                  amount={invoice.amount}
-                  onToken={handleCardToken}
-                  submitting={starting}
-                />
+                  Esta cobrança já foi paga.
+                </div>
               )}
 
-              {paymentError && (
-                <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
-                  {paymentError}
+              {pageState === "available" && (
+                <>
+                  <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+                    <h2 className="text-lg font-semibold text-slate-950">
+                      Forma de pagamento
+                    </h2>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Escolha como deseja pagar esta cobrança.
+                    </p>
+
+                    <div className="mt-6">
+                      <PaymentMethodSelector
+                        acceptedMethods={
+                          invoice.acceptedMethods
+                        }
+                        selected={
+                          selectedMethod
+                        }
+                        onSelect={
+                          handleSelectMethod
+                        }
+                        disabled={starting}
+                      />
+                    </div>
+                  </div>
+
+                  {selectedMethod ===
+                    "credit_card" && (
+                    <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+                      <CreditCardPaymentPanel
+                        amount={
+                          invoice.amount
+                        }
+                        onToken={
+                          handleCardToken
+                        }
+                        submitting={starting}
+                      />
+                    </div>
+                  )}
+
+                  {paymentError && (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                      {paymentError}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {pageState === "processing" &&
+                payment &&
+                selectedMethod === "pix" && (
+                  <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+                    <PixPaymentPanel
+                      initialPayment={
+                        payment
+                      }
+                      fetchPaymentFn={
+                        getPublicInvoicePayment
+                      }
+                      onApproved={() =>
+                        setPageState(
+                          "confirmed"
+                        )
+                      }
+                    />
+                  </div>
+                )}
+
+              {pageState === "processing" &&
+                payment &&
+                selectedMethod ===
+                  "boleto" && (
+                  <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+                    <BoletoPaymentPanel
+                      initialPayment={
+                        payment
+                      }
+                      fetchPaymentFn={
+                        getPublicInvoicePayment
+                      }
+                      onApproved={() =>
+                        setPageState(
+                          "confirmed"
+                        )
+                      }
+                    />
+                  </div>
+                )}
+
+              {pageState === "processing" &&
+                payment &&
+                selectedMethod ===
+                  "credit_card" && (
+                  <div className="rounded-[2rem] border border-slate-200 bg-white p-8 text-center shadow-sm">
+                    <p className="text-sm text-slate-500">
+                      Processando pagamento com
+                      cartão. Não feche esta
+                      página.
+                    </p>
+                  </div>
+                )}
+
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                <p className="text-sm leading-6 text-blue-900">
+                  Por segurança, este link dá
+                  acesso somente a esta
+                  cobrança. Não encaminhe o
+                  endereço para outras pessoas.
                 </p>
-              )}
+              </div>
             </div>
-          )}
 
-          {pageState === "processing" && payment && selectedMethod === "pix" && (
-            <div className="mt-6">
-              <PixPaymentPanel
-                initialPayment={payment}
-                fetchPaymentFn={getPublicInvoicePayment}
-                onApproved={() => setPageState("confirmed")}
-              />
-            </div>
-          )}
-
-          {pageState === "processing" && payment && selectedMethod === "boleto" && (
-            <div className="mt-6">
-              <BoletoPaymentPanel
-                initialPayment={payment}
-                fetchPaymentFn={getPublicInvoicePayment}
-                onApproved={() => setPageState("confirmed")}
-              />
-            </div>
-          )}
-
-          {pageState === "processing" && payment && selectedMethod === "credit_card" && (
-            <div className="mt-6">
-              <p className="text-center text-sm text-slate-500">
-                Processando pagamento com cartão. Não feche esta página.
+            {/* RESUMO */}
+            <aside className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-28">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+                Resumo da cobrança
               </p>
-            </div>
-          )}
-        </div>
-      )}
 
-      <p className="mt-6 text-center text-xs text-slate-400">
-        Por segurança, não encaminhe este link a outras pessoas.
-      </p>
-    </div>
-  );
+              <h2 className="mt-3 text-xl font-semibold text-slate-950">
+                {invoice.courseName}
+              </h2>
+
+              <dl className="mt-6 space-y-4 border-y border-slate-100 py-6">
+                <div className="flex justify-between gap-6">
+                  <dt className="text-sm text-slate-500">
+                    Aluno
+                  </dt>
+
+                  <dd className="text-right text-sm font-medium text-slate-900">
+                    {
+                      invoice.studentDisplayName
+                    }
+                  </dd>
+                </div>
+
+                <div className="flex justify-between gap-6">
+                  <dt className="text-sm text-slate-500">
+                    Vencimento
+                  </dt>
+
+                  <dd className="text-right text-sm font-medium text-slate-900">
+                    {formatDate(
+                      invoice.dueDate
+                    )}
+                  </dd>
+                </div>
+              </dl>
+
+              <div className="mt-6 flex items-end justify-between gap-4">
+                <span className="text-sm text-slate-500">
+                  Total
+                </span>
+
+                <strong className="text-2xl font-semibold tracking-tight text-slate-950">
+                  {formatCurrency(
+                    invoice.amount
+                  )}
+                </strong>
+              </div>
+            </aside>
+          </div>
+        )}
+    </section>
+  </main>
+);
 }

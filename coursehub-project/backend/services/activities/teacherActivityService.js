@@ -162,7 +162,13 @@ async function listTeacherActivities(db, { userId }) {
       FROM teachers t
 
       INNER JOIN courses c
-        ON c.teacher_id = t.id
+        ON (
+          EXISTS (
+            SELECT 1 FROM course_teachers ct
+            WHERE ct.course_id = c.id AND ct.teacher_id = t.id AND ct.status = 'active'
+          )
+          OR c.teacher_id = t.id
+        )
 
       INNER JOIN activities a
         ON a.course_id = c.id
@@ -260,7 +266,13 @@ async function getTeacherActivityDetail(db, { userId, activityId }) {
         ON sub.activity_id = a.id
 
       WHERE a.id = ?
-        AND c.teacher_id = ?
+        AND (
+          EXISTS (
+            SELECT 1 FROM course_teachers ct
+            WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
+          )
+          OR c.teacher_id = ?
+        )
 
       GROUP BY
         a.id,
@@ -282,7 +294,7 @@ async function getTeacherActivityDetail(db, { userId, activityId }) {
 
       LIMIT 1
     `,
-    [normalizedActivityId, teacherId]
+    [normalizedActivityId, teacherId, teacherId]
   );
 
   if (activityRows.length === 0) {
@@ -472,11 +484,17 @@ async function createActivity(db, { userId, payload }) {
         SELECT id, name
         FROM courses
         WHERE id = ?
-          AND teacher_id = ?
           AND status = 'active'
+          AND (
+            EXISTS (
+              SELECT 1 FROM course_teachers ct
+              WHERE ct.course_id = courses.id AND ct.teacher_id = ? AND ct.status = 'active'
+            )
+            OR teacher_id = ?
+          )
         LIMIT 1
       `,
-      [normalizedCourseId, teacherId]
+      [normalizedCourseId, teacherId, teacherId]
     );
 
     if (courseRows.length === 0) {
@@ -757,13 +775,19 @@ async function updateActivity(db, { userId, activityId, payload }) {
           ON c.id = a.course_id
 
         WHERE a.id = ?
-          AND c.teacher_id = ?
+          AND (
+            EXISTS (
+              SELECT 1 FROM course_teachers ct
+              WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
+            )
+            OR c.teacher_id = ?
+          )
 
         LIMIT 1
 
         FOR UPDATE
       `,
-      [normalizedActivityId, teacherId]
+      [normalizedActivityId, teacherId, teacherId]
     );
 
     if (activityRows.length === 0) {
@@ -787,10 +811,16 @@ async function updateActivity(db, { userId, activityId, payload }) {
         SELECT id, name, status
         FROM courses
         WHERE id = ?
-          AND teacher_id = ?
+          AND (
+            EXISTS (
+              SELECT 1 FROM course_teachers ct
+              WHERE ct.course_id = courses.id AND ct.teacher_id = ? AND ct.status = 'active'
+            )
+            OR teacher_id = ?
+          )
         LIMIT 1
       `,
-      [normalizedCourseId, teacherId]
+      [normalizedCourseId, teacherId, teacherId]
     );
 
     if (courseRows.length === 0) {
@@ -1120,13 +1150,19 @@ async function deactivateActivity(db, { userId, activityId }) {
           ON c.id = a.course_id
 
         WHERE a.id = ?
-          AND c.teacher_id = ?
+          AND (
+            EXISTS (
+              SELECT 1 FROM course_teachers ct
+              WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
+            )
+            OR c.teacher_id = ?
+          )
 
         LIMIT 1
 
         FOR UPDATE
       `,
-      [normalizedActivityId, teacherId]
+      [normalizedActivityId, teacherId, teacherId]
     );
 
     if (activityRows.length === 0) {

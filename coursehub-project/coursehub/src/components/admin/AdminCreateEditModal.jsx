@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../services/APIService";
+import MultiSelectField from "./MultiSelectField";
 
 function AdminCreateEditModal({
   mode = "create",
@@ -62,6 +63,7 @@ function AdminCreateEditModal({
       cpf: "",
       phone: "",
       status: "active",
+      courseIds: [],
     });
 
   const [formCourseData, setFormCourseData] =
@@ -71,13 +73,16 @@ function AdminCreateEditModal({
       workload_hours: "",
       price: "",
       status: "active",
-      teacher_id: "",
+      teacherIds: [],
       image_url: "",
       nivel: "Iniciante",
       expanded_description: "",
       syllabus: "",
       category: "",
     });
+
+  const [courses, setCourses] = useState([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
 
   /*
    * Busca os professores somente quando
@@ -141,6 +146,55 @@ function AdminCreateEditModal({
   }, [isCourseVariant]);
 
   /*
+   * Busca os cursos somente quando o modal está sendo usado para
+   * professores -- multi-select de "Cursos vinculados".
+   */
+  useEffect(() => {
+    if (!isTeacherVariant) {
+      return;
+    }
+
+    let ignoreRequest = false;
+
+    async function fetchCourses() {
+      try {
+        setLoadingCourses(true);
+        setError("");
+
+        const response = await apiFetch("/api/admin/courses");
+
+        const courseList = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.courses)
+            ? response.courses
+            : Array.isArray(response?.data)
+              ? response.data
+              : [];
+
+        if (!ignoreRequest) {
+          setCourses(courseList);
+        }
+      } catch (error) {
+        if (ignoreRequest) return;
+
+        console.error("Erro ao carregar cursos:", error);
+        setCourses([]);
+        setError(error.message || "Não foi possível carregar a lista de cursos.");
+      } finally {
+        if (!ignoreRequest) {
+          setLoadingCourses(false);
+        }
+      }
+    }
+
+    fetchCourses();
+
+    return () => {
+      ignoreRequest = true;
+    };
+  }, [isTeacherVariant]);
+
+  /*
    * Preenche o formulário do professor
    * com os dados recebidos da listagem.
    */
@@ -166,6 +220,8 @@ function AdminCreateEditModal({
       phone: initialData.phone || "",
       status:
         initialData.status || "active",
+      courseIds:
+        initialData.courseIds || [],
     });
   }, [
     isEditMode,
@@ -221,11 +277,8 @@ function AdminCreateEditModal({
           price: course.price ?? "",
           status:
             course.status || "active",
-          teacher_id:
-            course.teacher_id !== null &&
-            course.teacher_id !== undefined
-              ? String(course.teacher_id)
-              : "",
+          teacherIds:
+            course.teacherIds || [],
           image_url:
             course.image_url || "",
           nivel:
@@ -438,10 +491,6 @@ function AdminCreateEditModal({
         return "Descrição do curso é obrigatória.";
       }
 
-      if (!form.teacher_id) {
-        return "Selecione um professor responsável.";
-      }
-
       if (
         form.workload_hours !== "" &&
         Number(form.workload_hours) < 0
@@ -522,6 +571,8 @@ function AdminCreateEditModal({
         status:
           formTeacherData.status ||
           "active",
+        courseIds:
+          formTeacherData.courseIds,
       };
 
       if (formTeacherData.password) {
@@ -553,9 +604,8 @@ function AdminCreateEditModal({
         formCourseData.status ||
         "active",
 
-      teacher_id: Number(
-        formCourseData.teacher_id
-      ),
+      teacherIds:
+        formCourseData.teacherIds,
 
       image_url:
         formCourseData.image_url.trim() ||
@@ -718,6 +768,8 @@ function AdminCreateEditModal({
                 inputClass={inputClass}
                 labelClass={labelClass}
                 isEditMode={isEditMode}
+                courses={courses}
+                loadingCourses={loadingCourses}
               />
             )}
 
@@ -948,6 +1000,8 @@ function StudentFields(props) {
 }
 
 function TeacherFields(props) {
+  const { formData, handleChange, courses = [], loadingCourses = false } = props;
+
   return (
     <>
       <UserBaseFields {...props} />
@@ -991,6 +1045,20 @@ function TeacherFields(props) {
           className={props.inputClass}
         />
       </label>
+
+      <MultiSelectField
+        id="teacher-course-ids"
+        label="Cursos vinculados"
+        options={courses.map((course) => ({ id: course.id, name: course.name }))}
+        selectedIds={formData.courseIds}
+        onChange={(courseIds) =>
+          handleChange({ target: { name: "courseIds", value: courseIds } })
+        }
+        loading={loadingCourses}
+        placeholder="Buscar curso..."
+        emptyOptionsMessage="Nenhum curso foi encontrado."
+        noneSelectedMessage="Nenhum curso vinculado."
+      />
     </>
   );
 }
@@ -1052,65 +1120,42 @@ function CourseFields({
         valores.
       </p>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <label className={labelClass}>
-          Professor responsável
+      <MultiSelectField
+        id="course-teacher-ids"
+        label="Professores do curso"
+        options={teachers.map((teacher) => ({ id: teacher.id, name: teacher.name }))}
+        selectedIds={formData.teacherIds}
+        onChange={(teacherIds) =>
+          handleChange({ target: { name: "teacherIds", value: teacherIds } })
+        }
+        loading={loadingTeachers}
+        placeholder="Buscar professor..."
+        emptyOptionsMessage="Nenhum professor foi encontrado."
+        noneSelectedMessage="Nenhum professor vinculado."
+      />
 
-          <select
-            name="teacher_id"
-            value={formData.teacher_id}
-            onChange={handleChange}
-            required
-            disabled={loadingTeachers}
-            className={inputClass}
-          >
-            <option value="">
-              {loadingTeachers
-                ? "Carregando professores..."
-                : "Selecione um professor"}
-            </option>
+      <label className={labelClass}>
+        Nível
 
-            {teachers.map((teacher) => (
-              <option
-                key={teacher.id}
-                value={teacher.id}
-              >
-                {teacher.name}
-              </option>
-            ))}
-          </select>
+        <select
+          name="nivel"
+          value={formData.nivel}
+          onChange={handleChange}
+          className={inputClass}
+        >
+          <option value="Iniciante">
+            Iniciante
+          </option>
 
-          {!loadingTeachers &&
-            teachers.length === 0 && (
-              <p className="mt-2 text-xs font-medium text-red-600">
-                Nenhum professor foi encontrado.
-              </p>
-            )}
-        </label>
+          <option value="Intermediário">
+            Intermediário
+          </option>
 
-        <label className={labelClass}>
-          Nível
-
-          <select
-            name="nivel"
-            value={formData.nivel}
-            onChange={handleChange}
-            className={inputClass}
-          >
-            <option value="Iniciante">
-              Iniciante
-            </option>
-
-            <option value="Intermediário">
-              Intermediário
-            </option>
-
-            <option value="Avançado">
-              Avançado
-            </option>
-          </select>
-        </label>
-      </div>
+          <option value="Avançado">
+            Avançado
+          </option>
+        </select>
+      </label>
 
       <label className={labelClass}>
         Categoria

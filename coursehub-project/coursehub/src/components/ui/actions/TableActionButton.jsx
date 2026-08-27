@@ -35,6 +35,7 @@ const VARIANT_CLASSES = {
 };
 
 const SIZE_CLASSES = {
+  xs: "px-2 py-1 text-[11px]",
   sm: "px-3 py-1.5 text-xs",
   md: "px-3.5 py-2 text-sm",
 };

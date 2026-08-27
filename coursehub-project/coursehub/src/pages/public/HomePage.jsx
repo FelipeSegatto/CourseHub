@@ -213,20 +213,45 @@ export default function HomePage() {
       {/* CURSOS EM DESTAQUE — DISPLAY EDITORIAL */}
       <section className="overflow-hidden bg-white">
         <div className="mx-auto max-w-7xl px-6 py-20 lg:px-8 lg:py-28">
-          <header className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700">
-              Cursos em destaque
-            </p>
+          {/* ABERTURA — CURSOS EM DESTAQUE */}
+          <div className="relative isolate overflow-hidden rounded-[2rem] bg-slate-950">
+            <img
+              src="/images/featured-courses-background.jpeg"
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 h-full w-full object-contain object-left"
+            />
 
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl">
-              Formações escolhidas para transformar seus próximos passos
-            </h1>
+            {/* contraste para o texto no lado direito */}
+            <div className="absolute inset-0 bg-gradient-to-l from-slate-950/95 via-slate-950/65 to-transparent" />
 
-            <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600">
-              Conheça algumas das experiências disponíveis no CourseHub e
-              encontre uma formação alinhada ao que você deseja construir.
-            </p>
-          </header>
+            <div className="relative flex min-h-[430px] items-center justify-end px-7 py-14 md:px-10 lg:min-h-[480px] lg:px-14">
+              <header className="max-w-[560px] text-right">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-300">
+                  Cursos em destaque
+                </p>
+
+                <h1 className="mt-4 text-3xl font-semibold leading-tight tracking-tight text-white md:text-4xl lg:text-5xl">
+                  Formações para abrir novos caminhos.
+                </h1>
+
+                <p className="mt-5 ml-auto max-w-[520px] text-base leading-7 text-slate-300">
+                  Conheça algumas das experiências disponíveis no CourseHub e
+                  encontre uma formação alinhada ao que você deseja construir.
+                </p>
+
+                <div className="mt-8 flex justify-end">
+                  <Link
+                    to="/courses"
+                    className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
+                  >
+                    Ver todos os cursos
+                    <ArrowRight size={17} />
+                  </Link>
+                </div>
+              </header>
+            </div>
+          </div>
 
           <div className="mt-14">
             {loadingCourses ? (
@@ -558,30 +583,57 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-6 py-20 lg:px-8">
-        <div className="overflow-hidden rounded-[2rem] bg-blue-700 px-7 py-12 text-center md:px-16 md:py-16">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-200">
-            Seu próximo passo começa aqui
-          </p>
+      {/* CTA FINAL */}
+        <section className="mx-auto max-w-7xl px-6 pb-20 lg:px-8">
+          <div className="relative isolate overflow-hidden rounded-[2rem] px-7 py-12 text-center md:px-16 md:py-16">
+            {/* BACKGROUND */}
+            <img
+              src="/images/home-final-cta-background.jpg"
+              alt=""
+              aria-hidden="true"
+              className="
+                pointer-events-none
+                absolute
+                left-1/2
+                top-1/2
+                h-[160%]
+                w-[160%]
+                max-w-none
+                -translate-x-1/2
+                -translate-y-1/2
+                object-cover
+                object-center
+              "
+            />
 
-          <h2 className="mx-auto mt-4 max-w-2xl text-3xl font-semibold tracking-tight text-white md:text-4xl">
-            Encontre um curso alinhado aos seus objetivos
-          </h2>
+            {/* Overlay */}
+            <div className="absolute inset-0 bg-blue-950/20" />
 
-          <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-blue-100">
-            Conheça o catálogo, consulte os detalhes de cada formação e
-            escolha como deseja continuar aprendendo.
-          </p>
+            {/* CONTEÚDO */}
+            <div className="relative">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-100">
+                Seu próximo passo começa aqui
+              </p>
 
-          <Link
-            to="/courses"
-            className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-blue-800 transition hover:bg-blue-50"
-          >
-            Explorar cursos
-            <ArrowRight size={17} />
-          </Link>
-        </div>
-      </section>
+              <h2 className="mx-auto mt-4 max-w-2xl text-3xl font-semibold tracking-tight text-white md:text-4xl">
+                Encontre um curso alinhado aos seus objetivos
+              </h2>
+
+              <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-blue-50/90">
+                Conheça o catálogo, consulte os detalhes de cada formação e
+                escolha como deseja continuar aprendendo.
+              </p>
+
+              <Link
+                to="/courses"
+                className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-blue-900 transition hover:bg-blue-50"
+              >
+                Explorar cursos
+                <ArrowRight size={17} />
+              </Link>
+            </div>
+          </div>
+        </section>
     </main>
   );
 }

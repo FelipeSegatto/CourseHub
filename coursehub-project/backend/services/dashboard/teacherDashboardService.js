@@ -31,7 +31,13 @@ const TEACHER_STUDENT_SCOPE_JOIN = `
 const TEACHER_STUDENT_SCOPE_CONDITION = `
   AND (
     (e.class_id IS NOT NULL AND cl.teacher_id = ?)
-    OR (e.class_id IS NULL AND c.teacher_id = ?)
+    OR (e.class_id IS NULL AND (
+      EXISTS (
+        SELECT 1 FROM course_teachers ct
+        WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
+      )
+      OR c.teacher_id = ?
+    ))
   )
 `;
 
@@ -66,7 +72,7 @@ async function countUniqueActiveStudents(db, teacherId) {
       WHERE e.status = 'active'
       ${TEACHER_STUDENT_SCOPE_CONDITION}
     `,
-    [teacherId, teacherId]
+    [teacherId, teacherId, teacherId]
   );
 
   return Number(rows[0]?.count || 0);
@@ -83,10 +89,16 @@ async function countPendingReviews(db, teacherId) {
       WHERE s.status IN ('submitted', 'pending_review')
         AND (
           (a.class_id IS NOT NULL AND cl.teacher_id = ?)
-          OR (a.class_id IS NULL AND c.teacher_id = ?)
+          OR (a.class_id IS NULL AND (
+            EXISTS (
+              SELECT 1 FROM course_teachers ct
+              WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
+            )
+            OR c.teacher_id = ?
+          ))
         )
     `,
-    [teacherId, teacherId]
+    [teacherId, teacherId, teacherId]
   );
 
   return Number(rows[0]?.count || 0);
@@ -107,7 +119,13 @@ async function listPendingReviewActivities(db, teacherId) {
       WHERE a.status = 'active'
         AND (
           (a.class_id IS NOT NULL AND cl.teacher_id = ?)
-          OR (a.class_id IS NULL AND c.teacher_id = ?)
+          OR (a.class_id IS NULL AND (
+            EXISTS (
+              SELECT 1 FROM course_teachers ct
+              WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
+            )
+            OR c.teacher_id = ?
+          ))
         )
       GROUP BY a.id, a.title, a.activity_kind, a.due_date, c.name, cl.name
       HAVING pending_count > 0
@@ -116,7 +134,7 @@ async function listPendingReviewActivities(db, teacherId) {
         a.due_date ASC
       LIMIT ${PENDING_REVIEWS_LIMIT}
     `,
-    [teacherId, teacherId]
+    [teacherId, teacherId, teacherId]
   );
 
   return rows.map((row) => ({

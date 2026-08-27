@@ -123,36 +123,153 @@ async function expireDuePaymentAttempts(connection, invoiceId) {
  * prazo abaixo continuam como uma segunda barreira defensiva, não uma
  * lógica de vencimento duplicada/nova.
  */
-function isReusableAttempt(payment, paymentMethod) {
-  if (payment.status !== "pending" || payment.payment_method !== paymentMethod) {
+function isReusableAttempt(
+  payment,
+  paymentMethod
+) {
+
+  /**
+   * ==========================================================
+   * ESTADO / MÉTODO
+   * ==========================================================
+   */
+  if (
+    payment.status !==
+      "pending" ||
+    payment.payment_method !==
+      paymentMethod
+  ) {
     return false;
   }
 
-  if (payment.gateway !== getPaymentGatewayName()) {
+
+  /**
+   * O pagamento precisa pertencer
+   * ao gateway atualmente configurado.
+   */
+  if (
+    payment.gateway !==
+    getPaymentGatewayName()
+  ) {
     return false;
   }
 
-  // Uma tentativa de cartão nunca é reaproveitada -- cada tentativa
-  // exige uma tokenização client-side nova, o token anterior não pode
-  // ser reutilizado pelo provider.
-  if (paymentMethod === "credit_card") {
+
+  /**
+   * ==========================================================
+   * GATEWAY SIMULADO
+   * ==========================================================
+   *
+   * IMPORTANTE:
+   *
+   * O simulatedGateway guarda pagamentos em:
+   *
+   * const store = new Map()
+   *
+   * Esse Map desaparece quando o backend reinicia.
+   *
+   *
+   * Portanto um PIX pode continuar assim no MySQL:
+   *
+   * status = pending
+   *
+   * mesmo que o provider simulado já tenha esquecido
+   * completamente aquele gateway_payment_id.
+   *
+   *
+   * Antes o CourseHub reaproveitava esse pagamento:
+   *
+   * pagamento antigo pending
+   * ↓
+   * reused = true
+   * ↓
+   * gateway.createPayment NÃO executava
+   * ↓
+   * nenhum novo timer de autoApprove
+   * ↓
+   * spinner infinito
+   *
+   *
+   * Em desenvolvimento preferimos criar uma NOVA
+   * tentativa contra a mesma invoice.
+   *
+   * A invoice NÃO é duplicada.
+   * O contrato NÃO é duplicado.
+   *
+   * Apenas cria uma nova PAYMENT ATTEMPT,
+   * que é exatamente para isso que a tabela
+   * payments existe.
+   */
+  if (
+    payment.gateway ===
+    "simulated"
+  ) {
     return false;
   }
 
-  if (paymentMethod === "pix") {
-    if (!payment.pix_expires_at) {
+
+  /**
+   * ==========================================================
+   * CARTÃO
+   * ==========================================================
+   *
+   * Nunca reutilizamos token de cartão.
+   */
+  if (
+    paymentMethod ===
+    "credit_card"
+  ) {
+    return false;
+  }
+
+
+  /**
+   * ==========================================================
+   * PIX REAL
+   * ==========================================================
+   *
+   * Para gateway real podemos reutilizar enquanto
+   * o PIX não venceu.
+   */
+  if (
+    paymentMethod ===
+    "pix"
+  ) {
+
+    if (
+      !payment.pix_expires_at
+    ) {
       return true;
     }
 
-    return new Date(payment.pix_expires_at).getTime() > Date.now();
+
+    return (
+      new Date(
+        payment.pix_expires_at
+      ).getTime() >
+      Date.now()
+    );
   }
 
-  // boleto
-  if (!payment.boleto_due_date) {
+
+  /**
+   * ==========================================================
+   * BOLETO REAL
+   * ==========================================================
+   */
+  if (
+    !payment.boleto_due_date
+  ) {
     return true;
   }
 
-  return new Date(payment.boleto_due_date).getTime() > Date.now();
+
+  return (
+    new Date(
+      payment.boleto_due_date
+    ).getTime() >
+    Date.now()
+  );
 }
 
 function toPaymentDto(payment) {

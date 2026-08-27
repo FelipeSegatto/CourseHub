@@ -64,7 +64,10 @@ function withContentScopeFieldsBothCasing(row, { classId, className } = {}) {
 
 /**
  * Confirma que o conteúdo existe e pertence a um curso do professor
- * autenticado. Lança 404 quando não existe ou não pertence.
+ * autenticado (membership via course_teachers, incluindo
+ * courses.teacher_id legado como vínculo elegível -- ver
+ * courseTeacherService.js#isTeacherAssignedToCourse). Lança 404
+ * quando não existe ou não pertence.
  */
 async function assertContentOwnedByTeacher(runner, { contentId, teacherId }) {
   const [rows] = await runner.execute(
@@ -84,11 +87,17 @@ async function assertContentOwnedByTeacher(runner, { contentId, teacherId }) {
         ON c.id = cc.course_id
 
       WHERE cc.id = ?
-        AND c.teacher_id = ?
+        AND (
+          EXISTS (
+            SELECT 1 FROM course_teachers ct
+            WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
+          )
+          OR c.teacher_id = ?
+        )
 
       LIMIT 1
     `,
-    [contentId, teacherId]
+    [contentId, teacherId, teacherId]
   );
 
   if (rows.length === 0) {
