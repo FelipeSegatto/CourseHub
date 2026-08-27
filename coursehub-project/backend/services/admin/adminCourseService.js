@@ -4,6 +4,13 @@ const {
   listActivePlansForCourse,
 } = require("../courses/coursePricingService");
 
+const {
+  normalizeTeacherIds,
+  validateTeacherIds,
+  listCourseTeachers,
+  syncCourseTeachers,
+} = require("../courses/courseTeacherService");
+
 const ALLOWED_COURSE_STATUSES = ["active", "inactive", "draft", "archived"];
 
 function createServiceError(message, statusCode) {
@@ -58,10 +65,45 @@ async function listCourses(db) {
     `
   );
 
+  // Professores N:N anexados em lote (uma única query para todos os
+  // cursos desta página, nunca N+1) -- teacher_name acima continua
+  // sendo devolvido por compatibilidade (courses.teacher_id legado),
+  // teachers/teacherIds é a fonte que reflete todos os vínculos
+  // ativos via course_teachers.
+  const [membershipRows] = await db.promise().query(
+    `
+      SELECT ct.course_id, t.id AS teacher_id, t.name AS teacher_name
+      FROM course_teachers ct
+      INNER JOIN teachers t ON t.id = ct.teacher_id
+      WHERE ct.status = 'active'
+      ORDER BY t.name ASC
+    `
+  );
+
+  const teachersByCourseId = new Map();
+
+  for (const row of membershipRows) {
+    if (!teachersByCourseId.has(row.course_id)) {
+      teachersByCourseId.set(row.course_id, []);
+    }
+
+    teachersByCourseId.get(row.course_id).push({ id: row.teacher_id, name: row.teacher_name });
+  }
+
+  const coursesWithTeachers = courses.map((course) => {
+    const teachers = teachersByCourseId.get(course.id) || [];
+
+    return {
+      ...course,
+      teachers,
+      teacherIds: teachers.map((teacher) => teacher.id),
+    };
+  });
+
   // pricing é anexado em lote (uma única query agrupada para todos os
   // cursos desta página) -- courses.price nunca é lido aqui, ver
   // coursePricingService.
-  return attachPricingToCourses(db, courses);
+  return attachPricingToCourses(db, coursesWithTeachers);
 }
 
 /**
@@ -93,6 +135,15 @@ async function getCourseById(db, id) {
     throw createServiceError("Curso não encontrado.", 404);
   }
 
+  // reconcileLegacy: true -- se courses.teacher_id ainda não tiver um
+  // vínculo ativo correspondente em course_teachers (curso nunca
+  // editado pelo fluxo novo), sincroniza aqui mesmo, na leitura, para
+  // que course_teachers vá convergindo para a fonte oficial de
+  // membership.
+  const teachers = await listCourseTeachers(db.promise(), normalizedCourseId, {
+    reconcileLegacy: true,
+  });
+
   // `price` continua sendo devolvido aqui só para o formulário
   // administrativo conseguir reenviar o valor inalterado no PUT (o
   // campo não é mais editável na UI, ver AdminCreateEditModal) --
@@ -101,6 +152,8 @@ async function getCourseById(db, id) {
   // públicas).
   return {
     ...courseRows[0],
+    teachers,
+    teacherIds: teachers.map((teacher) => teacher.id),
     pricing: await getPricingSummaryForCourse(db, normalizedCourseId),
   };
 }
@@ -117,6 +170,7 @@ async function createCourse(db, payload) {
     price,
     status,
     teacher_id,
+    teacherIds,
     image_url,
     nivel,
     expanded_description,
@@ -130,6 +184,13 @@ async function createCourse(db, payload) {
 
   const normalizedTeacherId = normalizeTeacherId(teacher_id);
   const normalizedStatus = status || "draft";
+
+  // teacherIds ausente (undefined) = chamador legado que ainda não
+  // fala a nova forma de curso -- não mexe em course_teachers. Um
+  // array (mesmo vazio, "nenhum professor vinculado") é tratado como
+  // instrução explícita de sincronizar para exatamente esse conjunto.
+  const hasTeacherIds = teacherIds !== undefined;
+  const normalizedTeacherIds = hasTeacherIds ? normalizeTeacherIds(teacherIds) : [];
 
   if (!ALLOWED_COURSE_STATUSES.includes(normalizedStatus)) {
     throw createServiceError("Status do curso inválido.", 400);
@@ -157,6 +218,10 @@ async function createCourse(db, payload) {
       }
     }
 
+    if (hasTeacherIds) {
+      await validateTeacherIds(connection, normalizedTeacherIds);
+    }
+
     const [result] = await connection.query(
       `
         INSERT INTO courses
@@ -179,16 +244,27 @@ async function createCourse(db, payload) {
       ]
     );
 
+    const newCourseId = result.insertId;
+
+    // teacherIds é a fonte oficial de membership -- courses.teacher_id
+    // acima nunca é derivado dela nesta versão (sem noção de
+    // "principal"), fica exatamente com o que o formulário legado
+    // enviou.
+    if (hasTeacherIds) {
+      await syncCourseTeachers(connection, newCourseId, normalizedTeacherIds);
+    }
+
     await connection.commit();
 
     return {
-      id: result.insertId,
+      id: newCourseId,
       name: name.trim(),
       description: description?.trim() || null,
       workload_hours: normalizedWorkloadHours,
       price: normalizedPrice,
       status: normalizedStatus,
       teacher_id: normalizedTeacherId,
+      teacherIds: hasTeacherIds ? normalizedTeacherIds : undefined,
       image_url: image_url?.trim() || null,
       nivel: nivel?.trim() || "Iniciante",
       expanded_description: expanded_description?.trim() || null,
@@ -220,6 +296,7 @@ async function updateCourse(db, id, payload) {
     price,
     status,
     teacher_id,
+    teacherIds,
     image_url,
     nivel,
     expanded_description,
@@ -244,6 +321,9 @@ async function updateCourse(db, id, payload) {
   );
   const normalizedPrice = normalizeNumericField(price, "Preço inválido.");
 
+  const hasTeacherIds = teacherIds !== undefined;
+  const normalizedTeacherIds = hasTeacherIds ? normalizeTeacherIds(teacherIds) : [];
+
   const connection = await db.promise().getConnection();
 
   try {
@@ -267,6 +347,10 @@ async function updateCourse(db, id, payload) {
       if (teacherRows.length === 0) {
         throw createServiceError("Professor não encontrado.", 404);
       }
+    }
+
+    if (hasTeacherIds) {
+      await validateTeacherIds(connection, normalizedTeacherIds);
     }
 
     const [result] = await connection.query(
@@ -298,6 +382,10 @@ async function updateCourse(db, id, payload) {
       throw createServiceError("Não foi possível atualizar o curso.", 404);
     }
 
+    if (hasTeacherIds) {
+      await syncCourseTeachers(connection, normalizedCourseId, normalizedTeacherIds);
+    }
+
     await connection.commit();
 
     return {
@@ -308,6 +396,7 @@ async function updateCourse(db, id, payload) {
       price: normalizedPrice,
       status: normalizedStatus,
       teacher_id: normalizedTeacherId,
+      teacherIds: hasTeacherIds ? normalizedTeacherIds : undefined,
       image_url: image_url?.trim() || null,
       nivel: nivel?.trim() || "Iniciante",
       expanded_description: expanded_description?.trim() || null,

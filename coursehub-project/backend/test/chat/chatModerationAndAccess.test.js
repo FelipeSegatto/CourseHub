@@ -34,6 +34,7 @@ const { grantPermission, revokePermission } = require("../../services/admin/admi
 const STUDENT_A_USER_ID = 1;
 const STUDENT_B_USER_ID = 2;
 const TEACHER_USER_ID = 19;
+const TEACHER_ID = 9; // teachers.id for TEACHER_USER_ID -- openTeacherQuestion requires an explicit teacherId now.
 const COURSE_ID = 9;
 const ENROLLED_STUDENT_USER_ID = 69;
 const ADMIN_USER_ID = 42;
@@ -53,6 +54,7 @@ async function openTestTeacherSupportConversation() {
   const result = await openTeacherQuestion(db, {
     userId: ENROLLED_STUDENT_USER_ID,
     courseId: COURSE_ID,
+    teacherId: TEACHER_ID,
     topic: "content",
     subject: `TEST ETAPA12 subject ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     body: "Preciso de ajuda com o conteúdo.",

@@ -27,6 +27,14 @@ import { getAdminContractDocumentEndpoints } from "../../../services/DocumentGen
 
 const WITHDRAWABLE_CONTRACT_STATUSES = ["active", "overdue"];
 
+const CANCELLATION_REASON_LABELS = {
+  student_withdrawal: "Desistência do aluno",
+};
+
+function getCancellationReasonLabel(value) {
+  return CANCELLATION_REASON_LABELS[value] || value;
+}
+
 const BILLING_TYPE_LABELS = {
   one_time: "Pagamento único",
   installments: "Parcelado",
@@ -213,8 +221,13 @@ export default function FinancialContractsDetails() {
     useState(0);
 
   const [withdrawalModalOpen, setWithdrawalModalOpen] = useState(false);
+  const [withdrawalSuccessMessage, setWithdrawalSuccessMessage] = useState("");
 
-  function handleWithdrawalSuccess() {
+  function handleWithdrawalSuccess(message) {
+    setWithdrawalSuccessMessage(
+      message ||
+        "Desistência registrada. O contrato foi encerrado e a matrícula do aluno foi desativada."
+    );
     setReloadKey((current) => current + 1);
     setEventsReloadKey((current) => current + 1);
   }
@@ -465,6 +478,12 @@ export default function FinancialContractsDetails() {
               <ContractStatusBadge
                 status={contract.status}
               />
+
+              {contract.status === "cancelled" && contract.cancellationReason && (
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                  Motivo: {getCancellationReasonLabel(contract.cancellationReason)}
+                </span>
+              )}
             </div>
 
             <p className="mt-2 text-sm leading-6 text-slate-500">
@@ -472,6 +491,21 @@ export default function FinancialContractsDetails() {
               faturas relacionadas e o histórico
               de operações financeiras.
             </p>
+
+            {withdrawalSuccessMessage && (
+              <div className="mt-4 flex items-start justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm text-emerald-800">{withdrawalSuccessMessage}</p>
+
+                <button
+                  type="button"
+                  onClick={() => setWithdrawalSuccessMessage("")}
+                  aria-label="Fechar aviso"
+                  className="shrink-0 text-emerald-600 transition hover:text-emerald-800"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-3">

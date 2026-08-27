@@ -10,7 +10,13 @@ async function listTeacherCourses(db, userId) {
         c.workload_hours, c.image_url,
         COUNT(DISTINCT e.student_id) AS total_students
       FROM teachers t
-      INNER JOIN courses c ON c.teacher_id = t.id
+      INNER JOIN courses c ON (
+        EXISTS (
+          SELECT 1 FROM course_teachers ct
+          WHERE ct.course_id = c.id AND ct.teacher_id = t.id AND ct.status = 'active'
+        )
+        OR c.teacher_id = t.id
+      )
       LEFT JOIN enrollments e ON e.course_id = c.id AND e.status = 'active'
       WHERE t.user_id = ?
       GROUP BY
@@ -38,7 +44,13 @@ async function listTeacherStudents(db, userId) {
         e.course_id, e.status AS enrollment_status, e.enrolled_at,
         c.name AS course_title
       FROM teachers t
-      INNER JOIN courses c ON c.teacher_id = t.id
+      INNER JOIN courses c ON (
+        EXISTS (
+          SELECT 1 FROM course_teachers ct
+          WHERE ct.course_id = c.id AND ct.teacher_id = t.id AND ct.status = 'active'
+        )
+        OR c.teacher_id = t.id
+      )
       INNER JOIN enrollments e ON e.course_id = c.id
       INNER JOIN students s ON s.id = e.student_id
       WHERE t.user_id = ?

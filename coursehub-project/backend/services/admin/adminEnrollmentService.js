@@ -2,7 +2,13 @@ const {
   findOrCreateSelfContractingPartyForStudent,
 } = require("../financial/contractingPartyService");
 
-const ALLOWED_ENROLLMENT_STATUSES = ["active", "inactive", "completed", "cancelled"];
+// 'withdrawn' é setável por aqui tecnicamente (mesmo endpoint genérico
+// que já permite 'cancelled' sem side effects de contrato), mas o
+// caminho normal para chegar nele é a desistência
+// (contractWithdrawalService.js#registerContractWithdrawal), que
+// também encerra o contrato financeiro na mesma transação -- usar
+// este endpoint genérico para 'withdrawn' pula esse encerramento.
+const ALLOWED_ENROLLMENT_STATUSES = ["active", "inactive", "completed", "cancelled", "withdrawn"];
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -408,7 +414,7 @@ async function updateEnrollmentStatus(db, id, status) {
 
   if (!ALLOWED_ENROLLMENT_STATUSES.includes(status)) {
     throw createServiceError(
-      "Status inválido. Use active, inactive, completed ou cancelled.",
+      "Status inválido. Use active, inactive, completed, cancelled ou withdrawn.",
       400
     );
   }

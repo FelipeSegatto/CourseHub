@@ -190,7 +190,13 @@ async function listTeacherCourseContents(
       FROM teachers t
 
       INNER JOIN courses c
-        ON c.teacher_id = t.id
+        ON (
+          EXISTS (
+            SELECT 1 FROM course_teachers ct
+            WHERE ct.course_id = c.id AND ct.teacher_id = t.id AND ct.status = 'active'
+          )
+          OR c.teacher_id = t.id
+        )
 
       INNER JOIN course_contents cc
         ON cc.course_id = c.id

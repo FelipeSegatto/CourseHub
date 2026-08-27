@@ -5,6 +5,8 @@
  * can try to emit an event. New event definitions (stage 5+) get
  * their own file here and one require line added below.
  */
+require("./financialContractCancelled");
+require("./financialContractWithdrawn");
 require("./learningActivityPublished");
 require("./learningActivityChanged");
 require("./learningActivityCancelled");
@@ -36,3 +38,8 @@ require("./accountActivationAlreadyActiveNotice");
 require("./checkoutEmailVerificationRequested");
 require("./financialInvoicePaymentLinkShared");
 require("./financialDocumentReady");
+require("./financialInvoiceChanged");
+require("./financialInvoiceCancelled");
+require("./financialContractCancelled");
+require("./financialPaymentApproved");
+require("./financialPaymentRefunded");

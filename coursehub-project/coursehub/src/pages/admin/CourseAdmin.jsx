@@ -17,6 +17,25 @@ function formatCurrency(value) {
 }
 
 /**
+ * "Ana, João +1" -- não tenta caber todos os professores quando são
+ * muitos, só os dois primeiros + contagem do resto. Cai para
+ * teacher_name (legado) só se o curso não tiver nenhum professor em
+ * course_teachers ainda.
+ */
+function formatCourseTeachers(course) {
+  const teachers = Array.isArray(course.teachers) ? course.teachers : [];
+
+  if (teachers.length === 0) {
+    return course.teacher_name || "-";
+  }
+
+  const visible = teachers.slice(0, 2).map((teacher) => teacher.name);
+  const remaining = teachers.length - visible.length;
+
+  return remaining > 0 ? `${visible.join(", ")} +${remaining}` : visible.join(", ");
+}
+
+/**
  * course_pricing_plans é a única fonte de preço -- nunca course.price.
  * Só a primeira linha (o valor que importa pra comparar cursos numa
  * lista) aparece aqui -- o detalhamento de mensalidade fica no modal
@@ -187,8 +206,16 @@ export default function CourseAdmin() {
       const category =
         course.category?.toLowerCase() || "";
 
-      const teacherName =
-        course.teacher_name?.toLowerCase() || "";
+      // Busca considera todos os professores vinculados (N:N), não só
+      // o teacher_name legado -- um curso com Ana e João precisa
+      // aparecer buscando por "joão", mesmo que teacher_name (legado)
+      // ainda aponte só para Ana.
+      const teacherNames = (
+        (course.teachers || []).map((teacher) => teacher.name)
+      )
+        .concat(course.teacher_name || "")
+        .join(" ")
+        .toLowerCase();
 
       const status =
         course.status?.toLowerCase() || "";
@@ -197,7 +224,7 @@ export default function CourseAdmin() {
         !term ||
         name.includes(term) ||
         category.includes(term) ||
-        teacherName.includes(term) ||
+        teacherNames.includes(term) ||
         status.includes(term);
 
       const matchesStatus =
@@ -354,7 +381,7 @@ export default function CourseAdmin() {
                 </td>
 
                 <td className="px-3 py-3 text-sm text-gray-600">
-                  {course.teacher_name || "-"}
+                  {formatCourseTeachers(course)}
                 </td>
 
                 <td className="whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-gray-600">

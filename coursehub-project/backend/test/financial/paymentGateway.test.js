@@ -322,17 +322,17 @@ test("a refunded invoice is rejected -- 409", async () => {
   );
 });
 
-test("a double click (two sequential create calls) reuses the same pending attempt instead of duplicating it", async () => {
+test("a double click (two sequential create calls) creates a fresh attempt instead of reusing the pending one -- simulated gateway never reuses (avoids the infinite-spinner bug when its in-memory store is reset by a backend restart)", async () => {
   const invoiceId = await createTestInvoice(180);
 
   const first = await createInvoicePayment(db, { userId: STUDENT_USER_ID, invoiceId, paymentMethod: "pix" });
   const second = await createInvoicePayment(db, { userId: STUDENT_USER_ID, invoiceId, paymentMethod: "pix" });
 
-  assert.equal(second.paymentId, first.paymentId);
+  assert.notEqual(second.paymentId, first.paymentId);
 
   const [rows] = await db.promise().query("SELECT id FROM payments WHERE invoice_id = ?", [invoiceId]);
 
-  assert.equal(rows.length, 1);
+  assert.equal(rows.length, 2);
 });
 
 // -----------------------------------------------------------------
@@ -341,17 +341,18 @@ test("a double click (two sequential create calls) reuses the same pending attem
 // da decisão de reaproveitamento (isReusableAttempt)
 // -----------------------------------------------------------------
 
-test("a boleto attempt still within its due date stays pending and is reused, no new payment row is created", async () => {
+test("a boleto attempt still within its due date is not reused -- simulated gateway always creates a fresh attempt, old one is left untouched", async () => {
   const invoiceId = await createTestInvoice(360);
 
   const first = await createInvoicePayment(db, { userId: STUDENT_USER_ID, invoiceId, paymentMethod: "boleto" });
   const second = await createInvoicePayment(db, { userId: STUDENT_USER_ID, invoiceId, paymentMethod: "boleto" });
 
-  assert.equal(second.paymentId, first.paymentId);
+  assert.notEqual(second.paymentId, first.paymentId);
   assert.equal(second.status, "pending");
 
-  const [rows] = await db.promise().query("SELECT id FROM payments WHERE invoice_id = ?", [invoiceId]);
-  assert.equal(rows.length, 1);
+  const [rows] = await db.promise().query("SELECT id, status FROM payments WHERE invoice_id = ?", [invoiceId]);
+  assert.equal(rows.length, 2);
+  assert.ok(rows.every((row) => row.status === "pending"));
 });
 
 test("a PIX attempt past its own pix_expires_at is normalized to expired, a fresh attempt gets a different id, and the invoice stays pending", async () => {

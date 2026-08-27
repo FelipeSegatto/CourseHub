@@ -19,6 +19,7 @@
 const { withTransaction } = require("../../utils/dbTransaction");
 const { createFinancialEvent } = require("./financialEventService");
 const { cancelInvoiceWithConnection } = require("./invoiceCancellationService");
+const { notifyContractWithdrawn } = require("./financialNotificationService");
 
 const OVERDUE_INVOICE_ACTIONS = ["keep", "cancel"];
 const WITHDRAWABLE_CONTRACT_STATUSES = ["active", "overdue"];
@@ -73,6 +74,10 @@ function describeEnrollmentBlocker(enrollmentStatus) {
 
   if (enrollmentStatus === "cancelled") {
     return "A matrícula já está cancelada.";
+  }
+
+  if (enrollmentStatus === "withdrawn") {
+    return "A desistência deste aluno já foi registrada.";
   }
 
   return null;
@@ -223,7 +228,14 @@ async function registerContractWithdrawal(
 
   return withTransaction(db, async (connection) => {
     const [contractRows] = await connection.query(
-      `SELECT id, status, enrollment_id, student_id, course_id FROM financial_contracts WHERE id = ? LIMIT 1 FOR UPDATE`,
+      `
+        SELECT fc.id, fc.status, fc.enrollment_id, fc.student_id, fc.course_id, co.name AS course_name
+        FROM financial_contracts fc
+        LEFT JOIN courses co ON co.id = fc.course_id
+        WHERE fc.id = ?
+        LIMIT 1
+        FOR UPDATE
+      `,
       [normalizedContractId]
     );
 
@@ -301,13 +313,24 @@ async function registerContractWithdrawal(
     // contractFinancialService.js), então a ordem aqui garante que o
     // status final do contrato nunca é recalculado a partir das
     // faturas, e sim exatamente o que a desistência determina.
+    // cancellation_reason = 'student_withdrawal' é o valor estrutural
+    // que distingue esta desistência de um cancelamento administrativo
+    // por outro motivo (contractCancellationService.js nunca preenche
+    // essa coluna).
     await connection.query(
-      `UPDATE financial_contracts SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW() WHERE id = ?`,
+      `UPDATE financial_contracts SET status = 'cancelled', cancellation_reason = 'student_withdrawal', cancelled_at = NOW(), updated_at = NOW() WHERE id = ?`,
       [normalizedContractId]
     );
 
+    // 'withdrawn', não 'cancelled' -- distingue "o aluno desistiu" de
+    // um cancelamento administrativo de matrícula por outro motivo
+    // (ver adminEnrollmentService.js#updateEnrollmentStatus, que ainda
+    // usa 'cancelled' genérico). O gate de acesso acadêmico
+    // (classAccessService.js#getActiveEnrollmentForStudent) já exige
+    // status = 'active', então isso já encerra o acesso ao curso sem
+    // nenhuma mudança adicional de query.
     await connection.query(
-      `UPDATE enrollments SET status = 'cancelled', updated_at = NOW() WHERE id = ?`,
+      `UPDATE enrollments SET status = 'withdrawn', updated_at = NOW() WHERE id = ?`,
       [contract.enrollment_id]
     );
 
@@ -350,7 +373,9 @@ async function registerContractWithdrawal(
       },
       newValue: {
         contractStatus: "cancelled",
-        enrollmentStatus: "cancelled",
+        cancellationReason: "student_withdrawal",
+        enrollmentStatus: "withdrawn",
+        studentId: contract.student_id,
         cancelledInvoiceIds,
         overdueInvoiceAction,
         notes: trimmedNotes,
@@ -358,11 +383,21 @@ async function registerContractWithdrawal(
       reason: trimmedReason,
     });
 
+    await notifyContractWithdrawn(db, connection, {
+      contractId: normalizedContractId,
+      studentId: contract.student_id,
+      courseId: contract.course_id,
+      courseName: contract.course_name,
+      reason: trimmedReason,
+      actorUserId,
+    });
+
     return {
       contractId: normalizedContractId,
       enrollmentId: contract.enrollment_id,
       status: "cancelled",
-      enrollmentStatus: "cancelled",
+      cancellationReason: "student_withdrawal",
+      enrollmentStatus: "withdrawn",
       cancelledInvoiceIds,
       overdueInvoiceAction,
     };

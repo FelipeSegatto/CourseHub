@@ -1,5 +1,12 @@
 const bcrypt = require("bcryptjs");
 
+const {
+  normalizeCourseIds,
+  validateCourseIds,
+  listTeacherCourses,
+  syncTeacherCourses,
+} = require("../courses/courseTeacherService");
+
 const ALLOWED_TEACHER_STATUSES = ["active", "inactive"];
 
 function createServiceError(message, statusCode) {
@@ -25,7 +32,10 @@ async function listTeachers(db) {
         COUNT(DISTINCT c.id) AS total_courses
       FROM teachers t
       INNER JOIN users u ON u.id = t.user_id
-      LEFT JOIN courses c ON c.teacher_id = t.id
+      LEFT JOIN course_teachers ct
+        ON ct.teacher_id = t.id AND ct.status = 'active'
+      LEFT JOIN courses c
+        ON c.id = ct.course_id
       GROUP BY
         t.id, t.user_id, t.registration_number, t.cpf, t.phone, t.status,
         t.specialty, u.name, u.email, u.gender, u.status
@@ -33,10 +43,40 @@ async function listTeachers(db) {
     `
   );
 
-  return teachers.map((teacher) => ({
-    ...teacher,
-    total_courses: Number(teacher.total_courses || 0),
-  }));
+  // Cursos por professor em uma segunda query em lote (nunca N+1) --
+  // course_names/total_courses acima continuam sendo os campos
+  // legados já consumidos pela tabela admin; courses/courseIds é o
+  // que o modal de edição usa para popular o multi-select.
+  const [membershipRows] = await db.promise().query(
+    `
+      SELECT ct.teacher_id, c.id AS course_id, c.name AS course_name
+      FROM course_teachers ct
+      INNER JOIN courses c ON c.id = ct.course_id
+      WHERE ct.status = 'active'
+      ORDER BY c.name ASC
+    `
+  );
+
+  const coursesByTeacherId = new Map();
+
+  for (const row of membershipRows) {
+    if (!coursesByTeacherId.has(row.teacher_id)) {
+      coursesByTeacherId.set(row.teacher_id, []);
+    }
+
+    coursesByTeacherId.get(row.teacher_id).push({ id: row.course_id, name: row.course_name });
+  }
+
+  return teachers.map((teacher) => {
+    const courses = coursesByTeacherId.get(teacher.id) || [];
+
+    return {
+      ...teacher,
+      total_courses: Number(teacher.total_courses || 0),
+      courses,
+      courseIds: courses.map((course) => course.id),
+    };
+  });
 }
 
 /**
@@ -44,7 +84,7 @@ async function listTeachers(db) {
  * o perfil profissional em uma única transação.
  */
 async function createTeacher(db, payload) {
-  const { name, email, password, gender, cpf, phone, specialty, status } = payload;
+  const { name, email, password, gender, cpf, phone, specialty, status, courseIds } = payload;
 
   if (!name?.trim() || !email?.trim() || !password) {
     throw createServiceError("Nome, e-mail e senha são obrigatórios.", 400);
@@ -55,6 +95,9 @@ async function createTeacher(db, payload) {
   if (!ALLOWED_TEACHER_STATUSES.includes(normalizedStatus)) {
     throw createServiceError("Status do professor inválido.", 400);
   }
+
+  const hasCourseIds = courseIds !== undefined;
+  const normalizedCourseIds = hasCourseIds ? normalizeCourseIds(courseIds) : [];
 
   const connection = await db.promise().getConnection();
 
@@ -104,15 +147,23 @@ async function createTeacher(db, payload) {
       ]
     );
 
+    const newTeacherId = teacherResult.insertId;
+
+    if (hasCourseIds) {
+      await validateCourseIds(connection, normalizedCourseIds);
+      await syncTeacherCourses(connection, newTeacherId, normalizedCourseIds);
+    }
+
     await connection.commit();
 
     return {
-      id: teacherResult.insertId,
+      id: newTeacherId,
       user_id: userId,
       name: name.trim(),
       email: email.trim(),
       registration_number: registrationNumber,
       status: normalizedStatus,
+      courseIds: hasCourseIds ? normalizedCourseIds : undefined,
     };
   } catch (error) {
     await connection.rollback();
@@ -141,7 +192,7 @@ async function updateTeacher(db, id, payload) {
     throw createServiceError("ID do professor inválido.", 400);
   }
 
-  const { name, email, password, gender, cpf, phone, specialty, status } = payload;
+  const { name, email, password, gender, cpf, phone, specialty, status, courseIds } = payload;
 
   if (!name?.trim() || !email?.trim()) {
     throw createServiceError("Nome e e-mail são obrigatórios.", 400);
@@ -152,6 +203,9 @@ async function updateTeacher(db, id, payload) {
   if (!ALLOWED_TEACHER_STATUSES.includes(normalizedStatus)) {
     throw createServiceError("Status do professor inválido.", 400);
   }
+
+  const hasCourseIds = courseIds !== undefined;
+  const normalizedCourseIds = hasCourseIds ? normalizeCourseIds(courseIds) : [];
 
   const connection = await db.promise().getConnection();
 
@@ -224,6 +278,11 @@ async function updateTeacher(db, id, payload) {
       throw createServiceError("Não foi possível atualizar o professor.", 404);
     }
 
+    if (hasCourseIds) {
+      await validateCourseIds(connection, normalizedCourseIds);
+      await syncTeacherCourses(connection, normalizedTeacherId, normalizedCourseIds);
+    }
+
     await connection.commit();
 
     return {
@@ -236,6 +295,7 @@ async function updateTeacher(db, id, payload) {
       phone: phone?.trim() || null,
       specialty: specialty?.trim() || null,
       status: normalizedStatus,
+      courseIds: hasCourseIds ? normalizedCourseIds : undefined,
     };
   } catch (error) {
     await connection.rollback();

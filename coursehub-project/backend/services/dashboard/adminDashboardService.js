@@ -50,16 +50,31 @@ async function getAcademicSummary(db) {
 
 /**
  * Pendências administrativas reais — só itens com regra objetiva
- * confirmada no schema. `courses.teacher_id IS NULL` é estado
- * esperado (curso pode existir sem professor), não um erro; listado
- * aqui como informativo, não como falha.
+ * confirmada no schema. Um curso "sem professor" é informativo, não
+ * um erro (um curso pode legitimamente existir sem professor
+ * vinculado).
+ *
+ * "Sem professor" agora significa nenhuma linha ATIVA em
+ * course_teachers -- a fonte oficial de membership desde a migração
+ * para N:N -- em vez de courses.teacher_id IS NULL. O backfill da
+ * migration já sincronizou todo curso que tinha teacher_id, então na
+ * prática os dois critérios coincidem logo após a migração; podem
+ * divergir temporariamente só se algo escrever courses.teacher_id
+ * diretamente sem passar por courseTeacherService (ver
+ * docs/course-teacher-model.md).
  */
 async function listAdministrativePendingItems(db) {
   const [rows] = await db.promise().query(
     `
       SELECT
-        (SELECT COUNT(*) FROM courses WHERE teacher_id IS NULL AND status = 'active')
-          AS courses_without_teacher,
+        (
+          SELECT COUNT(*) FROM courses c
+          WHERE c.status = 'active'
+            AND NOT EXISTS (
+              SELECT 1 FROM course_teachers ct
+              WHERE ct.course_id = c.id AND ct.status = 'active'
+            )
+        ) AS courses_without_teacher,
         (SELECT COUNT(*) FROM class_sessions
           WHERE status = 'scheduled' AND session_date < CURDATE())
           AS sessions_past_without_attendance
