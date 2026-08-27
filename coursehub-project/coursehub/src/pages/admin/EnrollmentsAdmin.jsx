@@ -24,6 +24,7 @@ const STATUS_OPTIONS = [
   { value: "inactive", label: "Inativas" },
   { value: "cancelled", label: "Canceladas" },
   { value: "completed", label: "Concluídas" },
+  { value: "withdrawn", label: "Desistentes" },
 ];
 
 const PAGE_LIMIT = 10;

@@ -1,5 +1,16 @@
 require("dotenv").config();
 
+/**
+ * Cada worker é um processo Node independente.
+ *
+ * Portanto ele também precisa carregar
+ * todas as definições do notification registry.
+ */
+require(
+  "../services/notifications/eventDefinitions"
+);
+
+
 const os = require("os");
 const db = require("../db");
 

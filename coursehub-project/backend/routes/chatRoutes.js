@@ -27,7 +27,12 @@ const {
   openAcademicPeerConversation,
 } = require("../services/chat/chatAcademicPeerService");
 
-const { openTeacherQuestion } = require("../services/chat/chatTeacherSupportService");
+const {
+  listEligibleTeachersForStudentCourse,
+  openTeacherQuestion,
+} = require(
+  "../services/chat/chatTeacherSupportService"
+);
 
 const { openAdministrativeTicket } = require("../services/chat/chatAdministrativeSupportService");
 
@@ -241,6 +246,72 @@ router.post(
   }
 );
 
+
+/**
+ * ============================================================
+ * GET /api/chat/teacher-contacts
+ * ============================================================
+ *
+ * Lista os professores que o aluno autenticado
+ * pode escolher para determinado curso.
+ *
+ *
+ * Exemplo:
+ *
+ * GET /api/chat/teacher-contacts?courseId=10
+ *
+ *
+ * Segurança:
+ *
+ * O backend confirma que o aluno possui
+ * matrícula ativa no curso.
+ */
+router.get(
+  "/chat/teacher-contacts",
+
+  authenticateToken,
+
+  authorizeRoles(
+    "student"
+  ),
+
+  async (
+    req,
+    res
+  ) => {
+
+    try {
+
+      const result =
+        await listEligibleTeachersForStudentCourse(
+          db,
+          {
+            userId:
+              req.auth.userId,
+
+            courseId:
+              req.query.courseId,
+          }
+        );
+
+
+      return res
+        .status(200)
+        .json(
+          result
+        );
+
+    } catch (error) {
+
+      return handleServiceError(
+        res,
+        error,
+        "Erro ao buscar professores disponíveis."
+      );
+    }
+  }
+);
+
 /**
  * POST /api/chat/teacher-questions
  * Student-only. courseId/classId are validated server-side against
@@ -254,14 +325,37 @@ router.post(
   chatConversationOpenRateLimiter,
   async (req, res) => {
     try {
-      const result = await openTeacherQuestion(db, {
-        userId: req.auth.userId,
-        courseId: req.body.courseId,
-        classId: req.body.classId,
-        topic: req.body.topic,
-        subject: req.body.subject,
-        body: req.body.body,
-      });
+      const result =
+  await openTeacherQuestion(
+    db,
+    {
+      userId:
+        req.auth.userId,
+
+      courseId:
+        req.body.courseId,
+
+      classId:
+        req.body.classId,
+
+      /**
+       * NOVO:
+       *
+       * professor escolhido pelo aluno.
+       */
+      teacherId:
+        req.body.teacherId,
+
+      topic:
+        req.body.topic,
+
+      subject:
+        req.body.subject,
+
+      body:
+        req.body.body,
+    }
+  );
 
       return res.status(201).json(result);
     } catch (error) {

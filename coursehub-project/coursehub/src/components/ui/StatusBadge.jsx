@@ -89,6 +89,11 @@ function StatusBadge({
       className: "bg-red-100 text-red-700",
       },
 
+    withdrawn: {
+      text: "Desistente",
+      className: "bg-red-100 text-red-700",
+      },
+
     locked: {
       text: "Bloqueada",
       className: "bg-orange-100 text-orange-700",

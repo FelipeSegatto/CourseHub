@@ -158,54 +158,54 @@ export default function FinancialInvoicesTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1380px] border-collapse">
+      <table className="w-full min-w-[1080px] border-collapse">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
-            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <th className="px-2.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               Fatura
             </th>
 
-            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <th className="px-2.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               Contrato
             </th>
 
-            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <th className="px-2.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               Aluno
             </th>
 
-            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <th className="px-2.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               Matrícula
             </th>
 
-            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <th className="px-2.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               Parcela
             </th>
 
-            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <th className="px-2.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               Vencimento
             </th>
 
-            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <th className="px-2.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               Status
             </th>
 
-            <th className="px-5 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <th className="px-2.5 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
               Valor
             </th>
 
-            <th className="px-5 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <th className="px-2.5 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
               Pago
             </th>
 
-            <th className="px-5 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <th className="px-2.5 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
               Restante
             </th>
 
-            <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <th className="px-2.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               Data do pagamento
             </th>
 
-            <th className="px-5 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <th className="px-2.5 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
               <span className="sr-only">
                 Ações
               </span>
@@ -238,7 +238,7 @@ export default function FinancialInvoicesTable({
                     : "border-l-transparent",
                 ].join(" ")}
               >
-                <td className="px-5 py-4">
+                <td className="px-2.5 py-2.5">
                   <button
                     type="button"
                     onClick={() =>
@@ -255,7 +255,7 @@ export default function FinancialInvoicesTable({
                   </button>
                 </td>
 
-                <td className="px-5 py-4">
+                <td className="px-2.5 py-2.5">
                   {contractId ? (
                     <button
                       type="button"
@@ -265,7 +265,7 @@ export default function FinancialInvoicesTable({
                         )
                       }
                       className={[
-                        "text-sm font-medium text-slate-700",
+                        "text-xs font-medium text-slate-700",
                         "transition-colors",
                         "hover:text-blue-700 hover:underline",
                       ].join(" ")}
@@ -273,14 +273,14 @@ export default function FinancialInvoicesTable({
                       #{contractId}
                     </button>
                   ) : (
-                    <span className="text-sm text-slate-400">
+                    <span className="text-xs text-slate-400">
                       —
                     </span>
                   )}
                 </td>
 
-                <td className="px-5 py-4">
-                  <div className="flex min-w-[170px] flex-col gap-1">
+                <td className="px-2.5 py-2.5">
+                  <div className="flex min-w-[140px] flex-col gap-1">
                     <span className="text-sm font-medium text-slate-900">
                       {getStudentName(invoice)}
                     </span>
@@ -295,19 +295,19 @@ export default function FinancialInvoicesTable({
                   </div>
                 </td>
 
-                <td className="px-5 py-4 text-sm text-slate-600">
+                <td className="px-2.5 py-2.5 text-xs text-slate-600">
                   {enrollmentId
                     ? `#${enrollmentId}`
                     : "—"}
                 </td>
 
-                <td className="px-5 py-4 text-sm text-slate-600">
+                <td className="px-2.5 py-2.5 text-xs text-slate-600">
                   {getInstallmentLabel(invoice)}
                 </td>
 
                 <td
                   className={[
-                    "whitespace-nowrap px-5 py-4 text-sm",
+                    "whitespace-nowrap px-2.5 py-2.5 text-xs",
                     isOverdue
                       ? "font-semibold text-red-700"
                       : "text-slate-600",
@@ -318,19 +318,19 @@ export default function FinancialInvoicesTable({
                   )}
                 </td>
 
-                <td className="px-5 py-4">
+                <td className="px-2.5 py-2.5">
                   <InvoiceStatusBadge
                     status={invoice.status}
                   />
                 </td>
 
-                <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold tabular-nums text-slate-800">
+                <td className="whitespace-nowrap px-2.5 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-800">
                   {formatCurrency(
                     getInvoiceAmount(invoice)
                   )}
                 </td>
 
-                <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold tabular-nums text-emerald-700">
+                <td className="whitespace-nowrap px-2.5 py-2.5 text-right text-sm font-semibold tabular-nums text-emerald-700">
                   {formatCurrency(
                     getPaidAmount(invoice)
                   )}
@@ -338,7 +338,7 @@ export default function FinancialInvoicesTable({
 
                 <td
                   className={[
-                    "whitespace-nowrap px-5 py-4",
+                    "whitespace-nowrap px-2.5 py-2.5",
                     "text-right text-sm tabular-nums",
                     remainingAmount > 0 &&
                     isOverdue
@@ -351,16 +351,16 @@ export default function FinancialInvoicesTable({
                   )}
                 </td>
 
-                <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
+                <td className="whitespace-nowrap px-2.5 py-2.5 text-xs text-slate-600">
                   {formatDate(
                     getPaidAt(invoice)
                   )}
                 </td>
 
-                <td className="px-5 py-4 text-right">
+                <td className="px-2.5 py-2.5 text-right">
                   <TableActionButton
                     variant="accent"
-                    size="sm"
+                    size="xs"
                     onClick={() => onOpenInvoice(invoice.id)}
                     aria-label={`Ver detalhes da fatura ${invoice.id}`}
                   >

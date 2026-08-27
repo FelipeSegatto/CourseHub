@@ -94,28 +94,46 @@ export default function AboutPage() {
   return (
     <main className="bg-white">
       {/* HERO */}
-      <section className="relative overflow-hidden bg-slate-950">
-        <div className="absolute inset-0">
-          <div className="absolute -left-32 top-10 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
-          <div className="absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
+      {/* HERO */}
+      <section className="relative isolate overflow-hidden bg-[#0f6f7f]">
+        {/* Imagem */}
+        <img
+          src="/images/about-coursehub-hero.jpeg"
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          style={{
+          backgroundImage:
+            "url('/images/coursehub-catalog-hero.jpeg')",
+          backgroundSize: "100%",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "right",
+        }}
+        />
 
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:64px_64px]" />
-        </div>
+        {/* Overlay para contraste do texto */}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/35 to-transparent" />
 
-        <div className="relative mx-auto max-w-7xl px-6 py-24 lg:px-8 lg:py-32">
-          <div className="max-w-4xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-blue-200">
+        {/* leve camada geral para integrar a foto */}
+        <div className="absolute inset-0 bg-black/5" />
+
+        <div className="relative mx-auto flex min-h-[520px] max-w-7xl items-center px-6 py-16 sm:min-h-[560px] lg:min-h-[620px] lg:px-8 lg:py-20">
+          <div className="max-w-[650px]">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-cyan-50 backdrop-blur-sm">
               <Sparkles size={16} />
               Sobre o CourseHub
             </div>
 
-            <h1 className="mt-7 text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl">
-              Aprender fica mais simples quando toda a jornada faz sentido.
+            <h1 className="mt-7 max-w-[620px] text-4xl font-semibold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
+              Educação mais clara.
+              <span className="block">
+                Experiências mais conectadas.
+              </span>
             </h1>
 
-            <p className="mt-7 max-w-3xl text-lg leading-8 text-slate-300">
-              O CourseHub nasceu para reunir ensino, acompanhamento e gestão em
-              uma experiência digital clara, organizada e conectada.
+            <p className="mt-6 max-w-[560px] text-base leading-7 text-cyan-50/90 sm:text-lg sm:leading-8">
+              O CourseHub reúne aprendizagem, acompanhamento e gestão em uma
+              experiência digital simples, organizada e preparada para evoluir.
             </p>
           </div>
         </div>
@@ -157,19 +175,29 @@ export default function AboutPage() {
       </section>
 
       {/* PRINCÍPIOS */}
-      <section className="border-y border-slate-200 bg-slate-50">
-        <div className="mx-auto max-w-7xl px-6 py-20 lg:px-8 lg:py-24">
+      {/* PRINCÍPIOS */}
+      <section className="relative overflow-hidden border-y border-slate-800 bg-slate-950">
+        {/* Background do hero antigo */}
+        <div className="absolute inset-0">
+          <div className="absolute -left-32 top-10 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
+
+          <div className="absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
+
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:64px_64px]" />
+        </div>
+
+        <div className="relative mx-auto max-w-7xl px-6 py-20 lg:px-8 lg:py-24">
           <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-300">
               Nossos princípios
             </p>
 
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-4xl">
               Uma plataforma educacional precisa ser útil antes de parecer
               complexa.
             </h2>
 
-            <p className="mt-5 text-base leading-7 text-slate-600">
+            <p className="mt-5 text-base leading-7 text-slate-300">
               Cada decisão do produto parte de princípios que orientam a
               experiência, a arquitetura e a evolução da plataforma.
             </p>
@@ -182,7 +210,7 @@ export default function AboutPage() {
               return (
                 <article
                   key={principle.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm"
+                  className="rounded-2xl border border-white/10 bg-white/95 p-7 shadow-xl shadow-black/10 backdrop-blur-sm"
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
                     <Icon size={22} />
@@ -288,8 +316,30 @@ export default function AboutPage() {
       </section>
 
       {/* VISÃO */}
-      <section className="bg-blue-700">
-        <div className="mx-auto grid max-w-7xl gap-12 px-6 py-20 lg:grid-cols-[1fr_0.85fr] lg:items-center lg:px-8 lg:py-24">
+      <section className="relative overflow-hidden bg-blue-700">
+        {/* BACKGROUND */}
+        <img
+          src="/images/login-bg.webp"
+          alt=""
+          aria-hidden="true"
+          className="
+            pointer-events-none
+            absolute
+            inset-0
+            h-full
+            w-full
+            object-cover
+            object-center
+          "
+        />
+
+        {/* CAMADA AZUL PARA INTEGRAR A IMAGEM AO DESIGN */}
+        <div className="absolute inset-0 bg-blue-800/55" />
+
+        {/* GRADIENTE PARA GARANTIR LEITURA DO TEXTO */}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-950/80 via-blue-800/45 to-blue-700/20" />
+
+        <div className="relative mx-auto grid max-w-7xl gap-12 px-6 py-20 lg:grid-cols-[1fr_0.85fr] lg:items-center lg:px-8 lg:py-24">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-200">
               Nossa visão
@@ -307,7 +357,7 @@ export default function AboutPage() {
             </p>
           </div>
 
-          <div className="rounded-[2rem] border border-white/15 bg-white/10 p-8 backdrop-blur">
+          <div className="rounded-[2rem] border border-white/20 bg-slate-950/25 p-8 shadow-2xl backdrop-blur-md">
             <p className="text-lg font-semibold text-white">
               O que buscamos preservar
             </p>
@@ -319,13 +369,18 @@ export default function AboutPage() {
                 "Recursos que resolvem necessidades reais.",
                 "Uma arquitetura preparada para crescer.",
               ].map((item) => (
-                <div key={item} className="flex items-start gap-3">
+                <div
+                  key={item}
+                  className="flex items-start gap-3"
+                >
                   <CheckCircle2
                     size={20}
                     className="mt-0.5 shrink-0 text-blue-200"
                   />
 
-                  <p className="text-sm leading-6 text-blue-50">{item}</p>
+                  <p className="text-sm leading-6 text-blue-50">
+                    {item}
+                  </p>
                 </div>
               ))}
             </div>

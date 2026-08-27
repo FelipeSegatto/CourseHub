@@ -26,7 +26,7 @@ export default function Navbar() {
           </div>
         </Link>
 
-        <nav className="hidden w-full items-center justify-center gap-16 lg:flex">
+        <nav className="hidden w-full items-center justify-center gap-12 lg:flex">
           <NavLink
             to="/courses"
             className={linkClass}
