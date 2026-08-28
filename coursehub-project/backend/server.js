@@ -95,6 +95,8 @@ const paymentWebhookRoutes = require("./routes/paymentWebhookRoutes");
 const publicInvoicePaymentRoutes = require("./routes/publicInvoicePaymentRoutes");
 const publicCheckoutRoutes = require("./routes/publicCheckoutRoutes");
 const publicInstitutionRoutes = require("./routes/publicInstitutionRoutes");
+const publicContactRoutes = require("./routes/publicContactRoutes");
+const adminContactRoutes = require("./routes/adminContactRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -153,6 +155,7 @@ app.use("/api", paymentWebhookRoutes);
 app.use("/api/public/invoice-payment", publicInvoicePaymentRoutes);
 app.use("/api/public/checkout", publicCheckoutRoutes);
 app.use("/api/public", publicInstitutionRoutes);
+app.use("/api/public", publicContactRoutes);
 
 app.use("/api", studentCourseRoutes);
 app.use("/api", studentProgressRoutes);
@@ -186,6 +189,7 @@ app.use("/api", adminGradeRoutes);
 app.use("/api", adminAttendanceRoutes);
 app.use("/api/admin/financial", adminFinancialRoutes);
 app.use("/api", adminContractingPartyRoutes);
+app.use("/api", adminContactRoutes);
 app.use("/api/admin/calendar", adminCalendarRoutes);
 app.use("/api", adminDashboardRoutes);
 app.use("/api/admin/academic-documents", adminAcademicDocumentsRoutes);

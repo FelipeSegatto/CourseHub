@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const { requestPasswordReset } = require("../auth/authService");
 const { createStudent } = require("./adminStudentService");
 const { createTeacher } = require("./adminTeacherService");
+const { notifyAdminUserCreated } = require("../notifications/adminUserNotificationService");
 
 const ALLOWED_ROLES = ["admin", "teacher", "student"];
 // Nunca setável diretamente por criação/atualização administrativa
@@ -233,7 +234,8 @@ async function countActiveAdmins(runner, excludingUserId = null) {
  * que criam users+entidade juntos numa transação) — este endpoint
  * não duplica isso, serve só para administradores.
  */
-async function createAdminUser(db, payload) {
+async function createAdminUser(db, payload, options = {}) {
+  const { actorUserId = null } = options;
   const { name, email, password, status } = payload;
 
   if (!name?.trim() || !email?.trim() || !password) {
@@ -266,6 +268,14 @@ async function createAdminUser(db, payload) {
     [name.trim(), normalizedEmail, passwordHash, normalizedStatus]
   );
 
+  await notifyAdminUserCreated(db, {
+    userId: result.insertId,
+    userName: name.trim(),
+    userRole: "admin",
+    origin: "admin",
+    actorUserId,
+  });
+
   return getUserById(db, result.insertId);
 }
 
@@ -284,7 +294,8 @@ async function createAdminUser(db, payload) {
  * A resposta é sempre normalizada pelo mesmo DTO da listagem/detalhe
  * (getUserById), independentemente do papel escolhido.
  */
-async function createUser(db, payload) {
+async function createUser(db, payload, options = {}) {
+  const { actorUserId = null } = options;
   const { role } = payload || {};
 
   if (!ALLOWED_ROLES.includes(role)) {
@@ -295,16 +306,16 @@ async function createUser(db, payload) {
   }
 
   if (role === "admin") {
-    return createAdminUser(db, payload);
+    return createAdminUser(db, payload, { actorUserId });
   }
 
   if (role === "teacher") {
-    const teacher = await createTeacher(db, payload);
+    const teacher = await createTeacher(db, payload, { actorUserId });
 
     return getUserById(db, teacher.user_id);
   }
 
-  const student = await createStudent(db, payload);
+  const student = await createStudent(db, payload, { actorUserId });
 
   return getUserById(db, student.user_id);
 }

@@ -5,12 +5,48 @@ require("dotenv").config();
 
 const db = require("../../db");
 const { retryOnDeadlock } = require("../testHelpers");
+require("../../services/notifications/eventDefinitions"); // registers admin.user.created
 
 const {
   createUser,
   updateUserRole,
   countActiveAdmins,
 } = require("../../services/admin/adminUserService");
+const { createStudent } = require("../../services/admin/adminStudentService");
+
+// Admins reais/ativos já usados como fixture em outros arquivos desta
+// suíte (ver chatAdministrativeSupport.test.js) -- 42 Felipe Segatto,
+// 43 Larissa Almeida.
+const ADMIN_A_USER_ID = 42;
+const ADMIN_B_USER_ID = 43;
+
+async function getAdminUserCreatedNotification(userId) {
+  const [rows] = await db
+    .promise()
+    .query(
+      `SELECT id, actor_user_id, category FROM notifications WHERE source_type = 'user' AND source_id = ? AND type = 'admin.user.created' LIMIT 1`,
+      [userId]
+    );
+
+  return rows[0] || null;
+}
+
+async function cleanupUserCreatedNotification(notificationId) {
+  if (!notificationId) return;
+
+  await retryOnDeadlock(() =>
+    db
+      .promise()
+      .query(
+        `DELETE FROM notification_deliveries WHERE recipient_id IN (SELECT id FROM notification_recipients WHERE notification_id = ?)`,
+        [notificationId]
+      )
+  );
+  await retryOnDeadlock(() =>
+    db.promise().query(`DELETE FROM notification_recipients WHERE notification_id = ?`, [notificationId])
+  );
+  await retryOnDeadlock(() => db.promise().query(`DELETE FROM notifications WHERE id = ?`, [notificationId]));
+}
 
 // E-mails únicos por execução (timestamp) -- cada teste que cria um
 // usuário registra o user_id retornado em createdUserIds para
@@ -42,7 +78,13 @@ async function cleanupUser(userId) {
   await retryOnDeadlock(() => db.promise().query(`DELETE FROM users WHERE id = ?`, [userId]));
 }
 
+const createdNotificationIds = [];
+
 after(async () => {
+  for (const notificationId of createdNotificationIds) {
+    await cleanupUserCreatedNotification(notificationId);
+  }
+
   for (const userId of createdUserIds) {
     await cleanupUser(userId);
   }
@@ -261,6 +303,109 @@ test("blocks converting an account that already has a linked academic/profession
 // verifies the counting mechanism itself -- the part a regression
 // could realistically break (an off-by-one in the exclusion clause)
 // -- against known, disposable test admins.
+// -----------------------------------------------------------------
+// admin.user.created (evolução do sistema de notificações, seção 4/20.A)
+// -----------------------------------------------------------------
+
+test("admin.user.created: cadastro pelo admin A notifica admin B, mas não o próprio admin A (actor excluído)", async () => {
+  const teacher = await createUser(
+    db,
+    {
+      role: "teacher",
+      name: "Test Teacher Notif Actor",
+      email: testEmail("teachernotifactor"),
+      password: "senha123",
+      cpf: testCpf(),
+      status: "inactive",
+    },
+    { actorUserId: ADMIN_A_USER_ID }
+  );
+
+  createdUserIds.push(teacher.id);
+
+  const notification = await getAdminUserCreatedNotification(teacher.id);
+
+  assert.ok(notification, "admin.user.created deveria ter sido criada");
+  createdNotificationIds.push(notification.id);
+
+  assert.equal(notification.category, "registration");
+  assert.equal(notification.actor_user_id, ADMIN_A_USER_ID);
+
+  const [recipientRows] = await db
+    .promise()
+    .query(`SELECT user_id FROM notification_recipients WHERE notification_id = ?`, [notification.id]);
+
+  const recipientIds = recipientRows.map((row) => row.user_id);
+
+  assert.ok(recipientIds.includes(ADMIN_B_USER_ID), "admin B deveria receber");
+  assert.equal(recipientIds.includes(ADMIN_A_USER_ID), false, "admin A (o autor) não deveria se notificar");
+});
+
+test("admin.user.created: dedup por userId -- uma segunda chamada com o mesmo dedup key não duplica", async () => {
+  const teacher = await createUser(
+    db,
+    {
+      role: "teacher",
+      name: "Test Teacher Notif Dedup",
+      email: testEmail("teachernotifdedup"),
+      password: "senha123",
+      cpf: testCpf(),
+      status: "inactive",
+    },
+    { actorUserId: ADMIN_A_USER_ID }
+  );
+
+  createdUserIds.push(teacher.id);
+
+  const notification = await getAdminUserCreatedNotification(teacher.id);
+  assert.ok(notification);
+  createdNotificationIds.push(notification.id);
+
+  // Reprocessar manualmente o mesmo evento (mesmo userId -> mesmo
+  // deduplicationKey) precisa ser um no-op, não uma segunda
+  // notificação -- é a garantia central de createNotificationEvent
+  // (UNIQUE KEY em deduplication_key), exercida aqui diretamente.
+  const { notifyAdminUserCreated } = require("../../services/notifications/adminUserNotificationService");
+
+  await notifyAdminUserCreated(db, {
+    userId: teacher.id,
+    userName: "Test Teacher Notif Dedup",
+    userRole: "teacher",
+    origin: "admin",
+    actorUserId: ADMIN_A_USER_ID,
+  });
+
+  const [countRows] = await db
+    .promise()
+    .query(`SELECT COUNT(*) AS total FROM notifications WHERE source_type = 'user' AND source_id = ? AND type = 'admin.user.created'`, [
+      teacher.id,
+    ]);
+
+  assert.equal(Number(countRows[0].total), 1);
+});
+
+test("admin.user.created NÃO dispara para o stub de checkout (allowNullPassword, sem senha)", async () => {
+  const cpf = testCpf();
+
+  const student = await createStudent(
+    db,
+    {
+      name: "Test Checkout Stub No Notification",
+      email: testEmail("checkoutstubnonotif"),
+      birth_date: "2000-01-01",
+      cpf,
+      phone: "(11) 90000-0000",
+    },
+    { allowNullPassword: true }
+  );
+
+  createdUserIds.push(student.user_id);
+
+  const notification = await getAdminUserCreatedNotification(student.user_id);
+
+  assert.equal(notification, null, "o stub de checkout não deveria gerar admin.user.created");
+});
+
 test("countActiveAdmins correctly excludes the given user id from the count", async () => {
   const adminA = await createUser(db, {
     role: "admin",

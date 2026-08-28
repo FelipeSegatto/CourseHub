@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
+import { getRoleHomePath } from "../../auth/roleHome";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -28,13 +29,7 @@ export default function LoginPage() {
 
       const user = await login(email, password);
 
-      if (user.role === "admin") {
-        navigate("/admin", { replace: true });
-      } else if (user.role === "teacher") {
-        navigate("/professor", { replace: true });
-      } else {
-        navigate("/aluno", { replace: true });
-      }
+      navigate(getRoleHomePath(user.role), { replace: true });
     } catch (error) {
       setErro(error.message || "Não foi possível entrar na sua conta.");
     } finally {

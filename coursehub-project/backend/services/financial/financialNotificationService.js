@@ -7,6 +7,7 @@ const {
 
 const {
   resolveStudentOwner,
+  resolveAllActiveAdmins,
 } = require(
   "../notifications/notificationRecipientResolvers"
 );
@@ -396,6 +397,88 @@ async function notifyContractWithdrawn(
 
 /**
  * ============================================================
+ * PAGAMENTO REJEITADO (ADMIN)
+ * ============================================================
+ *
+ * Diferente das demais notificações deste arquivo: o destinatário é
+ * "todos os admins ativos" (resolveAllActiveAdmins), não o aluno --
+ * um pagamento rejeitado é um problema operacional que a
+ * administração precisa acompanhar, não um aviso ao aluno (o aluno já
+ * vê o erro na hora, no checkout). Chamado de dentro de
+ * applyTerminalNonApproval SÓ quando a transição real para 'rejected'
+ * de fato acontece (nunca em reprocessamento do mesmo webhook, que já
+ * é barrado mais acima por payment_events.gateway_event_id e pelo
+ * próprio `row.status === targetStatus` no-op).
+ */
+async function notifyAdminPaymentRejected(
+  db,
+  connection,
+  {
+    paymentId,
+    invoiceId,
+    contractId,
+    studentId,
+    courseName,
+    amount,
+    paymentMethod,
+    gateway,
+    rejectionReason,
+  }
+) {
+
+  const admins =
+    await resolveAllActiveAdmins(
+      connection
+    );
+
+  if (admins.length === 0) {
+    return;
+  }
+
+  const [[studentRow]] =
+    await connection.query(
+      `SELECT name FROM students WHERE id = ? LIMIT 1`,
+      [studentId]
+    );
+
+  await createNotificationEvent(
+    db,
+    {
+      type:
+        "admin.payment.rejected",
+
+      sourceType:
+        "payment",
+
+      sourceId:
+        paymentId,
+
+      context: {
+        paymentId,
+        invoiceId,
+        contractId,
+        studentId,
+        studentName:
+          studentRow?.name ||
+          "Aluno",
+        courseName,
+        amount,
+        paymentMethod,
+        gateway,
+        rejectionReason,
+      },
+
+      recipients:
+        admins,
+
+      connection,
+    }
+  );
+}
+
+
+/**
+ * ============================================================
  * PAGAMENTO APROVADO
  * ============================================================
  */
@@ -549,6 +632,8 @@ module.exports = {
   notifyContractCancelled,
 
   notifyContractWithdrawn,
+
+  notifyAdminPaymentRejected,
 
   notifyPaymentApproved,
 

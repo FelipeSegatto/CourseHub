@@ -80,6 +80,7 @@ export default function DashboardAdmin() {
   const summary = dashboard?.summary;
   const financial = dashboard?.financial;
   const academic = dashboard?.academic;
+  const operations = dashboard?.operations;
   const upcomingEvents = dashboard?.upcomingEvents ?? [];
 
   const pendingItems = [
@@ -174,6 +175,30 @@ export default function DashboardAdmin() {
                 value={summary?.activeEnrollments ?? 0}
                 color="yellow"
               />
+            </section>
+
+            <section className="mt-8 rounded-2xl bg-white p-6 shadow-sm">
+              <h2 className="text-xl font-bold text-gray-900">Operação recente</h2>
+              <p className="mt-1 text-sm text-gray-500">Últimos 7 dias.</p>
+
+              <div className="mt-5 grid gap-4 sm:grid-cols-3">
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <p className="text-sm text-gray-500">Novos usuários</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-900">{operations?.newUsersLast7Days ?? 0}</p>
+                </div>
+
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <p className="text-sm text-gray-500">Novas matrículas</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-900">{operations?.newEnrollmentsLast7Days ?? 0}</p>
+                </div>
+
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <p className="text-sm text-gray-500">Checkouts concluídos</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-900">
+                    {operations?.completedCheckoutsLast7Days ?? 0}
+                  </p>
+                </div>
+              </div>
             </section>
 
             <section className="mt-8 grid gap-6 lg:grid-cols-3">
@@ -298,6 +323,11 @@ export default function DashboardAdmin() {
                     <p className="mt-1 text-xl font-bold text-red-600">
                       {formatCurrency(financial?.overdueAmount)}
                     </p>
+
+                    <p className="mt-2 text-xs text-gray-500">
+                      {operations?.invoicesOverdue15Days ?? 0} com 15+ dias · {operations?.invoicesOverdue30Days ?? 0}{" "}
+                      com 30+ dias
+                    </p>
                   </div>
                 </div>
 
@@ -310,7 +340,28 @@ export default function DashboardAdmin() {
               </div>
             </section>
 
-            
+            <section className="mt-8 rounded-2xl bg-white p-6 shadow-sm">
+              <h2 className="text-2xl font-bold text-gray-900">Atendimento</h2>
+
+              <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                <Link to="/admin/chat" className="block rounded-xl bg-gray-50 p-4 transition hover:opacity-80">
+                  <p className="text-sm text-gray-500">Requerimentos abertos</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-900">{operations?.openAdministrativeRequests ?? 0}</p>
+                </Link>
+
+                <Link to="/admin/chat" className="block rounded-xl bg-gray-50 p-4 transition hover:opacity-80">
+                  <p className="text-sm text-gray-500">Sem responsável</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-900">
+                    {operations?.unassignedAdministrativeRequests ?? 0}
+                  </p>
+                </Link>
+
+                <Link to="/admin/contatos" className="block rounded-xl bg-gray-50 p-4 transition hover:opacity-80">
+                  <p className="text-sm text-gray-500">Novos contatos</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-900">{operations?.newPublicContacts ?? 0}</p>
+                </Link>
+              </div>
+            </section>
           </>
         )}
       </div>

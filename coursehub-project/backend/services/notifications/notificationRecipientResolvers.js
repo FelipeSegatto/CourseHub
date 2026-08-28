@@ -153,6 +153,31 @@ async function resolveAllActiveTeachers(runner) {
   }));
 }
 
+/**
+ * Multi-recipient audience for administrative/operational admin
+ * notifications (new user registered, checkout completed, payment
+ * rejected, invoice overdue milestones, new administrative request,
+ * new public contact, etc). There is no separate `admins` table the
+ * way there is `students`/`teachers` -- an admin is just a `users` row
+ * with role='admin'.
+ */
+async function resolveAllActiveAdmins(runner) {
+  const [rows] = await runner.query(
+    `
+      SELECT u.id AS user_id, u.name, u.email
+      FROM users u
+      WHERE u.role = 'admin' AND u.status = 'active'
+    `
+  );
+
+  return rows.map((row) => ({
+    userId: row.user_id,
+    role: "admin",
+    name: row.name,
+    email: row.email,
+  }));
+}
+
 async function resolveCalendarAudience(runner, { scopeType, courseId, classId }) {
   if (scopeType === "institutional") {
     const [students, teachers] = await Promise.all([
@@ -216,6 +241,7 @@ module.exports = {
   resolveActiveStudentsForCourseOrClass,
   resolveTeacherForCourse,
   resolveStudentOwner,
+  resolveAllActiveAdmins,
   resolveCalendarAudience,
   resolveOtherActiveParticipants,
 };

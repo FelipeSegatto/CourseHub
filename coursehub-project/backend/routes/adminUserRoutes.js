@@ -86,7 +86,7 @@ router.post(
   authorizeRoles("admin"),
   async (req, res) => {
     try {
-      const user = await createUser(db, req.body);
+      const user = await createUser(db, req.body, { actorUserId: req.auth.userId });
 
       return res.status(201).json({
         message: "Usuário cadastrado com sucesso.",

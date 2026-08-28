@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { getPublicInstitutionInfo } from "../../services/PublicInstitutionService";
 import { requestInvoicePaymentLinkByEmail } from "../../services/PublicInvoicePaymentService";
+import { submitContactRequest } from "../../services/PublicContactService";
 
 function InfoRow({ label, value }) {
   if (!value) return null;
@@ -28,6 +29,11 @@ export default function ContactPage() {
   const [submitting, setSubmitting] = useState(false);
   const [resultMessage, setResultMessage] = useState("");
   const [formError, setFormError] = useState("");
+
+  const [contactForm, setContactForm] = useState({ name: "", email: "", phone: "", subject: "", message: "" });
+  const [contactSubmitting, setContactSubmitting] = useState(false);
+  const [contactResultMessage, setContactResultMessage] = useState("");
+  const [contactError, setContactError] = useState("");
 
   useEffect(() => {
     let ignoreRequest = false;
@@ -105,6 +111,61 @@ export default function ContactPage() {
       );
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function updateContactField(field) {
+    return (event) => setContactForm((current) => ({ ...current, [field]: event.target.value }));
+  }
+
+  async function handleContactSubmit(event) {
+    event.preventDefault();
+
+    setContactError("");
+    setContactResultMessage("");
+
+    const trimmedName = contactForm.name.trim();
+    const trimmedEmail = contactForm.email.trim();
+    const trimmedSubject = contactForm.subject.trim();
+    const trimmedMessage = contactForm.message.trim();
+
+    if (!trimmedName) {
+      setContactError("Informe seu nome.");
+      return;
+    }
+
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setContactError("Informe um e-mail válido.");
+      return;
+    }
+
+    if (!trimmedSubject) {
+      setContactError("Informe o assunto da mensagem.");
+      return;
+    }
+
+    if (!trimmedMessage) {
+      setContactError("Escreva sua mensagem.");
+      return;
+    }
+
+    try {
+      setContactSubmitting(true);
+
+      const response = await submitContactRequest({
+        name: trimmedName,
+        email: trimmedEmail,
+        phone: contactForm.phone.trim(),
+        subject: trimmedSubject,
+        message: trimmedMessage,
+      });
+
+      setContactResultMessage(response?.message || "Mensagem enviada com sucesso. Em breve entraremos em contato.");
+      setContactForm({ name: "", email: "", phone: "", subject: "", message: "" });
+    } catch (requestError) {
+      setContactError(requestError.message || "Não foi possível enviar sua mensagem agora. Tente novamente.");
+    } finally {
+      setContactSubmitting(false);
     }
   }
 
@@ -303,6 +364,110 @@ export default function ContactPage() {
             </form>
           </section>
         </div>
+
+        {/* FORMULÁRIO DE CONTATO */}
+        <section className="mt-6 rounded-[1.75rem] border border-slate-200 bg-white p-7 shadow-sm md:p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">Contato</p>
+
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">Envie uma mensagem</h2>
+
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            Tem uma dúvida, sugestão ou pedido que não se encaixa nos canais acima? Escreva para nós.
+          </p>
+
+          <form onSubmit={handleContactSubmit} className="mt-7 grid gap-5 sm:grid-cols-2">
+            <div>
+              <label htmlFor="contact-name" className="text-sm font-semibold text-slate-700">
+                Nome
+              </label>
+
+              <input
+                id="contact-name"
+                type="text"
+                value={contactForm.name}
+                onChange={updateContactField("name")}
+                placeholder="Seu nome completo"
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="contact-email" className="text-sm font-semibold text-slate-700">
+                E-mail
+              </label>
+
+              <input
+                id="contact-email"
+                type="email"
+                value={contactForm.email}
+                onChange={updateContactField("email")}
+                placeholder="voce@exemplo.com"
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="contact-phone" className="text-sm font-semibold text-slate-700">
+                Telefone <span className="font-normal text-slate-400">(opcional)</span>
+              </label>
+
+              <input
+                id="contact-phone"
+                type="tel"
+                value={contactForm.phone}
+                onChange={updateContactField("phone")}
+                placeholder="(00) 00000-0000"
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="contact-subject" className="text-sm font-semibold text-slate-700">
+                Assunto
+              </label>
+
+              <input
+                id="contact-subject"
+                type="text"
+                value={contactForm.subject}
+                onChange={updateContactField("subject")}
+                placeholder="Sobre o que você quer falar?"
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label htmlFor="contact-message" className="text-sm font-semibold text-slate-700">
+                Mensagem
+              </label>
+
+              <textarea
+                id="contact-message"
+                rows={5}
+                value={contactForm.message}
+                onChange={updateContactField("message")}
+                placeholder="Escreva sua mensagem..."
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+              />
+            </div>
+
+            {contactError && <p className="sm:col-span-2 text-sm text-red-600">{contactError}</p>}
+
+            {contactResultMessage && (
+              <p className="sm:col-span-2 text-sm leading-6 text-emerald-700">{contactResultMessage}</p>
+            )}
+
+            <div className="sm:col-span-2">
+              <button
+                type="submit"
+                disabled={contactSubmitting}
+                className="inline-flex w-full items-center justify-center rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              >
+                {contactSubmitting ? "Enviando..." : "Enviar mensagem"}
+              </button>
+            </div>
+          </form>
+        </section>
       </section>
     </main>
   );

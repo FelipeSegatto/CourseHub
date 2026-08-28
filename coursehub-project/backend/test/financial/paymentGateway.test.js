@@ -182,7 +182,7 @@ after(async () => {
           DELETE n FROM notifications n
           WHERE (n.type IN ('financial.invoice.changed', 'financial.invoice.cancelled')
                  AND n.source_id IN (${placeholders}))
-             OR (n.type IN ('financial.payment.approved', 'financial.payment.refunded')
+             OR (n.type IN ('financial.payment.approved', 'financial.payment.refunded', 'admin.payment.rejected')
                  AND n.source_id IN (SELECT id FROM payments WHERE invoice_id IN (${placeholders})))
         `,
         [...createdInvoiceIds, ...createdInvoiceIds]
@@ -504,6 +504,76 @@ test("a credit_card attempt with the simulated declined token is rejected, and s
 
   const [[row]] = await db.promise().query("SELECT status FROM payments WHERE id = ?", [result.paymentId]);
   assert.equal(row.status, "rejected");
+
+  // Rejeição síncrona (invoicePaymentService.js) também notifica
+  // admins -- não é só o caminho assíncrono via webhook.
+  assert.equal(await countNotifications("admin.payment.rejected", result.paymentId), 1);
+
+  const [[notification]] = await db
+    .promise()
+    .query("SELECT category, priority FROM notifications WHERE type = 'admin.payment.rejected' AND source_id = ?", [
+      result.paymentId,
+    ]);
+
+  assert.equal(notification.category, "financial");
+  assert.equal(notification.priority, "high");
+});
+
+test("admin.payment.rejected: transição assíncrona (webhook) para rejected notifica admins uma única vez, reprocessamento não duplica", async () => {
+  const invoiceId = await createTestInvoice(600);
+
+  const gatewayPaymentId = `mp_reject_test_${Date.now()}`;
+
+  const [paymentResult] = await db.promise().query(
+    `
+      INSERT INTO payments (invoice_id, gateway, gateway_payment_id, source, payment_method, amount, currency, status)
+      VALUES (?, 'mercado_pago', ?, 'gateway', 'pix', 600, 'BRL', 'pending')
+    `,
+    [invoiceId, gatewayPaymentId]
+  );
+
+  const paymentId = paymentResult.insertId;
+
+  const originalGetPayment = mercadoPagoGateway.getPayment;
+
+  try {
+    mercadoPagoGateway.getPayment = async () => ({
+      status: "rejected",
+      gatewayPaymentId,
+      gatewayStatus: "rejected",
+      gatewayStatusDetail: "cc_rejected_insufficient_amount",
+    });
+
+    const firstUpdate = await processGatewayPaymentUpdate(db, {
+      gateway: "mercado_pago",
+      gatewayPaymentId,
+      gatewayEventId: `evt-reject-${Date.now()}`,
+      source: "gateway_webhook",
+    });
+
+    assert.equal(firstUpdate.applied, true);
+    assert.equal(firstUpdate.reason, "rejected");
+
+    assert.equal(await countNotifications("admin.payment.rejected", paymentId), 1);
+
+    // Reentrega do mesmo webhook (mesmo gatewayEventId) -- barrada
+    // mais acima por payment_events.gateway_event_id antes mesmo de
+    // chegar em applyTerminalNonApproval, então não pode duplicar a
+    // notificação.
+    const secondUpdate = await processGatewayPaymentUpdate(db, {
+      gateway: "mercado_pago",
+      gatewayPaymentId,
+      gatewayEventId: `evt-reject-retry-${Date.now()}`,
+      source: "gateway_webhook",
+    });
+
+    assert.equal(secondUpdate.applied, false);
+    assert.equal(secondUpdate.reason, "same_status_replay");
+
+    assert.equal(await countNotifications("admin.payment.rejected", paymentId), 1);
+  } finally {
+    mercadoPagoGateway.getPayment = originalGetPayment;
+  }
 });
 
 test("GET payment by id enforces the same ownership chain -- another student gets 404", async () => {

@@ -6,6 +6,7 @@ const {
   listTeacherCourses,
   syncTeacherCourses,
 } = require("../courses/courseTeacherService");
+const { notifyAdminUserCreated } = require("../notifications/adminUserNotificationService");
 
 const ALLOWED_TEACHER_STATUSES = ["active", "inactive"];
 
@@ -83,7 +84,8 @@ async function listTeachers(db) {
  * Cadastra um novo professor: cria o usuário de autenticação e
  * o perfil profissional em uma única transação.
  */
-async function createTeacher(db, payload) {
+async function createTeacher(db, payload, options = {}) {
+  const { actorUserId = null } = options;
   const { name, email, password, gender, cpf, phone, specialty, status, courseIds } = payload;
 
   if (!name?.trim() || !email?.trim() || !password) {
@@ -155,6 +157,14 @@ async function createTeacher(db, payload) {
     }
 
     await connection.commit();
+
+    await notifyAdminUserCreated(db, {
+      userId,
+      userName: name.trim(),
+      userRole: "teacher",
+      origin: "admin",
+      actorUserId,
+    });
 
     return {
       id: newTeacherId,

@@ -1,6 +1,7 @@
 const {
   findOrCreateSelfContractingPartyForStudent,
 } = require("../financial/contractingPartyService");
+const { dispatchAdminEnrollmentNotification } = require("../financial/activateContractService");
 
 // 'withdrawn' é setável por aqui tecnicamente (mesmo endpoint genérico
 // que já permite 'cancelled' sem side effects de contrato), mas o
@@ -329,7 +330,7 @@ async function createEnrollment(db, payload) {
       studentId,
     });
 
-    await connection.query(
+    const [contractResult] = await connection.query(
       `
         INSERT INTO financial_contracts
           (enrollment_id, student_id, course_id, contracting_party_id, created_by_user_id, origin,
@@ -360,6 +361,19 @@ async function createEnrollment(db, payload) {
     );
 
     await connection.commit();
+
+    // Caminho legado "matrícula-primeiro": nunca passa por
+    // activateContractFromPaidInvoice, então precisa da própria
+    // chamada de notificação -- origin='admin' garante que vira
+    // admin.enrollment.created, nunca admin.checkout.completed.
+    await dispatchAdminEnrollmentNotification(db, {
+      enrollmentId,
+      contractId: contractResult.insertId,
+      studentId,
+      courseId,
+      origin: "admin",
+      amount: Number(plan.total_amount),
+    });
 
     return getEnrollmentById(db, enrollmentId);
   } catch (error) {

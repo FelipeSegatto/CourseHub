@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import {
   listAdministrativeQueue,
@@ -77,8 +78,25 @@ export default function ChatAdmin() {
   const [modality, setModality] = useState(MODALITY_TABS[0].type);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [assignmentFilter, setAssignmentFilter] = useState("unassigned");
-  const [selectedConversationId, setSelectedConversationId] = useState(null);
+
+  // Deep-linked from a notification action path (/admin/chat?conversationId=...)
+  // -- getConversation() below fetches the ticket directly regardless
+  // of which queue/filter tab is active, so it opens correctly even if
+  // it wouldn't currently show up in the left-hand list.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedConversationId, setSelectedConversationId] = useState(() => {
+    const fromUrl = Number(searchParams.get("conversationId"));
+
+    return Number.isInteger(fromUrl) && fromUrl > 0 ? fromUrl : null;
+  });
   const [showNewConversationModal, setShowNewConversationModal] = useState(false);
+
+  useEffect(() => {
+    setSearchParams(selectedConversationId ? { conversationId: String(selectedConversationId) } : {}, {
+      replace: true,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConversationId]);
 
   const [queueItems, setQueueItems] = useState([]);
   const [queueLoading, setQueueLoading] = useState(true);

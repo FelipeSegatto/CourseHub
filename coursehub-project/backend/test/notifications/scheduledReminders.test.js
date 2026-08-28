@@ -155,7 +155,10 @@ after(async () => {
       db.promise().query(
         `
           DELETE n FROM notifications n
-          WHERE (n.type IN ('financial.invoice.overdue', 'financial.invoice.overdue_charge_warning', 'financial.enrollment.lock_warning')
+          WHERE (n.type IN (
+                   'financial.invoice.overdue', 'financial.invoice.overdue_charge_warning', 'financial.enrollment.lock_warning',
+                   'admin.financial.invoice.overdue', 'admin.financial.invoice.overdue_15_days', 'admin.financial.invoice.overdue_30_days'
+                 )
                  AND n.source_id IN (${placeholders}))
              OR (n.type = 'financial.invoice.reminder'
                  AND n.source_id IN (SELECT id FROM invoice_collection_actions WHERE invoice_id IN (${placeholders})))
@@ -202,7 +205,7 @@ after(async () => {
   // lesson as financialAndCalendar.test.js).
   await retryOnDeadlock(() =>
     db.promise().query(
-      "DELETE FROM notifications WHERE (type IN ('financial.invoice.overdue', 'financial.invoice.overdue_charge_warning', 'financial.enrollment.lock_warning') AND source_id IN (SELECT id FROM invoices WHERE description LIKE 'TEST ETAPA5F invoice %')) OR (type = 'financial.invoice.reminder' AND source_id IN (SELECT id FROM invoice_collection_actions WHERE invoice_id IN (SELECT id FROM invoices WHERE description LIKE 'TEST ETAPA5F invoice %')))"
+      "DELETE FROM notifications WHERE (type IN ('financial.invoice.overdue', 'financial.invoice.overdue_charge_warning', 'financial.enrollment.lock_warning', 'admin.financial.invoice.overdue', 'admin.financial.invoice.overdue_15_days', 'admin.financial.invoice.overdue_30_days') AND source_id IN (SELECT id FROM invoices WHERE description LIKE 'TEST ETAPA5F invoice %')) OR (type = 'financial.invoice.reminder' AND source_id IN (SELECT id FROM invoice_collection_actions WHERE invoice_id IN (SELECT id FROM invoices WHERE description LIKE 'TEST ETAPA5F invoice %')))"
     )
   );
 
@@ -310,6 +313,17 @@ test("marked_overdue transitions the invoice and notifies once", async () => {
   assert.equal(invoiceRow.status, "overdue");
   assert.equal(await countNotifications("financial.invoice.overdue", invoiceId), 1);
 
+  // admin.financial.invoice.overdue -- mesma transição, notificação
+  // administrativa própria (category=financial), nunca substituindo a
+  // do aluno.
+  assert.equal(await countNotifications("admin.financial.invoice.overdue", invoiceId), 1);
+
+  const [[adminNotification]] = await db.promise().query(
+    "SELECT category FROM notifications WHERE type = 'admin.financial.invoice.overdue' AND source_id = ?",
+    [invoiceId]
+  );
+  assert.equal(adminNotification.category, "financial");
+
   const [[eventRow]] = await db.promise().query(
     "SELECT event_type, source FROM financial_events WHERE invoice_id = ? AND event_type = 'invoice_marked_overdue'",
     [invoiceId]
@@ -342,6 +356,17 @@ test("lock_warning_15_days only warns -- the enrollment stays active", async () 
 
   assert.equal(await countNotifications("financial.enrollment.lock_warning", invoiceId), 1);
 
+  // admin.financial.invoice.overdue_15_days -- roda incondicionalmente
+  // (não existe flag que suprima o aviso de 15 dias), diferente do
+  // milestone de 30 dias.
+  assert.equal(await countNotifications("admin.financial.invoice.overdue_15_days", invoiceId), 1);
+
+  const [[adminNotification]] = await db.promise().query(
+    "SELECT priority FROM notifications WHERE type = 'admin.financial.invoice.overdue_15_days' AND source_id = ?",
+    [invoiceId]
+  );
+  assert.equal(adminNotification.priority, "high");
+
   const [[enrollmentRow]] = await db.promise().query("SELECT status FROM enrollments WHERE id = ?", [
     enrollmentId,
   ]);
@@ -372,6 +397,27 @@ test("enrollment_locked_30_days with the kill switch off (default) skips without
   ]);
 
   assert.equal(enrollmentRow.status, "active");
+
+  // admin.financial.invoice.overdue_30_days: MESMO com o kill switch
+  // desligado, o admin ainda precisa saber que a fatura atingiu 30
+  // dias -- esse milestone financeiro é independente do bloqueio
+  // automático (que aqui, corretamente, não aconteceu).
+  assert.equal(await countNotifications("admin.financial.invoice.overdue_30_days", invoiceId), 1);
+
+  const [[adminNotification]] = await db.promise().query(
+    "SELECT message, priority FROM notifications WHERE type = 'admin.financial.invoice.overdue_30_days' AND source_id = ?",
+    [invoiceId]
+  );
+  assert.equal(adminNotification.priority, "urgent");
+  assert.match(adminNotification.message, /NÃO foi bloqueada/);
+
+  const [[recipientRow]] = await db
+    .promise()
+    .query(
+      `SELECT action_path FROM notification_recipients WHERE notification_id = (SELECT id FROM notifications WHERE type = 'admin.financial.invoice.overdue_30_days' AND source_id = ?) LIMIT 1`,
+      [invoiceId]
+    );
+  assert.ok(recipientRow, "ao menos um admin deveria ter recebido a notificação de 30 dias");
 });
 
 test("enrollment_locked_30_days with the kill switch on actually locks and notifies", async () => {
@@ -407,6 +453,18 @@ test("enrollment_locked_30_days with the kill switch on actually locks and notif
   );
 
   assert.equal(eventRow.source, "system");
+
+  // admin.financial.invoice.overdue_30_days também dispara aqui, com
+  // enrollmentWasAutoLocked=true refletido na mensagem -- nunca
+  // substitui financial.enrollment.locked (o específico do bloqueio),
+  // os dois coexistem.
+  assert.equal(await countNotifications("admin.financial.invoice.overdue_30_days", invoiceId), 1);
+
+  const [[adminNotification]] = await db.promise().query(
+    "SELECT message FROM notifications WHERE type = 'admin.financial.invoice.overdue_30_days' AND source_id = ?",
+    [invoiceId]
+  );
+  assert.match(adminNotification.message, /foi bloqueada automaticamente/);
 
   // Reactivate directly -- this codebase has no "unlock" service yet
   // (out of scope here), so the test fixes its own side effect

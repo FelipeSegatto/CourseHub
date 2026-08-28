@@ -2,11 +2,12 @@ const { withTransaction } = require("../../utils/dbTransaction");
 const { assertValidTransition, canTransition } = require("./paymentStateMachine");
 const { recalculateFinancialContractStatus } = require("./contractFinancialService");
 const { createFinancialEvent } = require("./financialEventService");
-const { notifyPaymentApproved } = require("./financialNotificationService");
+const { notifyPaymentApproved, notifyAdminPaymentRejected } = require("./financialNotificationService");
 const { resolveGatewayByName } = require("../paymentGateway/paymentGatewayFactory");
 const {
   activateContractFromPaidInvoice,
   dispatchActivationNotifications,
+  dispatchAdminEnrollmentNotification,
 } = require("./activateContractService");
 
 /**
@@ -54,7 +55,7 @@ async function lockPaymentForProcessing(connection, paymentId) {
     `
       SELECT
         p.id, p.status, p.gateway, p.gateway_payment_id, p.amount, p.currency,
-        p.external_reference, p.invoice_id,
+        p.external_reference, p.invoice_id, p.payment_method,
         i.status AS invoice_status, i.amount AS invoice_amount, i.description AS invoice_description,
         i.financial_contract_id,
         fc.enrollment_id, fc.student_id, fc.course_id,
@@ -218,11 +219,11 @@ async function applyApproval(db, connection, row, gatewayResult) {
     source: "gateway",
   });
 
-  return { applied: true, reason: "approved", activationResult };
+  return { applied: true, reason: "approved", activationResult, paymentId: row.id, amount: Number(row.invoice_amount) };
 }
 
 /** Rejected/cancelled nunca tocam a fatura -- ela continua aberta para o aluno iniciar uma nova tentativa. */
-async function applyTerminalNonApproval(connection, row, gatewayResult, targetStatus) {
+async function applyTerminalNonApproval(db, connection, row, gatewayResult, targetStatus) {
   if (row.status === targetStatus) {
     return { applied: false, reason: `already_${targetStatus}` };
   }
@@ -252,6 +253,24 @@ async function applyTerminalNonApproval(connection, row, gatewayResult, targetSt
       row.id,
     ]
   );
+
+  // Só "rejected" notifica admins -- é o único dos dois que representa
+  // um problema genuíno de cobrança (gateway recusou o pagamento).
+  // "cancelled" é o aluno desistindo da própria tentativa antes de
+  // pagar, não um evento que precise de atenção administrativa.
+  if (targetStatus === "rejected") {
+    await notifyAdminPaymentRejected(db, connection, {
+      paymentId: row.id,
+      invoiceId: row.invoice_id,
+      contractId: row.financial_contract_id,
+      studentId: row.student_id,
+      courseName: row.course_name,
+      amount: row.amount,
+      paymentMethod: row.payment_method,
+      gateway: row.gateway,
+      rejectionReason: gatewayResult.gatewayStatusDetail || gatewayResult.failureCode || null,
+    });
+  }
 
   return { applied: true, reason: targetStatus };
 }
@@ -448,9 +467,9 @@ async function processGatewayPaymentUpdate(db, { gateway, gatewayPaymentId, gate
       case "approved":
         return { matched: true, ...(await applyApproval(db, connection, row, gatewayResult)) };
       case "rejected":
-        return { matched: true, ...(await applyTerminalNonApproval(connection, row, gatewayResult, "rejected")) };
+        return { matched: true, ...(await applyTerminalNonApproval(db, connection, row, gatewayResult, "rejected")) };
       case "cancelled":
-        return { matched: true, ...(await applyTerminalNonApproval(connection, row, gatewayResult, "cancelled")) };
+        return { matched: true, ...(await applyTerminalNonApproval(db, connection, row, gatewayResult, "cancelled")) };
       case "chargeback":
         return { matched: true, ...(await applyChargeback(db, connection, row, gatewayResult)) };
       default:
@@ -460,6 +479,16 @@ async function processGatewayPaymentUpdate(db, { gateway, gatewayPaymentId, gate
 
   if (result?.activationResult?.activated) {
     await dispatchActivationNotifications(db, result.activationResult);
+    await dispatchAdminEnrollmentNotification(db, {
+      enrollmentId: result.activationResult.enrollmentId,
+      contractId: result.activationResult.contractId,
+      invoiceId: result.activationResult.invoiceId,
+      studentId: result.activationResult.studentId,
+      courseId: result.activationResult.courseId,
+      origin: result.activationResult.origin,
+      paymentId: result.paymentId,
+      amount: result.amount,
+    });
   }
 
   return result;

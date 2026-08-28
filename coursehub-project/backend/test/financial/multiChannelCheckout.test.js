@@ -22,6 +22,9 @@ const { submitPublicCheckoutContract } = require("../../services/financial/publi
 const {
   purchaseAdditionalCourseAsAuthenticatedStudent,
 } = require("../../services/financial/authenticatedCheckoutService");
+const { registerManualPayment } = require("../../services/financial/paymentService");
+const { createEnrollment } = require("../../services/admin/adminEnrollmentService");
+const { createStudent } = require("../../services/admin/adminStudentService");
 const {
   createAccessToken,
   findValidAccessToken,
@@ -92,6 +95,19 @@ async function purgeCourseData(targetCourseId) {
 
     await db.promise().query(`DELETE FROM invoices WHERE financial_contract_id = ?`, [contract.id]);
   }
+
+  // financial_events pode ter linhas ancoradas SÓ em enrollment_id
+  // (financial_contract_id NULL) -- ex.: account_activation_invitation_created,
+  // disparado por dispatchActivationNotifications/
+  // dispatchEnrollmentActivationIfNeeded sempre que a matrícula ativada
+  // pertence a um aluno pending_activation. O loop por contrato acima só
+  // limpa financial_events pelo financial_contract_id, então isso
+  // precisa de uma passada própria antes de apagar as enrollments, ou o
+  // DELETE abaixo falha com FK.
+  await db.promise().query(
+    `DELETE FROM financial_events WHERE enrollment_id IN (SELECT id FROM enrollments WHERE course_id = ?)`,
+    [targetCourseId]
+  );
 
   await db.promise().query(`DELETE FROM enrollments WHERE course_id = ?`, [targetCourseId]);
 
@@ -193,7 +209,46 @@ before(async () => {
   planId = planResult.insertId;
 });
 
+// admin.checkout.completed/admin.enrollment.created recipients are
+// always real admins (resolveAllActiveAdmins), never the test
+// student, and actor_user_id is always NULL for these dispatches --
+// purgeCourseData's per-student notification cleanup never finds
+// them, so they're tracked and removed separately here.
+const createdEnrollmentNotificationIds = [];
+
+async function cleanupEnrollmentNotification(notificationId) {
+  if (!notificationId) return;
+
+  await retryOnDeadlock(() =>
+    db
+      .promise()
+      .query(
+        `DELETE FROM notification_deliveries WHERE recipient_id IN (SELECT id FROM notification_recipients WHERE notification_id = ?)`,
+        [notificationId]
+      )
+  );
+  await retryOnDeadlock(() =>
+    db.promise().query(`DELETE FROM notification_recipients WHERE notification_id = ?`, [notificationId])
+  );
+  await retryOnDeadlock(() => db.promise().query(`DELETE FROM notifications WHERE id = ?`, [notificationId]));
+}
+
+async function findEnrollmentNotification(enrollmentId, type) {
+  const [rows] = await db
+    .promise()
+    .query(
+      `SELECT id, category, deduplication_key FROM notifications WHERE source_type = 'enrollment' AND source_id = ? AND type = ? LIMIT 1`,
+      [enrollmentId, type]
+    );
+
+  return rows[0] || null;
+}
+
 after(async () => {
+  for (const notificationId of createdEnrollmentNotificationIds) {
+    await cleanupEnrollmentNotification(notificationId);
+  }
+
   await retryOnDeadlock(() => purgeCourseData(courseId));
   await db.promise().end();
 });
@@ -715,4 +770,125 @@ test("simulatedGateway: boleto fica pending até simulateApproval, cartão aprov
   });
 
   assert.equal(declinedCard.status, "rejected");
+});
+
+// -----------------------------------------------------------------
+// admin.checkout.completed / admin.enrollment.created (evolução do
+// sistema de notificações, seção 5/20.B/20.C) -- ramificam por
+// financial_contracts.origin no único ponto de convergência
+// (activateContractFromPaidInvoice), nunca os dois para a mesma
+// enrollment.
+// -----------------------------------------------------------------
+
+test("origin=public_checkout: pagamento aprovado gera admin.checkout.completed (category=enrollment), nunca admin.enrollment.created", async () => {
+  const result = await createStudentContractWithInitialInvoice(
+    db,
+    {
+      newStudentData: {
+        name: "Aluno Teste Notif Checkout",
+        email: testEmail("notif-checkout"),
+        birth_date: "2000-05-01",
+        cpf: testCpf(50),
+        phone: "11999990050",
+      },
+      contractingPartyMode: "self",
+      courseId,
+      pricingPlanId: planId,
+      billingData: { dueDate: "2026-12-01" },
+      origin: "public_checkout",
+    },
+    adminUserId
+  );
+
+  const paymentResult = await registerManualPayment(db, {
+    invoiceId: result.invoiceId,
+    amount: 300,
+    paymentMethod: "pix",
+    paymentDate: new Date().toISOString(),
+    reason: "Teste automatizado (notificação de checkout)",
+    actorUserId: adminUserId,
+  });
+
+  const enrollmentId = paymentResult.activationResult.enrollmentId;
+  assert.ok(enrollmentId);
+
+  const checkoutNotification = await findEnrollmentNotification(enrollmentId, "admin.checkout.completed");
+  assert.ok(checkoutNotification, "admin.checkout.completed deveria ter sido criada");
+  createdEnrollmentNotificationIds.push(checkoutNotification.id);
+
+  assert.equal(checkoutNotification.category, "enrollment");
+  assert.equal(checkoutNotification.deduplication_key, `admin:checkout-completed:${enrollmentId}`);
+
+  const enrollmentNotification = await findEnrollmentNotification(enrollmentId, "admin.enrollment.created");
+  assert.equal(enrollmentNotification, null, "admin.enrollment.created não deveria disparar para um checkout");
+});
+
+test("origin=admin (pagamento externo registrado): gera admin.enrollment.created, nunca admin.checkout.completed", async () => {
+  const result = await createStudentContractWithInitialInvoice(
+    db,
+    {
+      newStudentData: {
+        name: "Aluno Teste Notif Enrollment Admin",
+        email: testEmail("notif-enrollment-admin"),
+        birth_date: "2000-05-01",
+        cpf: testCpf(51),
+        phone: "11999990051",
+      },
+      contractingPartyMode: "self",
+      courseId,
+      pricingPlanId: planId,
+      billingData: { dueDate: "2026-12-01" },
+      // origin omitido -- default é 'admin' (ver contractCreationService.js)
+    },
+    adminUserId
+  );
+
+  const paymentResult = await registerManualPayment(db, {
+    invoiceId: result.invoiceId,
+    amount: 300,
+    paymentMethod: "pix",
+    paymentDate: new Date().toISOString(),
+    reason: "Teste automatizado (notificação de matrícula admin)",
+    actorUserId: adminUserId,
+  });
+
+  const enrollmentId = paymentResult.activationResult.enrollmentId;
+  assert.ok(enrollmentId);
+
+  const enrollmentNotification = await findEnrollmentNotification(enrollmentId, "admin.enrollment.created");
+  assert.ok(enrollmentNotification, "admin.enrollment.created deveria ter sido criada");
+  createdEnrollmentNotificationIds.push(enrollmentNotification.id);
+
+  assert.equal(enrollmentNotification.category, "enrollment");
+  assert.equal(enrollmentNotification.deduplication_key, `admin:enrollment-created:${enrollmentId}`);
+
+  const checkoutNotification = await findEnrollmentNotification(enrollmentId, "admin.checkout.completed");
+  assert.equal(checkoutNotification, null, "admin.checkout.completed não deveria disparar para um pagamento externo admin");
+});
+
+test("adminEnrollmentService.createEnrollment (matrícula-primeiro): gera admin.enrollment.created, nunca admin.checkout.completed", async () => {
+  const student = await createStudent(db, {
+    name: "Aluno Teste Notif Wizard",
+    email: testEmail("notif-wizard"),
+    password: "senha123",
+    birth_date: "2000-05-01",
+    cpf: testCpf(52),
+    phone: "11999990052",
+  });
+
+  const enrollment = await createEnrollment(db, {
+    student_id: student.id,
+    course_id: courseId,
+    pricing_plan_id: planId,
+  });
+
+  const enrollmentId = enrollment.id;
+  assert.ok(enrollmentId);
+
+  const enrollmentNotification = await findEnrollmentNotification(enrollmentId, "admin.enrollment.created");
+  assert.ok(enrollmentNotification, "admin.enrollment.created deveria ter sido criada");
+  createdEnrollmentNotificationIds.push(enrollmentNotification.id);
+
+  const checkoutNotification = await findEnrollmentNotification(enrollmentId, "admin.checkout.completed");
+  assert.equal(checkoutNotification, null, "admin.checkout.completed não deveria disparar para a matrícula-primeiro do wizard");
 });

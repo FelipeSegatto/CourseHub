@@ -283,6 +283,78 @@ test("archived items are excluded from the default inbox but not from includeArc
   assert.ok(withArchived.some((item) => item.title === "Query test item 9"));
 });
 
+test("listInbox: category filter genuinely excludes other categories, and combines with status", async () => {
+  const runId = `run-${Date.now()}-category-filter`;
+  const OTHER_TYPE = `test.notification_query.other.${Date.now()}`;
+
+  registerNotificationType({
+    type: OTHER_TYPE,
+    category: "test_query_other_category",
+    priority: "normal",
+    emailPolicy: "default_off",
+    requiredContext: ["itemId"],
+    buildTitle: (context) => `Other category item ${context.itemId}`,
+    buildMessage: (context) => `Message ${context.itemId}`,
+    buildActionPath: (context) => `/test/query/other/${context.itemId}`,
+    buildDeduplicationKey: (context) => `test:query:other:${context.itemId}:${context.runId}`,
+  });
+
+  try {
+    const inCategory = await createForRecipient(userB, 201, runId);
+
+    const otherCategoryResult = await createNotificationEvent(db, {
+      type: OTHER_TYPE,
+      sourceType: "test_source",
+      sourceId: 202,
+      actorUserId: userA.id,
+      context: { itemId: 202, runId },
+      recipients: [{ userId: userB.id, role: "student", email: userB.email }],
+    });
+
+    // Sem filtro: as duas categorias aparecem.
+    const unfiltered = await listInbox(db, { userId: userB.id, limit: 50 });
+    assert.ok(unfiltered.items.some((item) => item.title === "Query test item 201"));
+    assert.ok(unfiltered.items.some((item) => item.title === "Other category item 202"));
+
+    // Filtrando por TEST_CATEGORY: só a notificação daquela categoria aparece.
+    const { items: onlyTestCategory } = await listInbox(db, {
+      userId: userB.id,
+      category: TEST_CATEGORY,
+      limit: 50,
+    });
+    assert.ok(onlyTestCategory.some((item) => item.title === "Query test item 201"));
+    assert.ok(!onlyTestCategory.some((item) => item.title === "Other category item 202"));
+
+    // category + status combinados ("Financeiro + Não lidas"-style):
+    // marca a notificação da OUTRA categoria como lida -- o filtro
+    // category=TEST_CATEGORY & status=unread continua devolvendo só a
+    // primeira, category=test_query_other_category & status=unread
+    // continua devolvendo a segunda (ainda não lida).
+    await markAsRead(db, { userId: userB.id, notificationId: otherCategoryResult.notificationId });
+
+    const { items: testCategoryUnread } = await listInbox(db, {
+      userId: userB.id,
+      category: TEST_CATEGORY,
+      status: "unread",
+      limit: 50,
+    });
+    assert.ok(testCategoryUnread.some((item) => item.title === "Query test item 201"));
+
+    const { items: otherCategoryUnread } = await listInbox(db, {
+      userId: userB.id,
+      category: "test_query_other_category",
+      status: "unread",
+      limit: 50,
+    });
+    assert.ok(!otherCategoryUnread.some((item) => item.title === "Other category item 202"));
+
+    assert.ok(inCategory.notificationId);
+  } finally {
+    _unregisterNotificationType(OTHER_TYPE);
+    await retryOnDeadlock(() => db.promise().query("DELETE FROM notifications WHERE type = ?", [OTHER_TYPE]));
+  }
+});
+
 test("updatePreference rejects invalid category and non-boolean emailEnabled", async () => {
   await assert.rejects(
     updatePreference(db, { userId: userB.id, category: "", emailEnabled: true }),

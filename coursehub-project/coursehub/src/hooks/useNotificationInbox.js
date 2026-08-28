@@ -21,6 +21,7 @@ import {
  */
 export function useNotificationInbox() {
   const [status, setStatus] = useState("all");
+  const [category, setCategory] = useState("all");
   const [items, setItems] = useState([]);
   const [nextCursor, setNextCursor] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -48,7 +49,7 @@ export function useNotificationInbox() {
         setError("");
 
         const [inboxResult, unreadResult] = await Promise.all([
-          listNotifications({ status }),
+          listNotifications({ status, category: category === "all" ? undefined : category }),
           getUnreadNotificationCount(),
         ]);
 
@@ -73,7 +74,7 @@ export function useNotificationInbox() {
     return () => {
       cancelled = true;
     };
-  }, [status, reloadToken]);
+  }, [status, category, reloadToken]);
 
   const loadFirstPage = useCallback(() => {
     setReloadToken((token) => token + 1);
@@ -85,7 +86,11 @@ export function useNotificationInbox() {
     try {
       setLoadingMore(true);
 
-      const result = await listNotifications({ status, cursor: nextCursor });
+      const result = await listNotifications({
+        status,
+        category: category === "all" ? undefined : category,
+        cursor: nextCursor,
+      });
 
       setItems((current) => [...current, ...(result?.items || [])]);
       setNextCursor(result?.nextCursor || null);
@@ -167,6 +172,8 @@ export function useNotificationInbox() {
   return {
     status,
     setStatus,
+    category,
+    setCategory,
     items,
     nextCursor,
     unreadCount,

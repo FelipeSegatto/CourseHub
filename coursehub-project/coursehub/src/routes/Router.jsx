@@ -58,6 +58,7 @@ import AssessmentsAdmin from "../pages/admin/AssessmentsAdmin";
 import CertificatesAdmin from "../pages/admin/CertificatesAdmin";
 import FinancialContractsAdmin from "../pages/admin/financial/FinancialContractsAdmin";
 import ContractingPartiesAdmin from "../pages/admin/financial/ContractingPartiesAdmin";
+import AdminContacts from "../pages/admin/AdminContacts";
 import FinancialContractsDetails from "../pages/admin/financial/FinancialContractsDetails";
 import FinancialInvoicesAdmin from "../pages/admin/financial/FinancialInvoicesAdmin";
 import FinancialInvoicesDetails from "../pages/admin/financial/FinancialInvoicesDetails";
@@ -421,6 +422,10 @@ export const router = createBrowserRouter([
               {
                 path: "matriculas",
                 element: <EnrollmentsAdmin />,
+              },
+              {
+                path: "contatos",
+                element: <AdminContacts />,
               },
               {
                 path: "materiais",
