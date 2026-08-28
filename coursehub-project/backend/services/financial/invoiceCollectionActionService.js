@@ -2,7 +2,7 @@ const { withTransaction } = require("../../utils/dbTransaction");
 const { recalculateFinancialContractStatus } = require("./contractFinancialService");
 const { createFinancialEvent } = require("./financialEventService");
 const { createNotificationEvent } = require("../notifications/notificationService");
-const { resolveStudentOwner } = require("../notifications/notificationRecipientResolvers");
+const { resolveStudentOwner, resolveAllActiveAdmins } = require("../notifications/notificationRecipientResolvers");
 const { formatDateOnly } = require("../../utils/appConfig");
 
 // Terminal invoice states -- once an invoice reaches one of these,
@@ -196,6 +196,98 @@ async function notifyEnrollmentLocked(db, connection, action) {
 }
 
 /**
+ * As três funções abaixo são as versões ADMINISTRATIVAS dos avisos
+ * acima -- mesmo `action`, mesmo `connection`/transação, mas
+ * audiência resolveAllActiveAdmins() e um `type`/deduplicationKey
+ * próprios (nunca reaproveitam o dedup key dos avisos ao aluno, então
+ * um evento nunca substitui o outro).
+ */
+async function notifyAdminInvoiceOverdue(db, connection, action) {
+  const admins = await resolveAllActiveAdmins(connection);
+
+  if (admins.length === 0) {
+    return;
+  }
+
+  await createNotificationEvent(db, {
+    type: "admin.financial.invoice.overdue",
+    sourceType: "invoice",
+    sourceId: action.invoice_id,
+    context: {
+      invoiceId: action.invoice_id,
+      studentId: action.student_id,
+      studentName: action.student_name,
+      courseId: action.course_id,
+      courseName: action.course_name,
+      amount: action.invoice_amount,
+      dueDate: formatDateOnly(action.due_date),
+      daysOverdue: action.days_overdue,
+      collectionActionId: action.id,
+    },
+    recipients: admins,
+    connection,
+  });
+}
+
+async function notifyAdminInvoiceOverdue15Days(db, connection, action) {
+  const admins = await resolveAllActiveAdmins(connection);
+
+  if (admins.length === 0) {
+    return;
+  }
+
+  await createNotificationEvent(db, {
+    type: "admin.financial.invoice.overdue_15_days",
+    sourceType: "invoice",
+    sourceId: action.invoice_id,
+    context: {
+      invoiceId: action.invoice_id,
+      studentId: action.student_id,
+      studentName: action.student_name,
+      courseName: action.course_name,
+      amount: action.invoice_amount,
+      dueDate: formatDateOnly(action.due_date),
+      daysOverdue: action.days_overdue,
+      collectionActionId: action.id,
+      // lock_warning_15_days sempre executa quando a action é
+      // processada (não há flag que a suprima, ao contrário do
+      // milestone de 30 dias) -- ver isAutoLockEnabled só se aplica ao
+      // bloqueio em si, não ao aviso de 15 dias.
+      warningActionExecuted: true,
+    },
+    recipients: admins,
+    connection,
+  });
+}
+
+async function notifyAdminInvoiceOverdue30Days(db, connection, action, { enrollmentWasAutoLocked }) {
+  const admins = await resolveAllActiveAdmins(connection);
+
+  if (admins.length === 0) {
+    return;
+  }
+
+  await createNotificationEvent(db, {
+    type: "admin.financial.invoice.overdue_30_days",
+    sourceType: "invoice",
+    sourceId: action.invoice_id,
+    context: {
+      invoiceId: action.invoice_id,
+      enrollmentId: action.enrollment_id,
+      studentId: action.student_id,
+      studentName: action.student_name,
+      courseName: action.course_name,
+      amount: action.invoice_amount,
+      dueDate: formatDateOnly(action.due_date),
+      daysOverdue: action.days_overdue,
+      enrollmentWasAutoLocked,
+    },
+    recipients: admins,
+    connection,
+  });
+}
+
+/**
  * Processes exactly one collection_actions row, re-checking its
  * status under FOR UPDATE first (so two overlapping worker cycles,
  * or a retried transaction, never double-act on the same row).
@@ -208,15 +300,17 @@ async function processCollectionAction(db, actionId) {
       `
         SELECT
           aca.id, aca.invoice_id, aca.action_type, aca.status,
-          i.status AS invoice_status, i.description, i.due_date,
+          i.status AS invoice_status, i.description, i.due_date, i.amount AS invoice_amount,
+          DATEDIFF(CURDATE(), i.due_date) AS days_overdue,
           fc.id AS financial_contract_id, fc.enrollment_id,
           en.student_id, en.course_id, en.status AS enrollment_status,
-          c.name AS course_name
+          c.name AS course_name, s.name AS student_name
         FROM invoice_collection_actions aca
         INNER JOIN invoices i ON i.id = aca.invoice_id
         INNER JOIN financial_contracts fc ON fc.id = i.financial_contract_id
         INNER JOIN enrollments en ON en.id = fc.enrollment_id
         INNER JOIN courses c ON c.id = en.course_id
+        INNER JOIN students s ON s.id = en.student_id
         WHERE aca.id = ?
         FOR UPDATE
       `,
@@ -270,6 +364,7 @@ async function processCollectionAction(db, actionId) {
           });
 
           await notifyInvoiceOverdue(db, connection, action);
+          await notifyAdminInvoiceOverdue(db, connection, action);
         } else {
           // Already 'overdue' through some other path -- nothing
           // changed, so nothing to notify.
@@ -285,9 +380,12 @@ async function processCollectionAction(db, actionId) {
 
       case "lock_warning_15_days":
         await notifyLockWarning(db, connection, action);
+        await notifyAdminInvoiceOverdue15Days(db, connection, action);
         break;
 
-      case "enrollment_locked_30_days":
+      case "enrollment_locked_30_days": {
+        let enrollmentWasAutoLocked = false;
+
         if (isAutoLockEnabled()) {
           const [lockResult] = await connection.query(
             `
@@ -314,10 +412,13 @@ async function processCollectionAction(db, actionId) {
             });
 
             await notifyEnrollmentLocked(db, connection, action);
+            enrollmentWasAutoLocked = true;
           } else {
             // Already locked through some other path -- nothing
-            // changed, so nothing to notify.
+            // changed here, so no "you were just locked" notification,
+            // but the enrollment IS currently locked.
             finalStatus = "skipped";
+            enrollmentWasAutoLocked = true;
           }
         } else {
           // ENABLE_ENROLLMENT_AUTO_LOCK is off (the default) -- the
@@ -327,7 +428,19 @@ async function processCollectionAction(db, actionId) {
           finalStatus = "skipped";
         }
 
+        // Deliberadamente FORA do if/else acima e nunca gated pela
+        // flag: "atingiu 30 dias em atraso" é um milestone financeiro
+        // que aconteceu de verdade independente de
+        // ENABLE_ENROLLMENT_AUTO_LOCK -- não usar isso como substituto
+        // do evento específico de bloqueio (financial.enrollment.locked,
+        // que continua condicionado à flag). finalStatus (processed/
+        // skipped) continua representando só o que aconteceu com o
+        // BLOQUEIO em si, para não quebrar a semântica que os testes
+        // existentes já verificam.
+        await notifyAdminInvoiceOverdue30Days(db, connection, action, { enrollmentWasAutoLocked });
+
         break;
+      }
 
       default:
         finalStatus = "skipped";

@@ -5,6 +5,7 @@ const { createServiceError } = require("../classes/classAccessService");
 const { assertValidTransition } = require("./paymentStateMachine");
 const { applyApproval } = require("./paymentProcessingService");
 const { dispatchActivationNotifications } = require("./activateContractService");
+const { notifyAdminPaymentRejected } = require("./financialNotificationService");
 const { getPaymentGateway, getPaymentGatewayName } = require("../paymentGateway/paymentGatewayFactory");
 const { buildExternalReference, buildIdempotencyKey } = require("../paymentGateway/paymentGatewayContract");
 
@@ -601,6 +602,25 @@ async function startInvoicePayment(
     if (gatewayResult.status === "approved") {
       const result = await applyApproval(db, connection, row, gatewayResult);
       return result.activationResult || null;
+    }
+
+    // Rejeição síncrona (ex.: cartão recusado na hora da criação) --
+    // caminho genuinamente diferente do webhook assíncrono
+    // (paymentProcessingService.applyTerminalNonApproval, que cobre
+    // PIX/boleto rejeitados mais tarde), mas o mesmo evento do ponto
+    // de vista do admin: um pagamento realmente foi rejeitado.
+    if (gatewayResult.status === "rejected") {
+      await notifyAdminPaymentRejected(db, connection, {
+        paymentId,
+        invoiceId: row.invoice_id,
+        contractId: row.financial_contract_id,
+        studentId: row.student_id,
+        courseName: row.course_name,
+        amount: row.amount,
+        paymentMethod,
+        gateway: getPaymentGatewayName(),
+        rejectionReason: gatewayResult.gatewayStatusDetail || null,
+      });
     }
 
     return null;

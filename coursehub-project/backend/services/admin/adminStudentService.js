@@ -1,4 +1,5 @@
 const bcrypt = require("bcryptjs");
+const { notifyAdminUserCreated } = require("../notifications/adminUserNotificationService");
 
 const ALLOWED_STUDENT_STATUSES = ["active", "inactive", "cancelled"];
 
@@ -138,7 +139,7 @@ async function getStudentById(db, id) {
  * conta fica pendente até a ativação (ver accountActivationService).
  */
 async function createStudent(db, payload, options = {}) {
-  const { connection: externalConnection, allowNullPassword = false } = options;
+  const { connection: externalConnection, allowNullPassword = false, actorUserId = null } = options;
 
   const { name, email, password, gender, birth_date, cpf, phone, address, status } =
     payload;
@@ -228,6 +229,24 @@ async function createStudent(db, payload, options = {}) {
 
     if (ownsConnection) {
       await connection.commit();
+    }
+
+    // Só notifica quando esta chamada é dona da própria transação
+    // (cadastro direto pelo admin, via rota) -- quando embutida numa
+    // transação maior (allowNullPassword, usado tanto pelo stub de
+    // checkout quanto pela criação de aluno novo dentro de bolsa/
+    // migração), quem decide se/quando notificar é o chamador, depois
+    // do PRÓPRIO commit dele, nunca esta função (ela não é dona do
+    // commit nesse caso). O stub de checkout deliberadamente nunca
+    // notifica -- ver eventDefinitions/adminUserCreated.js.
+    if (ownsConnection && !usingNullPassword) {
+      await notifyAdminUserCreated(db, {
+        userId,
+        userName: name.trim(),
+        userRole: "student",
+        origin: "admin",
+        actorUserId,
+      });
     }
 
     return {

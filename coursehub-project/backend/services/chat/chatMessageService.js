@@ -330,8 +330,19 @@ async function createMessage(
     });
 
     if (recipients.length > 0) {
+      // administrative_support replies use their own notification type
+      // (category "request") so they surface under "Requerimentos" in
+      // the admin inbox instead of being mixed into the generic "Chat"
+      // category -- every other modality keeps chat.message.received.
+      // Never both for the same message: this is a branch, not an
+      // addition.
+      const eventType =
+        conversation.type === "administrative_support"
+          ? "administrative.request.message_received"
+          : "chat.message.received";
+
       await createNotificationEvent(db, {
-        type: "chat.message.received",
+        type: eventType,
         sourceType: "chat_conversation",
         sourceId: conversationId,
         actorUserId: userId,

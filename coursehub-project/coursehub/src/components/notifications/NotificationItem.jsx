@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { getNotificationCategoryLabel } from "../../constants/notificationCategories";
 
 const PRIORITY_LABEL = {
   urgent: { text: "Urgente", className: "bg-red-100 text-red-700" },
@@ -44,6 +45,12 @@ export default function NotificationItem({ item, onMarkRead, onArchive }) {
             >
               {isUnread ? "Não lida" : "Lida"}
             </span>
+
+            {item.category && (
+              <span className="rounded-full bg-gray-50 px-3 py-1 text-xs font-medium text-gray-500 ring-1 ring-gray-200">
+                {getNotificationCategoryLabel(item.category)}
+              </span>
+            )}
           </div>
 
           <h3 className="text-lg font-bold text-gray-900">{item.title}</h3>

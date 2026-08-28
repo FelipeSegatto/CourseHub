@@ -1,4 +1,5 @@
 const bcrypt = require("bcryptjs");
+const { notifyAdminUserCreated } = require("../notifications/adminUserNotificationService");
 
 /**
  * Cria um erro de negócio com status HTTP associado.
@@ -101,6 +102,17 @@ async function registerStudent(db, payload) {
     );
 
     await connection.commit();
+
+    // Autoatendimento real -- sempre notifica. actorUserId é o próprio
+    // usuário recém-criado (nunca um admin), então excludeActor não
+    // filtra ninguém de resolveAllActiveAdmins().
+    await notifyAdminUserCreated(db, {
+      userId,
+      userName: normalizedName,
+      userRole: "student",
+      origin: "public_registration",
+      actorUserId: userId,
+    });
 
     return { userId, studentId, registrationNumber };
   } catch (error) {

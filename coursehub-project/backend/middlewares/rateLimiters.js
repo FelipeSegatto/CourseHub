@@ -679,6 +679,100 @@ const invoicePaymentLinkRecoveryByEmailRateLimiter =
 
 /**
  * ============================================================
+ * FORMULÁRIO PÚBLICO DE CONTATO - LIMITE GLOBAL POR IP
+ * ============================================================
+ *
+ * Usado pela rota pública:
+ *
+ * POST /api/public/contact
+ *
+ * 10 solicitações / 15 minutos / IP.
+ */
+const contactRequestByIpRateLimiter =
+  rateLimit({
+    windowMs:
+      15 * 60 * 1000,
+
+    max:
+      10,
+
+    standardHeaders:
+      true,
+
+    legacyHeaders:
+      false,
+
+    keyGenerator: (req) =>
+      `contact-request-ip:${ipKeyGenerator(
+        req.ip
+      )}`,
+
+    message: {
+      message:
+        "Muitas mensagens foram enviadas desta rede. Aguarde alguns minutos antes de tentar novamente.",
+    },
+  });
+
+
+/**
+ * ============================================================
+ * FORMULÁRIO PÚBLICO DE CONTATO - LIMITE POR E-MAIL
+ * ============================================================
+ *
+ * Cada e-mail possui seu próprio contador.
+ *
+ * 5 solicitações / 15 minutos / e-mail.
+ */
+const contactRequestByEmailRateLimiter =
+  rateLimit({
+    windowMs:
+      15 * 60 * 1000,
+
+    max:
+      5,
+
+    standardHeaders:
+      true,
+
+    legacyHeaders:
+      false,
+
+    keyGenerator: (req) => {
+
+      const email =
+        String(
+          req.body?.email || ""
+        )
+          .trim()
+          .toLowerCase();
+
+
+      if (!email) {
+
+        return (
+          "contact-request-email-fallback:" +
+          ipKeyGenerator(
+            req.ip
+          )
+        );
+      }
+
+
+      return (
+        "contact-request-email:" +
+        email
+      );
+    },
+
+    message: {
+      message:
+        "Muitas mensagens foram enviadas para este e-mail. Aguarde alguns minutos antes de tentar novamente.",
+    },
+  });
+
+
+/**
+ * ============================================================
  * EXPORTAÇÃO DE RELATÓRIOS
  * ============================================================
  *
@@ -796,4 +890,7 @@ module.exports = {
 
   reportExportRateLimiter,
   documentVerificationRateLimiter,
+
+  contactRequestByIpRateLimiter,
+  contactRequestByEmailRateLimiter,
 };

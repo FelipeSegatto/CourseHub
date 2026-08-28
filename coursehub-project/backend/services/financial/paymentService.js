@@ -13,6 +13,7 @@ const { notifyPaymentApproved } = require("./financialNotificationService");
 const {
   activateContractFromPaidInvoice,
   dispatchActivationNotifications,
+  dispatchAdminEnrollmentNotification,
 } = require("./activateContractService");
 
 /**
@@ -396,6 +397,16 @@ async function registerManualPayment(
 
   if (result?.activationResult?.activated) {
     await dispatchActivationNotifications(db, result.activationResult);
+    await dispatchAdminEnrollmentNotification(db, {
+      enrollmentId: result.activationResult.enrollmentId,
+      contractId: result.activationResult.contractId,
+      invoiceId: result.activationResult.invoiceId,
+      studentId: result.activationResult.studentId,
+      courseId: result.activationResult.courseId,
+      origin: result.activationResult.origin,
+      paymentId: result.paymentId,
+      amount: result.amount,
+    });
   }
 
   return result;

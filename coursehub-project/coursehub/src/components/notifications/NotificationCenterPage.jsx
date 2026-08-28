@@ -11,10 +11,12 @@ import NotificationPreferences from "./NotificationPreferences";
  * title/description/backLink; the data, filters, list, and
  * preferences panel are identical across roles.
  */
-export default function NotificationCenterPage({ title, description, backLink }) {
+export default function NotificationCenterPage({ title, description, backLink, categories }) {
   const {
     status,
     setStatus,
+    category,
+    setCategory,
     items,
     nextCursor,
     unreadCount,
@@ -49,6 +51,9 @@ export default function NotificationCenterPage({ title, description, backLink })
             onStatusChange={setStatus}
             unreadCount={unreadCount}
             onMarkAllRead={handleMarkAllRead}
+            categories={categories}
+            category={category}
+            onCategoryChange={setCategory}
           />
         </div>
 

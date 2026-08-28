@@ -183,8 +183,15 @@ async function createConversation(
             initialMessage.senderUserId,
           ]);
 
+          // Same category-branch as chatMessageService.createMessage --
+          // unreachable for administrative_support today (it opens with
+          // zero other participants, see openAdministrativeTicket), kept
+          // here so this stays correct if that ever changes.
+          const eventType =
+            type === "administrative_support" ? "administrative.request.message_received" : "chat.message.received";
+
           await createNotificationEvent(db, {
-            type: "chat.message.received",
+            type: eventType,
             sourceType: "chat_conversation",
             sourceId: conversationId,
             actorUserId: initialMessage.senderUserId,

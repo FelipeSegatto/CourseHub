@@ -3,6 +3,8 @@ const { createServiceError, getStudentIdByUserId } = require("../classes/classAc
 const { createConversation } = require("./chatConversationService");
 const { addParticipant } = require("./chatParticipantService");
 const { createSystemMessage } = require("./chatMessageService");
+const { createNotificationEvent } = require("../notifications/notificationService");
+const { resolveAllActiveAdmins } = require("../notifications/notificationRecipientResolvers");
 
 const MAX_SUBJECT_LENGTH = 180;
 const MAX_BODY_LENGTH = 4000;
@@ -101,6 +103,39 @@ async function openAdministrativeTicket(db, { userId, category, subject, body })
     initialMessage: { senderUserId: userId, body: trimmedBody },
     participants: [{ userId, participantRole: "student" }],
   });
+
+  // The ticket has only the student as a participant at this point (no
+  // admin claimed it yet), so resolveOtherActiveParticipants -- what
+  // chat.message.received would normally use -- resolves to nobody.
+  // resolveAllActiveAdmins is used instead so every active admin sees
+  // "Novo requerimento" immediately, without auto-assigning anyone.
+  // Fired after createConversation's own transaction has already
+  // committed: the ticket itself must never fail to exist because of a
+  // notification-layer problem, so this is swallowed (logged) rather
+  // than propagated -- the student already got their ticket.
+  try {
+    const admins = await resolveAllActiveAdmins(db.promise());
+
+    if (admins.length > 0) {
+      const [[requester]] = await db.promise().query(`SELECT name FROM users WHERE id = ? LIMIT 1`, [userId]);
+
+      await createNotificationEvent(db, {
+        type: "administrative.request.created",
+        sourceType: "chat_conversation",
+        sourceId: conversationId,
+        actorUserId: userId,
+        context: {
+          conversationId,
+          studentName: requester?.name || "Um aluno",
+          subject: trimmedSubject,
+          administrativeCategory: category,
+        },
+        recipients: admins,
+      });
+    }
+  } catch (notificationError) {
+    console.error("[openAdministrativeTicket] falha ao notificar admins:", notificationError);
+  }
 
   return { conversationId };
 }

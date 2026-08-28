@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { getRoleHomePath } from "./roleHome";
 
 export default function PublicOnlyRoute() {
   const { usuarioLogado, loading } = useAuth();
@@ -16,13 +17,5 @@ export default function PublicOnlyRoute() {
     return <Outlet />;
   }
 
-  if (usuarioLogado.role === "admin") {
-    return <Navigate to="/admin" replace />;
-  }
-
-  if (usuarioLogado.role === "teacher") {
-    return <Navigate to="/professor" replace />;
-  }
-
-  return <Navigate to="/aluno" replace />;
+  return <Navigate to={getRoleHomePath(usuarioLogado.role)} replace />;
 }

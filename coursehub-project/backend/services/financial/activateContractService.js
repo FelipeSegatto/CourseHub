@@ -21,6 +21,8 @@ const {
   dispatchActivationInvitationEmail,
   dispatchAlreadyActiveNotice,
 } = require("../auth/accountActivationService");
+const { createNotificationEvent } = require("../notifications/notificationService");
+const { resolveAllActiveAdmins } = require("../notifications/notificationRecipientResolvers");
 
 function createServiceError(message, statusCode) {
   const error = new Error(message);
@@ -60,7 +62,7 @@ async function activateContractFromPaidInvoice(db, invoiceId, options = {}) {
     const [contractRows] = await connection.query(
       `
         SELECT id, student_id, course_id, activation_invoice_id, enrollment_id, status,
-               created_by_user_id
+               created_by_user_id, origin
         FROM financial_contracts
         WHERE id = ?
         LIMIT 1
@@ -194,6 +196,7 @@ async function activateContractFromPaidInvoice(db, invoiceId, options = {}) {
       enrollmentCreated,
       studentId: contract.student_id,
       courseId: contract.course_id,
+      origin: contract.origin,
     };
   } catch (error) {
     if (ownsConnection) {
@@ -272,8 +275,69 @@ async function dispatchActivationNotifications(db, activationResult) {
   }
 }
 
+/**
+ * Notificação administrativa de "nova matrícula" -- ramifica por
+ * `origin` para escolher UM tipo, nunca os dois: contratos vindos de
+ * checkout (public_checkout/authenticated_checkout) geram
+ * admin.checkout.completed; qualquer outro (admin/migration) gera
+ * admin.enrollment.created. Chamado do único ponto de convergência
+ * (activateContractFromPaidInvoice, quando `activated` é true) e
+ * também pelos caminhos manuais que nunca passam por essa função
+ * (adminEnrollmentService.createEnrollment,
+ * adminManualEnrollmentService's scholarship/migration), sempre com
+ * origin != checkout nesses casos -- nunca duas notificações para a
+ * mesma matrícula. Assim como dispatchActivationNotifications, roda
+ * depois do commit e nunca desfaz a matrícula se falhar.
+ */
+async function dispatchAdminEnrollmentNotification(
+  db,
+  { enrollmentId, contractId = null, invoiceId = null, studentId, courseId, origin, paymentId = null, amount = null }
+) {
+  try {
+    const admins = await resolveAllActiveAdmins(db.promise());
+
+    if (admins.length === 0) {
+      return;
+    }
+
+    const [[studentRow]] = await db.promise().query(`SELECT name FROM students WHERE id = ? LIMIT 1`, [studentId]);
+    const [[courseRow]] = await db.promise().query(`SELECT name FROM courses WHERE id = ? LIMIT 1`, [courseId]);
+
+    const isCheckout = origin === "public_checkout" || origin === "authenticated_checkout";
+
+    await createNotificationEvent(db, {
+      type: isCheckout ? "admin.checkout.completed" : "admin.enrollment.created",
+      sourceType: "enrollment",
+      sourceId: enrollmentId,
+      // Deliberadamente NÃO setado no nível superior (notifications.course_id
+      // tem FK RESTRICT para courses): esta notificação é lida por
+      // admins que ficam ativos indefinidamente, então travaria a
+      // exclusão de qualquer curso de teste/descontinuado enquanto a
+      // notificação existir. courseId/courseName já estão no context
+      // abaixo, que é tudo que buildTitle/buildMessage/buildActionPath
+      // precisam.
+      context: {
+        enrollmentId,
+        studentId,
+        studentName: studentRow?.name || "Aluno",
+        courseId,
+        courseName: courseRow?.name || "Curso",
+        contractId,
+        invoiceId,
+        paymentId,
+        amount,
+        origin,
+      },
+      recipients: admins,
+    });
+  } catch (notificationError) {
+    console.error("[activateContractService] falha ao notificar admins sobre a nova matrícula:", notificationError);
+  }
+}
+
 module.exports = {
   createServiceError,
   activateContractFromPaidInvoice,
   dispatchActivationNotifications,
+  dispatchAdminEnrollmentNotification,
 };

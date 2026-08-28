@@ -28,6 +28,7 @@ const {
 const { registerManualPayment } = require("../financial/paymentService");
 const { createFinancialEvent } = require("../financial/financialEventService");
 const { dispatchActivationInvitationEmail } = require("../auth/accountActivationService");
+const { dispatchAdminEnrollmentNotification } = require("../financial/activateContractService");
 
 const ALLOWED_CONTRACTING_PARTY_MODES = ["self", "existing", "new"];
 const ALLOWED_SCHOLARSHIP_TYPES = ["scholarship", "courtesy"];
@@ -320,6 +321,16 @@ async function registerScholarshipEnrollment(db, payload, actorUserId) {
       enrollmentId,
     });
 
+    // Bolsa/cortesia sempre nasce 'active' (sem fatura/pagamento) --
+    // nunca passa por activateContractFromPaidInvoice, então precisa
+    // da própria notificação administrativa.
+    await dispatchAdminEnrollmentNotification(db, {
+      enrollmentId,
+      studentId,
+      courseId: normalizedCourseId,
+      origin: scholarshipType,
+    });
+
     return { studentId, courseId: normalizedCourseId, enrollmentId };
   } catch (error) {
     await connection.rollback();
@@ -539,6 +550,20 @@ async function registerMigratedEnrollment(db, payload, actorUserId) {
       courseId: normalizedCourseId,
       enrollmentId,
     });
+
+    // Só notifica quando a matrícula importada nasce genuinamente
+    // 'active' -- um registro histórico marcado inactive/completed/
+    // cancelled não é "uma nova matrícula" no sentido operacional que
+    // os admins precisam ver no inbox.
+    if (normalizedAcademicStatus === "active") {
+      await dispatchAdminEnrollmentNotification(db, {
+        enrollmentId,
+        contractId,
+        studentId,
+        courseId: normalizedCourseId,
+        origin: "migration",
+      });
+    }
 
     return { studentId, courseId: normalizedCourseId, enrollmentId, contractId };
   } catch (error) {

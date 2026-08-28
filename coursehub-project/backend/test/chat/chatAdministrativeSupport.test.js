@@ -310,3 +310,118 @@ test("an admin can still post a final note on a resolved ticket without reopenin
 
   assert.equal(row.status, "resolved");
 });
+
+// -----------------------------------------------------------------
+// Notificações administrativas (evolução do sistema de notificações,
+// seção 8/19 do spec): um requerimento precisa avisar TODOS os admins
+// ativos mesmo sem nenhum atribuído -- chat_participants ainda não tem
+// nenhum admin nesse momento, então isso não pode depender de
+// resolveOtherActiveParticipants.
+// -----------------------------------------------------------------
+
+async function getNotificationForConversation(conversationId, type) {
+  const [rows] = await db
+    .promise()
+    .query(
+      `SELECT id, category, actor_user_id FROM notifications WHERE source_type = 'chat_conversation' AND source_id = ? AND type = ? LIMIT 1`,
+      [conversationId, type]
+    );
+
+  return rows[0] || null;
+}
+
+test("administrative.request.created: admin A e admin B recebem, aluno não recebe a própria notificação, ticket segue sem atribuição", async () => {
+  const conversationId = await openTestTicket({ subject: "TEST ETAPA10 sem admin atribuído" });
+
+  const notification = await getNotificationForConversation(conversationId, "administrative.request.created");
+
+  assert.ok(notification, "administrative.request.created deveria ter sido criada");
+  assert.equal(notification.category, "request");
+  assert.equal(notification.actor_user_id, STUDENT_USER_ID);
+
+  const [recipientRows] = await db
+    .promise()
+    .query(`SELECT user_id FROM notification_recipients WHERE notification_id = ?`, [notification.id]);
+
+  const recipientUserIds = recipientRows.map((row) => row.user_id);
+
+  assert.ok(recipientUserIds.includes(ADMIN_A_USER_ID), "admin A deveria estar entre os destinatários");
+  assert.ok(recipientUserIds.includes(ADMIN_B_USER_ID), "admin B deveria estar entre os destinatários");
+  assert.equal(
+    recipientUserIds.includes(STUDENT_USER_ID),
+    false,
+    "o próprio aluno que abriu o requerimento não deveria se notificar"
+  );
+
+  const [[conversationRow]] = await db
+    .promise()
+    .query("SELECT status, assigned_user_id FROM chat_conversations WHERE id = ?", [conversationId]);
+
+  assert.equal(conversationRow.assigned_user_id, null, "criar a notificação não deveria atribuir o ticket a ninguém");
+  assert.equal(conversationRow.status, "waiting_staff");
+});
+
+test("administrative.request.created não duplica em uma segunda leitura/reprocessamento (mesma conversationId)", async () => {
+  const conversationId = await openTestTicket();
+
+  const notification = await getNotificationForConversation(conversationId, "administrative.request.created");
+
+  // O evento só é disparado uma vez dentro de openAdministrativeTicket
+  // (não há reprocessamento real deste ponto), mas a garantia de
+  // dedup do próprio createNotificationEvent (UNIQUE KEY em
+  // deduplication_key) é o que impediria uma duplicata caso este
+  // ponto fosse chamado de novo -- confirmamos aqui que existe
+  // exatamente UMA notificação para esta conversationId.
+  const [rows] = await db
+    .promise()
+    .query(
+      `SELECT COUNT(*) AS total FROM notifications WHERE source_type = 'chat_conversation' AND source_id = ? AND type = 'administrative.request.created'`,
+      [conversationId]
+    );
+
+  assert.equal(Number(rows[0].total), 1);
+  assert.ok(notification);
+});
+
+test("mensagens em administrative_support geram administrative.request.message_received (category=request), nunca chat.message.received", async () => {
+  const conversationId = await openTestTicket();
+
+  await assignAdministrativeTicket(db, { conversationId, adminUserId: ADMIN_A_USER_ID });
+
+  const sentMessage = await createMessage(db, {
+    conversationId,
+    userId: STUDENT_USER_ID,
+    body: "mensagem de teste para checar o tipo de notificação",
+  });
+
+  const [[requestNotification]] = await db
+    .promise()
+    .query(
+      `SELECT id, category FROM notifications WHERE source_type = 'chat_conversation' AND source_id = ? AND type = 'administrative.request.message_received' ORDER BY id DESC LIMIT 1`,
+      [conversationId]
+    );
+
+  assert.ok(requestNotification, "administrative.request.message_received deveria ter sido criada");
+  assert.equal(requestNotification.category, "request");
+
+  const [chatNotificationRows] = await db
+    .promise()
+    .query(
+      `SELECT id FROM notifications WHERE source_type = 'chat_conversation' AND source_id = ? AND type = 'chat.message.received'`,
+      [conversationId]
+    );
+
+  assert.equal(chatNotificationRows.length, 0, "chat.message.received não deveria disparar para administrative_support");
+
+  const [recipientRows] = await db
+    .promise()
+    .query(`SELECT user_id FROM notification_recipients WHERE notification_id = ?`, [requestNotification.id]);
+
+  assert.deepEqual(
+    recipientRows.map((row) => row.user_id),
+    [ADMIN_A_USER_ID],
+    "só o admin atribuído (o outro participante) deveria receber a mensagem do aluno"
+  );
+
+  assert.equal(sentMessage.body, "mensagem de teste para checar o tipo de notificação");
+});

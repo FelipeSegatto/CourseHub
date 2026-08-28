@@ -54,7 +54,7 @@ router.post(
   authorizeRoles("admin"),
   async (req, res) => {
     try {
-      const teacher = await createTeacher(db, req.body);
+      const teacher = await createTeacher(db, req.body, { actorUserId: req.auth.userId });
 
       return res.status(201).json({
         message: "Professor cadastrado com sucesso.",
