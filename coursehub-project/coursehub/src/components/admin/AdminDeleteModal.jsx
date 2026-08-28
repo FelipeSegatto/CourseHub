@@ -1,3 +1,5 @@
+import TableActionButton from "../ui/actions/TableActionButton";
+
 function DeleteConfirmModal({
   title = "Confirmar remoção",
   description = "Tem certeza que deseja remover este item?",
@@ -37,14 +39,20 @@ function DeleteConfirmModal({
             {cancelText}
           </button>
 
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={loading}
-            className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:bg-red-300"
-          >
-            {loading ? "Removendo..." : confirmText}
-          </button>
+          <TableActionButton
+              variant="danger"
+              size="md"
+              holdToConfirm
+              holdDuration={1500}
+              holdLabel="Continue segurando..."
+              confirmedLabel={confirmText}
+              onClick={onConfirm}
+              disabled={loading}
+              loading={loading}
+              className="px-5 py-2.5"
+            >
+              {confirmText}
+          </TableActionButton>
         </div>
       </div>
     </div>

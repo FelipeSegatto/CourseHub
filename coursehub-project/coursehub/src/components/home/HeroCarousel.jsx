@@ -10,25 +10,42 @@ import { Link } from "react-router-dom";
 const slides = [
   {
     id: 1,
-    image: "/images/coursehub-hero-pink.png",
-    alt: "Materiais escolares coloridos sobre fundo rosa",
+    image: "/images/coursehub-hero-green.jpeg",
+    alt: "Sala de aula moderna com mesas, cadeiras e quadro ao fundo",
     href: "/courses",
+
+    /*
+     * A imagem tem um ponto focal central muito forte.
+     * object-center funciona melhor aqui.
+     */
     objectPosition: "object-center",
 
     eyebrow: "CourseHub",
 
     title:
-      "Aprender pode ser mais leve, claro e conectado.",
+      "Aprender pode ser mais claro, organizado e conectado.",
 
     subtitle:
       "Encontre cursos, acompanhe conteúdos e organize sua jornada de aprendizagem em um só lugar.",
 
-    contentPosition: "items-end",
-    textPosition: "text-left",
-    contentWidth: "max-w-[620px]",
+    /*
+     * Mantém o texto verticalmente centralizado.
+     */
+    contentPosition: "items-center",
 
+    textPosition: "text-left",
+
+    /*
+     * Um pouco menor para não cobrir demais a sala.
+     */
+    contentWidth: "max-w-[570px]",
+
+    /*
+     * Overlay mais neutro que o rosa antigo.
+     * A sala continua visível, mas o texto ganha contraste.
+     */
     overlay:
-      "bg-gradient-to-r from-fuchsia-950/65 via-fuchsia-950/20 to-transparent",
+      "bg-gradient-to-r from-slate-950/72 via-slate-950/38 via-[30%] to-transparent to-[65%]",
   },
 
   {
