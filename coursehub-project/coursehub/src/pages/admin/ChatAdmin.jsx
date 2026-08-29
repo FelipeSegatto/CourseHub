@@ -75,15 +75,26 @@ export default function ChatAdmin() {
   const { usuarioLogado } = useAuth();
   const currentUserId = usuarioLogado?.id;
 
-  const [modality, setModality] = useState(MODALITY_TABS[0].type);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // "Requerimentos pendentes" (card do dashboard, /admin/chat?pending=true)
+  // -- não é um filtro de status que a fila já tenha (só
+  // unassignedOnly/assignedToUserId), então em vez de inventar mais
+  // estado, isso reflete direto da URL e semeia modality=administrative_support
+  // + assignmentFilter="all" (atribuídos e não atribuídos), com
+  // resolved/closed removidos da lista abaixo -- ainda "precisam de
+  // atendimento" == não resolvido/fechado, igual à definição usada em
+  // operations.openAdministrativeRequests no backend.
+  const pendingMode = searchParams.get("pending") === "true";
+
+  const [modality, setModality] = useState(pendingMode ? "administrative_support" : MODALITY_TABS[0].type);
   const [categoryFilter, setCategoryFilter] = useState("");
-  const [assignmentFilter, setAssignmentFilter] = useState("unassigned");
+  const [assignmentFilter, setAssignmentFilter] = useState(pendingMode ? "all" : "unassigned");
 
   // Deep-linked from a notification action path (/admin/chat?conversationId=...)
   // -- getConversation() below fetches the ticket directly regardless
   // of which queue/filter tab is active, so it opens correctly even if
   // it wouldn't currently show up in the left-hand list.
-  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedConversationId, setSelectedConversationId] = useState(() => {
     const fromUrl = Number(searchParams.get("conversationId"));
 
@@ -92,9 +103,20 @@ export default function ChatAdmin() {
   const [showNewConversationModal, setShowNewConversationModal] = useState(false);
 
   useEffect(() => {
-    setSearchParams(selectedConversationId ? { conversationId: String(selectedConversationId) } : {}, {
-      replace: true,
-    });
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+
+        if (selectedConversationId) {
+          next.set("conversationId", String(selectedConversationId));
+        } else {
+          next.delete("conversationId");
+        }
+
+        return next;
+      },
+      { replace: true }
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversationId]);
 
@@ -213,6 +235,13 @@ export default function ChatAdmin() {
       onMessageSent: () => setQueueReloadToken((token) => token + 1),
     });
 
+  // "Pendente" == ainda precisa de atendimento -- resolved/closed não
+  // conta, mesmo que a fila em si (unassignedOnly/assignedToUserId)
+  // não distinga por status.
+  const visibleQueueItems = pendingMode
+    ? queueItems.filter((item) => item.status !== "resolved" && item.status !== "closed")
+    : queueItems;
+
   const selectedQueueItem = queueItems.find((item) => item.conversationId === selectedConversationId) || null;
 
   async function handleClaim() {
@@ -257,6 +286,28 @@ export default function ChatAdmin() {
           Protocolos abertos por alunos e conversas com professores atendidos pela administração.
         </p>
         <InstitutionalChatNotice className="mt-2" />
+
+        {pendingMode && (
+          <p className="mt-3 flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
+            Mostrando só requerimentos ainda não resolvidos.
+            <button
+              type="button"
+              onClick={() =>
+                setSearchParams(
+                  (previous) => {
+                    const next = new URLSearchParams(previous);
+                    next.delete("pending");
+                    return next;
+                  },
+                  { replace: true }
+                )
+              }
+              className="font-semibold hover:underline"
+            >
+              Remover filtro
+            </button>
+          </p>
+        )}
       </section>
 
       <section className="grid gap-6 rounded-2xl bg-white shadow md:grid-cols-[360px_minmax(0,1fr)] lg:grid-cols-[430px_minmax(0,1fr)]">
@@ -324,12 +375,12 @@ export default function ChatAdmin() {
 
           {!queueLoading && queueError && <p className="px-4 py-3 text-center text-sm text-red-700">{queueError}</p>}
 
-          {!queueLoading && !queueError && queueItems.length === 0 && (
+          {!queueLoading && !queueError && visibleQueueItems.length === 0 && (
             <p className="px-4 py-6 text-center text-sm text-gray-500">Nenhum protocolo nesta fila.</p>
           )}
 
           <ul className="flex-1 overflow-y-auto">
-            {queueItems.map((item) => (
+            {visibleQueueItems.map((item) => (
               <li key={item.conversationId}>
                 <button
                   type="button"

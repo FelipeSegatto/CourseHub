@@ -152,28 +152,60 @@ export default function DashboardAdmin() {
           </div>
         ) : (
           <>
-            <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-              <StatCard
-                title="Usuários ativos"
-                value={summary?.activeUsers ?? 0}
-              />
-
+            <section className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard
                 title="Alunos ativos"
                 value={academic?.activeStudents ?? 0}
                 color="green"
+                to="/admin/alunos?status=active"
               />
 
               <StatCard
                 title="Professores ativos"
                 value={academic?.activeTeachers ?? 0}
                 color="purple"
+                to="/admin/professores?status=active"
               />
 
               <StatCard
-                title="Matrículas ativas"
-                value={summary?.activeEnrollments ?? 0}
+                title="Cursos ativos"
+                value={summary?.activeCourses ?? 0}
+                to="/admin/cursos?status=active"
+              />
+
+              <StatCard
+                title="Turmas ativas"
+                value={summary?.activeClasses ?? 0}
                 color="yellow"
+                to="/admin/turmas?status=active"
+              />
+
+              <StatCard
+                title="Alunos sem turma"
+                value={operations?.studentsWithoutClass ?? 0}
+                color="yellow"
+                to="/admin/matriculas?classStatus=unassigned"
+              />
+
+              <StatCard
+                title="Matrículas pendentes"
+                value={operations?.pendingEnrollments ?? 0}
+                color="red"
+                to="/admin/matriculas?status=pending_activation"
+              />
+
+              <StatCard
+                title="Cobranças em atraso"
+                value={operations?.overdueInvoices ?? 0}
+                color="red"
+                to="/admin/financeiro/cobrancas?status=overdue"
+              />
+
+              <StatCard
+                title="Requerimentos pendentes"
+                value={operations?.openAdministrativeRequests ?? 0}
+                color="purple"
+                to="/admin/chat?pending=true"
               />
             </section>
 

@@ -170,7 +170,32 @@ async function getOperationsSummary(db) {
           AS unassigned_administrative_requests,
 
         (SELECT COUNT(*) FROM public_contact_requests WHERE status = 'new')
-          AS new_public_contacts
+          AS new_public_contacts,
+
+        -- Aluno com matrícula ativa mas sem turma vinculada -- não é
+        -- "usuário student sem turma", é a matrícula acadêmica em si.
+        (SELECT COUNT(*) FROM enrollments WHERE status = 'active' AND class_id IS NULL)
+          AS students_without_class,
+
+        -- "Matrícula pendente": a fatura de ativação do contrato já
+        -- está paga, mas o contrato continua pending_payment (nunca
+        -- transicionou para active) ou, tendo transicionado, a
+        -- enrollment vinculada não está active -- exatamente o gap
+        -- que activateContractFromPaidInvoice deveria ter fechado
+        -- atomicamente. Contratos cancelled são excluídos de
+        -- propósito (não é pendência, é encerramento deliberado -- a
+        -- desistência/cancelamento já fecha os dois juntos). Nunca
+        -- inclui contrato ainda genuinamente aguardando pagamento
+        -- (a fatura de ativação, aí, também não está paga).
+        (
+          SELECT COUNT(*)
+          FROM financial_contracts fc
+          INNER JOIN invoices activation_invoice ON activation_invoice.id = fc.activation_invoice_id
+          LEFT JOIN enrollments e ON e.id = fc.enrollment_id
+          WHERE activation_invoice.status = 'paid'
+            AND fc.status <> 'cancelled'
+            AND (fc.enrollment_id IS NULL OR e.status <> 'active')
+        ) AS pending_enrollments
     `
   );
 
@@ -186,6 +211,8 @@ async function getOperationsSummary(db) {
     openAdministrativeRequests: Number(row.open_administrative_requests || 0),
     unassignedAdministrativeRequests: Number(row.unassigned_administrative_requests || 0),
     newPublicContacts: Number(row.new_public_contacts || 0),
+    studentsWithoutClass: Number(row.students_without_class || 0),
+    pendingEnrollments: Number(row.pending_enrollments || 0),
   };
 }
 

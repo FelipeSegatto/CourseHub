@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Repeat, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
 import { apiFetch } from "../../services/APIService";
 
@@ -25,9 +26,28 @@ const STATUS_OPTIONS = [
   { value: "cancelled", label: "Canceladas" },
   { value: "completed", label: "Concluídas" },
   { value: "withdrawn", label: "Desistentes" },
+  { value: "pending_activation", label: "Pendentes de ativação" },
 ];
 
 const PAGE_LIMIT = 10;
+
+// Mesma regra do backend (adminEnrollmentService.js#assertEnrollmentCanBeActivated)
+// -- só para desabilitar o botão preventivamente com uma explicação;
+// a validação de verdade continua no backend em qualquer um dos dois
+// caminhos (este texto é só UX, nunca a garantia de segurança).
+function getReactivationBlockedReason(enrollment) {
+  const contractStatus = enrollment.financialContract?.status;
+
+  if (contractStatus === "cancelled") {
+    return "Contrato cancelado. Reative ou regularize o contrato antes de reativar a matrícula.";
+  }
+
+  if (contractStatus === "pending_payment") {
+    return "A matrícula só poderá ser ativada após a confirmação do pagamento.";
+  }
+
+  return null;
+}
 
 function formatShortDate(value) {
   if (!value) return "-";
@@ -40,6 +60,8 @@ function formatShortDate(value) {
 }
 
 export default function EnrollmentsAdmin() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [enrollments, setEnrollments] = useState([]);
   const [summary, setSummary] = useState(null);
   const [pagination, setPagination] = useState({
@@ -56,10 +78,25 @@ export default function EnrollmentsAdmin() {
   const [search, setSearch] = useState("");
   const [courseId, setCourseId] = useState("");
   const [classId, setClassId] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(searchParams.get("status") || "");
+  // "Alunos sem turma" (card do dashboard) -- filtro à parte do
+  // status, não existe no dropdown de status porque não é um valor de
+  // enrollments.status.
+  const [classStatus, setClassStatus] = useState(searchParams.get("classStatus") || "");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
+
+  // Mantém a URL sincronizada com os dois filtros que os cards do
+  // dashboard usam -- refresh nunca perde o filtro, e o usuário troca/
+  // remove normalmente pelos próprios controles abaixo.
+  useEffect(() => {
+    const params = {};
+    if (status) params.status = status;
+    if (classStatus) params.classStatus = classStatus;
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, classStatus]);
 
   const [courses, setCourses] = useState([]);
   const [filterClasses, setFilterClasses] = useState([]);
@@ -96,6 +133,7 @@ export default function EnrollmentsAdmin() {
         courseId,
         classId,
         status,
+        classStatus,
         from,
         to,
         page,
@@ -114,7 +152,7 @@ export default function EnrollmentsAdmin() {
     } finally {
       setLoading(false);
     }
-  }, [search, courseId, classId, status, from, to, page]);
+  }, [search, courseId, classId, status, classStatus, from, to, page]);
 
   useEffect(() => {
     fetchEnrollments();
@@ -381,6 +419,22 @@ export default function EnrollmentsAdmin() {
         onSearchChange={setSearchInput}
         searchPlaceholder="Buscar por aluno, matrícula ou curso..."
       >
+        {classStatus === "unassigned" && (
+          <p className="mb-4 flex items-center gap-2 text-sm text-gray-600">
+            Mostrando só matrículas ativas sem turma vinculada.
+            <button
+              type="button"
+              onClick={() => {
+                setClassStatus("");
+                setPage(1);
+              }}
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              Remover filtro
+            </button>
+          </p>
+        )}
+
         {rowActionError && (
           <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {rowActionError}
@@ -437,7 +491,16 @@ export default function EnrollmentsAdmin() {
 
                   <td className="whitespace-nowrap px-3 py-3">
                     {enrollment.financialContract ? (
-                      <StatusBadge status={enrollment.financialContract.status} />
+                      <>
+                        <StatusBadge status={enrollment.financialContract.status} />
+
+                        {enrollment.financialContract.activationInvoice?.paidAt && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            Fatura #{enrollment.financialContract.activationInvoice.id} paga em{" "}
+                            {formatShortDate(enrollment.financialContract.activationInvoice.paidAt)}
+                          </p>
+                        )}
+                      </>
                     ) : (
                       <span className="text-sm text-gray-400">Sem contrato</span>
                     )}
@@ -475,15 +538,28 @@ export default function EnrollmentsAdmin() {
                         ]}
                       />
                     ) : (
-                      <TableActionButton
-                        variant="warning"
-                        size="sm"
-                        icon={RotateCcw}
-                        disabled={rowActionLoading === enrollment.id}
-                        onClick={() => handleStatusChange(enrollment, "active")}
-                      >
-                        Reativar
-                      </TableActionButton>
+                      (() => {
+                        const blockedReason = getReactivationBlockedReason(enrollment);
+
+                        return (
+                          <div className="inline-flex flex-col items-end gap-1">
+                            <TableActionButton
+                              variant="warning"
+                              size="sm"
+                              icon={RotateCcw}
+                              disabled={rowActionLoading === enrollment.id || Boolean(blockedReason)}
+                              title={blockedReason || undefined}
+                              onClick={() => handleStatusChange(enrollment, "active")}
+                            >
+                              Reativar
+                            </TableActionButton>
+
+                            {blockedReason && (
+                              <p className="max-w-[220px] text-right text-xs text-gray-500">{blockedReason}</p>
+                            )}
+                          </div>
+                        );
+                      })()
                     )}
                   </td>
                 </tr>

@@ -61,7 +61,18 @@ function mapEnrollmentRow(row) {
     status: row.status,
     enrolledAt: row.enrolled_at,
     financialContract: row.contract_id
-      ? { id: row.contract_id, status: row.contract_status }
+      ? {
+          id: row.contract_id,
+          status: row.contract_status,
+          activationInvoice: row.activation_invoice_id
+            ? {
+                id: row.activation_invoice_id,
+                status: row.activation_invoice_status,
+                amount: row.activation_invoice_amount,
+                paidAt: row.activation_invoice_paid_at,
+              }
+            : null,
+        }
       : null,
   };
 }
@@ -72,6 +83,7 @@ const BASE_JOIN = `
   INNER JOIN courses co ON co.id = e.course_id
   LEFT JOIN classes cl ON cl.id = e.class_id
   LEFT JOIN financial_contracts fc ON fc.enrollment_id = e.id
+  LEFT JOIN invoices ai ON ai.id = fc.activation_invoice_id
 `;
 
 const SELECT_COLUMNS = `
@@ -79,7 +91,9 @@ const SELECT_COLUMNS = `
   s.id AS student_id, s.name AS student_name, s.registration_number,
   co.id AS course_id, co.name AS course_name,
   cl.id AS class_id, cl.name AS class_name,
-  fc.id AS contract_id, fc.status AS contract_status
+  fc.id AS contract_id, fc.status AS contract_status,
+  ai.id AS activation_invoice_id, ai.status AS activation_invoice_status,
+  ai.amount AS activation_invoice_amount, ai.paid_at AS activation_invoice_paid_at
 `;
 
 function buildListFilters(filters) {
@@ -108,7 +122,33 @@ function buildListFilters(filters) {
     params.push(normalizeId(filters.classId, "ID da turma inválido."));
   }
 
-  if (filters.status) {
+  // "Alunos sem turma" (card do dashboard) -- matrícula acadêmica
+  // ativa sem turma vinculada, não usuário student sem turma.
+  if (filters.classStatus === "unassigned") {
+    conditions.push("e.status = 'active' AND e.class_id IS NULL");
+  }
+
+  if (filters.status === "pending_activation") {
+    // LIMITAÇÃO CONHECIDA: esta listagem é sempre enraizada em
+    // `enrollments` (BASE_JOIN abaixo), então um contrato cuja
+    // enrollment ainda nem existe (fc.enrollment_id IS NULL --
+    // "matrícula ainda não criada", a metade mais rara da definição
+    // de pendência) não tem linha nenhuma pra aparecer aqui, mesmo
+    // contando no card do dashboard. Reestruturar esta consulta para
+    // também enraizar em financial_contracts está fora do escopo
+    // desta mudança (ver diagnóstico) -- na prática esse estado é
+    // quase inatingível hoje (activateContractFromPaidInvoice sempre
+    // cria a enrollment e ativa o contrato na MESMA transação).
+    //
+    // "Matrículas pendentes" (card do dashboard) -- NÃO é um valor
+    // real de enrollments.status, é uma pseudo-condição: a fatura de
+    // ativação do contrato já está paga, mas a matrícula ainda não
+    // está active (mesma regra usada por
+    // adminDashboardService.getOperationsSummary#pendingEnrollments).
+    // Nunca inclui contrato ainda genuinamente aguardando pagamento
+    // (aí a fatura de ativação também não está paga).
+    conditions.push("fc.id IS NOT NULL AND fc.status <> 'cancelled' AND e.status <> 'active' AND ai.status = 'paid'");
+  } else if (filters.status) {
     if (!ALLOWED_ENROLLMENT_STATUSES.includes(filters.status)) {
       throw createServiceError("Status de matrícula inválido.", 400);
     }
@@ -417,6 +457,44 @@ async function updateEnrollment(db, id, payload) {
 }
 
 /**
+ * "Matrícula vinculada a um contrato cancelado não pode ser
+ * reativada enquanto o contrato permanecer cancelado; matrícula com
+ * contrato pending_payment não pode ser ativada/reativada" -- única
+ * regra de negócio desta validação. Sem contrato vinculado, segue as
+ * regras acadêmicas normais (matrículas de migração/operação
+ * administrativa não têm contrato e não devem ser bloqueadas aqui).
+ * 'overdue'/'active'/'completed' são permitidos -- 'overdue' já tem
+ * sua própria política de cobrança/lock (invoiceCollectionActionService.js),
+ * que esta validação não substitui nem duplica.
+ */
+async function assertEnrollmentCanBeActivated(db, enrollmentId) {
+  const [rows] = await db.promise().query(
+    `SELECT fc.status FROM financial_contracts fc WHERE fc.enrollment_id = ? LIMIT 1`,
+    [enrollmentId]
+  );
+
+  const contract = rows[0];
+
+  if (!contract) {
+    return;
+  }
+
+  if (contract.status === "cancelled") {
+    throw createServiceError(
+      "Não é possível reativar esta matrícula porque o contrato vinculado está cancelado.",
+      409
+    );
+  }
+
+  if (contract.status === "pending_payment") {
+    throw createServiceError(
+      "Não é possível ativar esta matrícula enquanto o contrato vinculado estiver aguardando pagamento.",
+      409
+    );
+  }
+}
+
+/**
  * Cancelamento/conclusão/reativação. Nunca apaga submissions,
  * grades, progress, attendance ou histórico financeiro — só muda o
  * status da própria matrícula. 'locked' fica fora deste endpoint
@@ -431,6 +509,10 @@ async function updateEnrollmentStatus(db, id, status) {
       "Status inválido. Use active, inactive, completed, cancelled ou withdrawn.",
       400
     );
+  }
+
+  if (status === "active") {
+    await assertEnrollmentCanBeActivated(db, enrollmentId);
   }
 
   const completedAtClause = status === "completed" ? ", completed_at = NOW()" : "";
