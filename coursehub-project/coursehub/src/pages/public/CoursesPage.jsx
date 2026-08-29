@@ -45,7 +45,7 @@ export default function CoursesPage() {
       {/* HERO */}
       <section className="relative isolate overflow-hidden bg-orange-50">
         <img
-          src="/images/courses-hero.jpeg"
+          src="/images/courses-hero.webp"
           alt=""
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 h-full w-full object-cover object-bottom"
