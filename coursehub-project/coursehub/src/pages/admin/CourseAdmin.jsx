@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Trash2 } from "lucide-react";
 import { apiFetch } from "../../services/APIService";
 
@@ -62,6 +63,8 @@ const courseStatusOptions = [
 ];
 
 export default function CourseAdmin() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [courses, setCourses] = useState([]);
   const [busca, setBusca] = useState("");
 
@@ -77,7 +80,15 @@ export default function CourseAdmin() {
 
   const [viewTarget, setViewTarget] = useState(null);
 
-  const [statusFilter, setStatusFilter] = useState("active");
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "active");
+
+  // Ex.: deep link do dashboard (/admin/cursos?status=active) --
+  // filtragem já é imediata (useMemo abaixo), só precisa manter a URL
+  // sincronizada para sobreviver a um refresh.
+  useEffect(() => {
+    setSearchParams(statusFilter ? { status: statusFilter } : {}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
 
   async function fetchCourses() {
     try {

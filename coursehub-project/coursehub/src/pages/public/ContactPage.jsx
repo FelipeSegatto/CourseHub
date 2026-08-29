@@ -174,7 +174,7 @@ export default function ContactPage() {
       {/* HERO */}
       <section className="relative isolate overflow-hidden bg-slate-900">
         <img
-          src="/images/contact-coursehub-hero.jpeg"
+          src="/images/contact-coursehub-hero.webp"
           alt=""
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center"

@@ -216,7 +216,7 @@ export default function HomePage() {
           {/* ABERTURA — CURSOS EM DESTAQUE */}
           <div className="relative isolate overflow-hidden rounded-[2rem] bg-slate-950">
             <img
-              src="/images/featured-courses-background.jpeg"
+              src="/images/featured-courses-background.webp"
               alt=""
               aria-hidden="true"
               className="pointer-events-none absolute inset-0 h-full w-full object-contain object-left"

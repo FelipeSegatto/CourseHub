@@ -359,3 +359,131 @@ test("newPublicContacts: contato novo conta, resolvido deixa de contar -- e arqu
   const afterResolved = await getOperationsSummary(db);
   assert.equal(afterResolved.newPublicContacts, before.newPublicContacts);
 });
+
+test("studentsWithoutClass: matrícula ativa sem turma conta; com turma, deixa de contar", async () => {
+  const before = await getOperationsSummary(db);
+
+  const [userResult] = await db.promise().query(
+    `INSERT INTO users (name, email, password_hash, gender, role, status, created_at, updated_at)
+     VALUES (?, ?, NULL, NULL, 'student', 'active', NOW(), NOW())`,
+    [`Test Dashboard No Class ${RUN_ID}`, testEmail("noclass")]
+  );
+  const noClassStudentUserId = userResult.insertId;
+
+  const [studentResult] = await db.promise().query(
+    `INSERT INTO students (user_id, name, email, gender, registration_number, birth_date, cpf, phone, address, status, created_at, updated_at)
+     VALUES (?, ?, ?, 'Outro', ?, '2000-01-01', ?, '11900000000', 'Rua Teste', 'active', NOW(), NOW())`,
+    [noClassStudentUserId, `Test Dashboard No Class ${RUN_ID}`, testEmail("noclass"), `DASHNC${RUN_ID}`, `NC${RUN_ID}00`]
+  );
+  const noClassStudentId = studentResult.insertId;
+
+  const [enrollmentResult] = await db.promise().query(
+    `INSERT INTO enrollments (student_id, course_id, class_id, status, enrolled_at, created_at, updated_at)
+     VALUES (?, ?, NULL, 'active', NOW(), NOW(), NOW())`,
+    [noClassStudentId, courseId]
+  );
+  const noClassEnrollmentId = enrollmentResult.insertId;
+
+  try {
+    const afterNoClass = await getOperationsSummary(db);
+    assert.equal(afterNoClass.studentsWithoutClass, before.studentsWithoutClass + 1);
+
+    const [[classRow]] = await db.promise().query(`SELECT id FROM classes WHERE course_id = ? LIMIT 1`, [courseId]);
+
+    if (classRow) {
+      await db.promise().query(`UPDATE enrollments SET class_id = ? WHERE id = ?`, [classRow.id, noClassEnrollmentId]);
+
+      const afterAssigned = await getOperationsSummary(db);
+      assert.equal(afterAssigned.studentsWithoutClass, before.studentsWithoutClass);
+    }
+  } finally {
+    await retryOnDeadlock(() => db.promise().query(`DELETE FROM financial_events WHERE enrollment_id = ?`, [noClassEnrollmentId]));
+    await retryOnDeadlock(() => db.promise().query(`DELETE FROM enrollments WHERE id = ?`, [noClassEnrollmentId]));
+    await retryOnDeadlock(() => db.promise().query(`DELETE FROM students WHERE id = ?`, [noClassStudentId]));
+    await retryOnDeadlock(() => db.promise().query(`DELETE FROM users WHERE id = ?`, [noClassStudentUserId]));
+  }
+});
+
+test("pendingEnrollments: contrato preso em pending_payment com fatura de ativação paga conta; contrato ativo ou cancelado não conta", async () => {
+  const before = await getOperationsSummary(db);
+
+  const [userResult] = await db.promise().query(
+    `INSERT INTO users (name, email, password_hash, gender, role, status, created_at, updated_at)
+     VALUES (?, ?, NULL, NULL, 'student', 'active', NOW(), NOW())`,
+    [`Test Dashboard Pending ${RUN_ID}`, testEmail("pending")]
+  );
+  const pendingStudentUserId = userResult.insertId;
+
+  const [studentResult] = await db.promise().query(
+    `INSERT INTO students (user_id, name, email, gender, registration_number, birth_date, cpf, phone, address, status, created_at, updated_at)
+     VALUES (?, ?, ?, 'Outro', ?, '2000-01-01', ?, '11900000000', 'Rua Teste', 'active', NOW(), NOW())`,
+    [pendingStudentUserId, `Test Dashboard Pending ${RUN_ID}`, testEmail("pending"), `DASHP${RUN_ID}`, `PD${RUN_ID}00`]
+  );
+  const pendingStudentId = studentResult.insertId;
+
+  const [enrollmentResult] = await db.promise().query(
+    `INSERT INTO enrollments (student_id, course_id, class_id, status, enrolled_at, created_at, updated_at)
+     VALUES (?, ?, NULL, 'inactive', NOW(), NOW(), NOW())`,
+    [pendingStudentId, courseId]
+  );
+  const pendingEnrollmentId = enrollmentResult.insertId;
+
+  const pendingContractingPartyId = await findOrCreateSelfContractingPartyForStudent(db.promise(), {
+    studentId: pendingStudentId,
+  });
+
+  const [pendingContractResult] = await db.promise().query(
+    `INSERT INTO financial_contracts
+       (enrollment_id, student_id, course_id, contracting_party_id, origin, pricing_plan_id, billing_type,
+        plan_name, total_amount, status, start_date, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'admin', ?, 'one_time', 'TEST DASHBOARD PENDING PLAN', 300.00, 'pending_payment', CURDATE(), NOW(), NOW())`,
+    [pendingEnrollmentId, pendingStudentId, courseId, pendingContractingPartyId, planId]
+  );
+  const pendingContractId = pendingContractResult.insertId;
+
+  const [pendingInvoiceResult] = await db.promise().query(
+    `INSERT INTO invoices (financial_contract_id, invoice_type, installment_number, description, amount, due_date, status, paid_at, created_at, updated_at)
+     VALUES (?, 'full_payment', 1, 'TEST DASHBOARD PENDING invoice', 300.00, CURDATE(), 'paid', NOW(), NOW(), NOW())`,
+    [pendingContractId]
+  );
+  const pendingInvoiceId = pendingInvoiceResult.insertId;
+
+  await db.promise().query(`UPDATE financial_contracts SET activation_invoice_id = ? WHERE id = ?`, [
+    pendingInvoiceId,
+    pendingContractId,
+  ]);
+
+  try {
+    const afterStuck = await getOperationsSummary(db);
+    assert.equal(afterStuck.pendingEnrollments, before.pendingEnrollments + 1);
+
+    // Resolvendo o problema (ativando o contrato "de verdade"): deixa
+    // de contar.
+    await db.promise().query(`UPDATE financial_contracts SET status = 'active' WHERE id = ?`, [pendingContractId]);
+    await db.promise().query(`UPDATE enrollments SET status = 'active' WHERE id = ?`, [pendingEnrollmentId]);
+
+    const afterActivated = await getOperationsSummary(db);
+    assert.equal(afterActivated.pendingEnrollments, before.pendingEnrollments);
+
+    // Um contrato cancelado nunca deveria contar como "pendência" --
+    // é um encerramento deliberado, não um problema de ativação.
+    await db.promise().query(`UPDATE financial_contracts SET status = 'cancelled' WHERE id = ?`, [pendingContractId]);
+    await db.promise().query(`UPDATE enrollments SET status = 'cancelled' WHERE id = ?`, [pendingEnrollmentId]);
+
+    const afterCancelled = await getOperationsSummary(db);
+    assert.equal(afterCancelled.pendingEnrollments, before.pendingEnrollments);
+  } finally {
+    await retryOnDeadlock(() =>
+      db.promise().query(`UPDATE financial_contracts SET activation_invoice_id = NULL WHERE id = ?`, [pendingContractId])
+    );
+    await retryOnDeadlock(() => db.promise().query(`DELETE FROM invoices WHERE id = ?`, [pendingInvoiceId]));
+    await retryOnDeadlock(() => db.promise().query(`DELETE FROM financial_events WHERE financial_contract_id = ?`, [pendingContractId]));
+    await retryOnDeadlock(() => db.promise().query(`DELETE FROM financial_contracts WHERE id = ?`, [pendingContractId]));
+    await retryOnDeadlock(() => db.promise().query(`DELETE FROM financial_events WHERE enrollment_id = ?`, [pendingEnrollmentId]));
+    await retryOnDeadlock(() => db.promise().query(`DELETE FROM enrollments WHERE id = ?`, [pendingEnrollmentId]));
+    await retryOnDeadlock(() => db.promise().query(`DELETE FROM student_contracting_parties WHERE student_id = ?`, [pendingStudentId]));
+    await retryOnDeadlock(() => db.promise().query(`DELETE FROM contracting_parties WHERE user_id = ?`, [pendingStudentUserId]));
+    await retryOnDeadlock(() => db.promise().query(`DELETE FROM students WHERE id = ?`, [pendingStudentId]));
+    await retryOnDeadlock(() => db.promise().query(`DELETE FROM users WHERE id = ?`, [pendingStudentUserId]));
+  }
+});

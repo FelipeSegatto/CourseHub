@@ -98,7 +98,7 @@ export default function AboutPage() {
       <section className="relative isolate overflow-hidden bg-[#0f6f7f]">
         {/* Imagem */}
         <img
-          src="/images/about-coursehub-hero.jpeg"
+          src="/images/about-coursehub-hero.webp"
           alt=""
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 h-full w-full"

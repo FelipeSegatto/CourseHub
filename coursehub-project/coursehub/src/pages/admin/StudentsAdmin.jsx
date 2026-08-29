@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Trash2 } from "lucide-react";
 import { apiFetch } from "../../services/APIService";
 import { listClasses } from "../../services/AdminClassService";
@@ -32,8 +33,39 @@ const inputClass =
  * Progressão administrativas (useAppliedFilters).
  */
 export default function StudentsAdmin() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { draft, updateDraft, applied, hasApplied, isStale, apply, clear } =
-    useAppliedFilters(INITIAL_DRAFT);
+    useAppliedFilters({
+      courseId: searchParams.get("courseId") || INITIAL_DRAFT.courseId,
+      classId: searchParams.get("classId") || INITIAL_DRAFT.classId,
+      status: searchParams.get("status") || INITIAL_DRAFT.status,
+    });
+
+  // Deep link from the dashboard (ex.: /admin/alunos?status=active) --
+  // auto-applies once on mount so the filtered list shows up right
+  // away, without requiring the "Aplicar filtros" click a plain visit
+  // to the page still requires.
+  useEffect(() => {
+    if (searchParams.get("courseId") || searchParams.get("classId") || searchParams.get("status")) {
+      apply();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keeps the URL in sync with the applied filters -- refresh never
+  // loses them, and clearing the filters clears the query string too.
+  useEffect(() => {
+    if (applied) {
+      const params = new URLSearchParams();
+      if (applied.courseId) params.set("courseId", applied.courseId);
+      if (applied.classId) params.set("classId", applied.classId);
+      if (applied.status) params.set("status", applied.status);
+      setSearchParams(params, { replace: true });
+    } else {
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applied]);
 
   const [students, setStudents] = useState([]);
   const [busca, setBusca] = useState("");

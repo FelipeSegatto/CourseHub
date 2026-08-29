@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Eye,
   Pencil,
@@ -105,10 +106,19 @@ export default function ClassesAdmin() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [courseId, setCourseId] = useState("");
   const [teacherId, setTeacherId] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(searchParams.get("status") || "");
   const [shift, setShift] = useState("");
+
+  // Ex.: deep link do dashboard (/admin/turmas?status=active) --
+  // mantém a URL sincronizada para sobreviver a um refresh.
+  useEffect(() => {
+    setSearchParams(status ? { status } : {}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   const [page, setPage] = useState(1);
 

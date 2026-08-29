@@ -10,7 +10,7 @@ import { Link } from "react-router-dom";
 const slides = [
   {
     id: 1,
-    image: "/images/coursehub-hero-green.jpeg",
+    image: "/images/coursehub-hero-green.webp",
     alt: "Sala de aula moderna com mesas, cadeiras e quadro ao fundo",
     href: "/courses",
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Trash2 } from "lucide-react";
 import { apiFetch } from "../../services/APIService";
 
@@ -13,6 +14,8 @@ import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
 import StatusBadge from "../../components/ui/StatusBadge";
 
 export default function TeachersAdmin() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [teachers, setTeachers] = useState([]);
   const [busca, setBusca] = useState("");
 
@@ -26,11 +29,19 @@ export default function TeachersAdmin() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [loadingDelete, setLoadingDelete] = useState(false);
 
-  const [statusFilter, setStatusFilter] = useState("active");
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "active");
   const teacherStatusOptions = [
   { value: "active", label: "Ativos" },
   { value: "inactive", label: "Inativos" },
 ];
+
+  // Ex.: deep link do dashboard (/admin/professores?status=active) --
+  // filtragem já é imediata (useMemo abaixo), então só precisa manter
+  // a URL sincronizada para sobreviver a um refresh.
+  useEffect(() => {
+    setSearchParams(statusFilter ? { status: statusFilter } : {}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
 
   async function fetchTeachers() {
     try {
