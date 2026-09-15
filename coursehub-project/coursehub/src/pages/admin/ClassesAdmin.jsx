@@ -24,6 +24,8 @@ import StatusBadge from "../../components/ui/StatusBadge";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
 import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
 import HoldToConfirmButton from "../../components/ui/actions/HoldToConfirmButton";
+import MobileFilterToggle from "../../components/ui/MobileFilterToggle";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 
 import { formatDisplayDate } from "../../utils/dateUtils";
 
@@ -515,7 +517,9 @@ export default function ClassesAdmin() {
   ];
 
   const inputClass =
-    "w-full truncate rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-40";
+    "w-full truncate rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-40";
+
+  const activeFilterCount = [courseId, teacherId, shift, status].filter(Boolean).length;
 
   return (
     <>
@@ -528,7 +532,7 @@ export default function ClassesAdmin() {
         stats={stats}
         tableTitle="Lista de turmas"
         tableActions={
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-4">
+          <MobileFilterToggle activeCount={activeFilterCount}>
             {/* CURSO */}
             <select
               value={courseId}
@@ -630,7 +634,7 @@ export default function ClassesAdmin() {
                 )
               )}
             </select>
-          </div>
+          </MobileFilterToggle>
         }
         searchValue={searchInput}
         onSearchChange={setSearchInput}
@@ -783,6 +787,77 @@ export default function ClassesAdmin() {
                     </div>
                   </td>
                 </tr>
+              )}
+              renderMobileCard={(classItem) => (
+                <MobileExpandableCard
+                  key={classItem.id}
+                  title={classItem.name}
+                  subtitle={classItem.course?.name || "-"}
+                  badge={<StatusBadge status={classItem.status} size="sm" />}
+                  primaryAction={
+                    <div className="flex items-center gap-2">
+                      <TableActionButton
+                        variant="accent"
+                        size="md"
+                        icon={Eye}
+                        className="flex-1"
+                        onClick={() => handleViewClick(classItem)}
+                      >
+                        Ver
+                      </TableActionButton>
+
+                      <RowActionsMenu
+                        items={[
+                          {
+                            key: "edit",
+                            label: "Editar",
+                            icon: Pencil,
+                            variant: "neutral",
+                            onClick: () => handleEditClick(classItem),
+                          },
+                          {
+                            key: "delete",
+                            label: "Remover",
+                            icon: Trash2,
+                            variant: "danger",
+                            separator: true,
+                            onClick: () => handleRemoveClick(classItem),
+                          },
+                        ]}
+                      />
+                    </div>
+                  }
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Professor</span>
+                    <span className="font-medium text-gray-900">{classItem.teacher?.name || "-"}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Turno</span>
+                    <span className="font-medium text-gray-900">{getShiftLabel(classItem.shift)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Início</span>
+                    <span className="font-medium text-gray-900">{formatShortDate(classItem.startDate)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Término</span>
+                    <span className="font-medium text-gray-900">{formatShortDate(classItem.endDate)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Alunos ativos</span>
+                    <span className="font-medium text-gray-900">{classItem.activeEnrollments}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Sessões</span>
+                    <span className="font-medium text-gray-900">{classItem.sessionCount}</span>
+                  </div>
+                </MobileExpandableCard>
               )}
             />
 

@@ -8,6 +8,8 @@ import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import ExportPdfButton from "../../components/reports/ExportPdfButton";
 import AdminTable from "../../components/admin/AdminTable";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
+import MobileFilterToggle from "../../components/ui/MobileFilterToggle";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const PAGE_LIMIT = 10;
@@ -211,9 +213,11 @@ export default function GradesAdmin() {
   ];
 
   const inputClass =
-    "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-36 truncate";
+    "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-36 truncate";
 
   const canApply = hasValidScope(draft);
+
+  const activeFilterCount = [draft.courseId, draft.classId, draft.teacherId].filter(Boolean).length;
 
   return (
     <>
@@ -225,45 +229,47 @@ export default function GradesAdmin() {
         tableTitle="Lista de notas"
         tableActions={
           <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-3">
-            <select
-              value={draft.courseId}
-              onChange={(event) => updateDraft({ courseId: event.target.value })}
-              className={inputClass}
-            >
-              <option value="">Todos os cursos</option>
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.name}
-                </option>
-              ))}
-            </select>
+            <MobileFilterToggle activeCount={activeFilterCount}>
+              <select
+                value={draft.courseId}
+                onChange={(event) => updateDraft({ courseId: event.target.value })}
+                className={inputClass}
+              >
+                <option value="">Todos os cursos</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.name}
+                  </option>
+                ))}
+              </select>
 
-            <select
-              value={draft.classId}
-              onChange={(event) => updateDraft({ classId: event.target.value })}
-              disabled={!draft.courseId}
-              className={inputClass}
-            >
-              <option value="">Todas as turmas</option>
-              {filterClasses.map((classItem) => (
-                <option key={classItem.id} value={classItem.id}>
-                  {classItem.name}
-                </option>
-              ))}
-            </select>
+              <select
+                value={draft.classId}
+                onChange={(event) => updateDraft({ classId: event.target.value })}
+                disabled={!draft.courseId}
+                className={inputClass}
+              >
+                <option value="">Todas as turmas</option>
+                {filterClasses.map((classItem) => (
+                  <option key={classItem.id} value={classItem.id}>
+                    {classItem.name}
+                  </option>
+                ))}
+              </select>
 
-            <select
-              value={draft.teacherId}
-              onChange={(event) => updateDraft({ teacherId: event.target.value })}
-              className={inputClass}
-            >
-              <option value="">Todos os professores</option>
-              {teachers.map((teacher) => (
-                <option key={teacher.id} value={teacher.id}>
-                  {teacher.name}
-                </option>
-              ))}
-            </select>
+              <select
+                value={draft.teacherId}
+                onChange={(event) => updateDraft({ teacherId: event.target.value })}
+                className={inputClass}
+              >
+                <option value="">Todos os professores</option>
+                {teachers.map((teacher) => (
+                  <option key={teacher.id} value={teacher.id}>
+                    {teacher.name}
+                  </option>
+                ))}
+              </select>
+            </MobileFilterToggle>
 
             <label className="flex items-center gap-2 whitespace-nowrap rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700">
               <input
@@ -392,6 +398,58 @@ export default function GradesAdmin() {
                     </TableActionButton>
                   </td>
                 </tr>
+              )}
+              renderMobileCard={(item) => (
+                <MobileExpandableCard
+                  key={item.id}
+                  title={item.student.name}
+                  subtitle={item.student.registrationNumber}
+                  badge={
+                    item.adjustment ? (
+                      <span
+                        title={item.adjustment.reason || ""}
+                        className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700"
+                      >
+                        {formatShortDate(item.adjustment.adjustedAt)}
+                      </span>
+                    ) : null
+                  }
+                  primaryAction={
+                    <TableActionButton
+                      variant="accent"
+                      size="md"
+                      className="w-full"
+                      onClick={() => handleAdjustClick(item)}
+                    >
+                      Ajustar
+                    </TableActionButton>
+                  }
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Curso · Turma</span>
+                    <span className="font-medium text-gray-900">
+                      {item.course.name}
+                      {item.class ? ` · ${item.class.name}` : ""}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Atividade</span>
+                    <span className="font-medium text-gray-900">{item.activity.title}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Nota atual</span>
+                    <span className="font-medium text-gray-900">
+                      {item.score} / {item.maxScore}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Corrigida por</span>
+                    <span className="font-medium text-gray-900">{item.teacher?.name || "-"}</span>
+                  </div>
+                </MobileExpandableCard>
               )}
             />
 

@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../../services/APIService";
 
+function getDraftStorageKey(activityId) {
+  return `activity-draft-${activityId}`;
+}
+
 export default function StudentActivityRunner() {
   const { activityId } = useParams();
   const [searchParams] = useSearchParams();
@@ -22,6 +26,13 @@ export default function StudentActivityRunner() {
     useState(0);
 
   const isExam = activity?.activity_kind === "exam";
+
+  const fullscreenSupported =
+    typeof document !== "undefined" &&
+    Boolean(document.fullscreenEnabled) &&
+    typeof document.documentElement?.requestFullscreen === "function";
+
+  const examFocusMode = isExam && examStarted && !fullscreenSupported;
 
   const alreadySubmitted = [
   "submitted",
@@ -63,6 +74,33 @@ export default function StudentActivityRunner() {
       );
 
       setActivity(data);
+
+      const submissionAlreadyClosed = [
+        "submitted",
+        "pending_review",
+        "graded",
+      ].includes(data?.submission_status);
+
+      if (!submissionAlreadyClosed) {
+        try {
+          const storedDraft = localStorage.getItem(
+            getDraftStorageKey(activityId)
+          );
+
+          if (storedDraft) {
+            const parsedDraft = JSON.parse(storedDraft);
+
+            if (parsedDraft && typeof parsedDraft === "object") {
+              setAnswers(parsedDraft);
+            }
+          }
+        } catch (storageError) {
+          console.error(
+            "Erro ao restaurar rascunho salvo:",
+            storageError
+          );
+        }
+      }
     } catch (error) {
       console.error(
         "Erro ao carregar atividade:",
@@ -135,6 +173,63 @@ export default function StudentActivityRunner() {
     };
   }, [isExam, examStarted, successMessage]);
 
+  // Sem suporte à Fullscreen API (comum em Safari iOS), não há
+  // "tela cheia" real para monitorar via fullscreenchange -- em vez
+  // disso, contamos quando o aluno sai do app (troca de aba/app,
+  // tela bloqueada) via visibilitychange.
+  useEffect(() => {
+    if (!isExam || !examStarted || fullscreenSupported) return;
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        setFullscreenExitCount(
+          (previousCount) => previousCount + 1
+        );
+      }
+    }
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange
+    );
+
+    return () => {
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+    };
+  }, [isExam, examStarted, fullscreenSupported]);
+
+  // Autosave do rascunho -- protege contra a aba recarregar ou ser
+  // descartada pelo sistema ao trocar de app no celular. Arquivos
+  // não são persistidos (File não sobrevive a reload); o aluno
+  // precisa reselecionar o arquivo se isso acontecer.
+  useEffect(() => {
+    if (!activityId || !activity || alreadySubmitted) return;
+
+    try {
+      const persistableAnswers = Object.fromEntries(
+        Object.entries(answers).map(([questionId, answer]) => [
+          questionId,
+          {
+            question_id: answer.question_id,
+            option_id: answer.option_id,
+            answer_text: answer.answer_text,
+            file: null,
+          },
+        ])
+      );
+
+      localStorage.setItem(
+        getDraftStorageKey(activityId),
+        JSON.stringify(persistableAnswers)
+      );
+    } catch (storageError) {
+      console.error("Erro ao salvar rascunho:", storageError);
+    }
+  }, [answers, activityId, activity, alreadySubmitted]);
+
   const answeredQuestionsCount = useMemo(() => {
     if (!activity?.questions) return 0;
 
@@ -196,15 +291,27 @@ export default function StudentActivityRunner() {
   }
 
   async function handleStartExam() {
+    setError("");
+
+    if (alreadySubmitted) {
+      setError("Esta avaliação já foi enviada.");
+      return;
+    }
+
+    if (activity?.is_overdue) {
+      setError("O prazo desta avaliação já foi encerrado.");
+      return;
+    }
+
+    if (!fullscreenSupported) {
+      // Sem Fullscreen API (comum em navegadores mobile): a
+      // avaliação segue em "modo de foco" via CSS em vez de
+      // bloquear o aluno por completo.
+      setExamStarted(true);
+      return;
+    }
+
     try {
-      setError("");
-
-      if (!document.fullscreenEnabled) {
-        throw new Error(
-          "O modo tela cheia não está disponível neste navegador."
-        );
-      }
-
       await document.documentElement.requestFullscreen();
 
       setExamStarted(true);
@@ -215,24 +322,7 @@ export default function StudentActivityRunner() {
         error
       );
 
-      setError(
-        error.message ||
-          "Não foi possível iniciar a avaliação em tela cheia."
-      );
-
-            if (alreadySubmitted) {
-        throw new Error(
-            "Esta avaliação já foi enviada.",
-            { cause: error }
-        );
-        }
-
-        if (activity?.is_overdue) {
-        throw new Error(
-            "O prazo desta avaliação já foi encerrado.",
-            { cause: error }
-        );
-        }
+      setExamStarted(true);
     }
   }
 
@@ -360,6 +450,7 @@ export default function StudentActivityRunner() {
       if (
         isExam &&
         examStarted &&
+        fullscreenSupported &&
         !document.fullscreenElement
       ) {
         throw new Error(
@@ -391,6 +482,12 @@ export default function StudentActivityRunner() {
 
       setAnswers({});
 
+      try {
+        localStorage.removeItem(getDraftStorageKey(activityId));
+      } catch (storageError) {
+        console.error("Erro ao limpar rascunho:", storageError);
+      }
+
       if (document.fullscreenElement) {
         await document.exitFullscreen();
       }
@@ -414,7 +511,7 @@ export default function StudentActivityRunner() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
+      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4 sm:p-6">
         <p className="text-gray-600">
           Carregando atividade...
         </p>
@@ -424,7 +521,7 @@ export default function StudentActivityRunner() {
 
   if (error && !activity) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
+      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4 sm:p-6">
         <section className="w-full max-w-lg rounded-2xl bg-white p-6 text-center shadow">
           <p className="text-red-600">{error}</p>
 
@@ -441,7 +538,7 @@ export default function StudentActivityRunner() {
 
   if (!activity) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
+      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4 sm:p-6">
         <p>Atividade não encontrada.</p>
       </main>
     );
@@ -449,8 +546,8 @@ export default function StudentActivityRunner() {
 
   if (successMessage) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
-        <section className="w-full max-w-xl rounded-3xl bg-white p-8 text-center shadow-lg">
+      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4 sm:p-6">
+        <section className="w-full max-w-xl rounded-3xl bg-white p-6 text-center shadow-lg sm:p-8">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-3xl">
             ✓
           </div>
@@ -476,8 +573,8 @@ export default function StudentActivityRunner() {
   
   if (alreadySubmitted) {
     return (
-        <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
-        <section className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-lg">
+        <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4 sm:p-6">
+        <section className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-lg sm:p-8">
             <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
             {isExam ? "Avaliação" : "Atividade"}
             </p>
@@ -566,8 +663,8 @@ export default function StudentActivityRunner() {
 
   if (activity.is_overdue && !canResubmit) {
     return (
-        <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
-        <section className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-lg">
+        <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4 sm:p-6">
+        <section className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-lg sm:p-8">
             <p className="text-sm font-semibold uppercase tracking-wide text-red-600">
             Prazo encerrado
             </p>
@@ -602,8 +699,8 @@ export default function StudentActivityRunner() {
 
   if (isExam && !examStarted) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
-        <section className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-lg">
+      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4 sm:p-6">
+        <section className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-lg sm:p-8">
           <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
             Avaliação
           </p>
@@ -619,12 +716,15 @@ export default function StudentActivityRunner() {
 
           <div className="mt-6 space-y-3 rounded-2xl bg-blue-50 p-5 text-sm text-blue-900">
             <p>
-              A avaliação será aberta em tela cheia.
+              {fullscreenSupported
+                ? "A avaliação será aberta em tela cheia."
+                : "A avaliação será aberta em modo de foco, ocupando toda a tela."}
             </p>
 
             <p>
-              Caso você saia da tela cheia, as questões
-              ficarão bloqueadas até que você retorne.
+              {fullscreenSupported
+                ? "Caso você saia da tela cheia, as questões ficarão bloqueadas até que você retorne."
+                : "Se você sair do aplicativo durante a avaliação, a saída será registrada."}
             </p>
 
             <p>
@@ -687,10 +787,14 @@ export default function StudentActivityRunner() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 p-6">
-      {isExam && examStarted && !isFullscreen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/95 p-6">
-          <section className="w-full max-w-lg rounded-3xl bg-white p-8 text-center shadow-2xl">
+    <main
+      className={`bg-gray-100 p-4 sm:p-6 ${
+        examFocusMode ? "fixed inset-0 z-40 overflow-y-auto" : "min-h-screen"
+      }`}
+    >
+      {isExam && examStarted && fullscreenSupported && !isFullscreen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/95 p-4 sm:p-6">
+          <section className="w-full max-w-lg rounded-3xl bg-white p-6 text-center shadow-2xl sm:p-8">
             <h2 className="text-2xl font-bold text-gray-900">
               Avaliação pausada
             </h2>
@@ -715,7 +819,7 @@ export default function StudentActivityRunner() {
         </div>
       )}
 
-      <section className="mx-auto max-w-4xl rounded-2xl bg-white p-6 shadow">
+      <section className="mx-auto max-w-4xl rounded-2xl bg-white p-4 shadow sm:p-6">
         {!isExam && (
           <Link
             to={backRoute}
@@ -753,7 +857,9 @@ export default function StudentActivityRunner() {
 
               {isExam && (
                 <p className="mt-1">
-                  Saídas da tela cheia:{" "}
+                  {fullscreenSupported
+                    ? "Saídas da tela cheia:"
+                    : "Saídas do app:"}{" "}
                   <strong className="text-gray-900">
                     {fullscreenExitCount}
                   </strong>
@@ -915,25 +1021,52 @@ export default function StudentActivityRunner() {
           )}
 
           {activity.questions?.length > 0 && (
-            <div className="flex flex-col gap-3 border-t border-gray-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-gray-500">
-                Confira suas respostas antes do envio.
-              </p>
+            <>
+              <div className="hidden flex-col gap-3 border-t border-gray-200 pt-5 sm:flex sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-gray-500">
+                  Confira suas respostas antes do envio.
+                </p>
 
-              <button
-                type="submit"
-                disabled={
-                    submitting ||
-                    alreadySubmitted ||
-                    (activity.is_overdue && !canResubmit)
-                }
-                className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-              >
-                {submitting
-                  ? "Enviando..."
-                  : `Enviar ${entityLabel}`}
-              </button>
-            </div>
+                <button
+                  type="submit"
+                  disabled={
+                      submitting ||
+                      alreadySubmitted ||
+                      (activity.is_overdue && !canResubmit)
+                  }
+                  className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                >
+                  {submitting
+                    ? "Enviando..."
+                    : `Enviar ${entityLabel}`}
+                </button>
+              </div>
+
+              {/* Mobile: progresso e envio fixos no rodapé, sem depender de rolar até o fim. */}
+              <div className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-between gap-3 border-t border-gray-200 bg-white px-4 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.08)] sm:hidden">
+                <p className="text-xs text-gray-600">
+                  Respondidas{" "}
+                  <strong className="text-gray-900">
+                    {answeredQuestionsCount}/
+                    {activity.questions?.length || 0}
+                  </strong>
+                </p>
+
+                <button
+                  type="submit"
+                  disabled={
+                      submitting ||
+                      alreadySubmitted ||
+                      (activity.is_overdue && !canResubmit)
+                  }
+                  className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                >
+                  {submitting ? "Enviando..." : "Enviar"}
+                </button>
+              </div>
+
+              <div className="h-16 sm:hidden" aria-hidden="true" />
+            </>
           )}
         </form>
       </section>

@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Loader2, ShieldCheck, TriangleAlert } from "lucide-react";
 
 import { useAuth } from "../../../auth/AuthContext";
 import { API_URL } from "../../../services/APIService";
 import { createCheckoutSession, submitCheckoutContract } from "../../../services/PublicCheckoutService";
 import { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } from "../../../constants/legalVersions";
+
+import CheckoutStepper from "../../../components/checkout/CheckoutStepper";
+import CheckoutSummaryCard from "../../../components/checkout/CheckoutSummaryCard";
 
 import Step1CoursePlan from "./steps/Step1CoursePlan";
 import CheckoutEmailVerificationPending from "./CheckoutEmailVerificationPending";
@@ -15,6 +19,16 @@ import Step5Payment from "./steps/Step5Payment";
 
 const EMPTY_STUDENT = { name: "", email: "", birthDate: "", cpf: "", phone: "", address: "" };
 const EMPTY_PARTY = { party_type: "individual", name: "", document_type: "cpf", document_number: "", email: "", phone: "", relationshipType: "" };
+
+const STEP_LABELS = ["Plano", "Destinatário", "Dados", "Revisão", "Pagamento"];
+const STEP_INDEX_BY_PHASE = {
+  step1: 0,
+  verifying: 0,
+  step2: 1,
+  step3: 2,
+  step4: 3,
+  step5: 4,
+};
 
 /**
  * Checkout público de curso -- visitante espontâneo, aluno novo ou
@@ -169,85 +183,119 @@ export default function PublicCheckoutWizard() {
   }
 
   if (phase === "loading") {
-    return <p className="p-6 text-sm text-gray-500">Carregando...</p>;
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center sm:px-6">
+        <Loader2 size={32} className="animate-spin text-blue-600" aria-hidden="true" />
+        <p className="mt-4 text-sm text-slate-500">Carregando checkout...</p>
+      </div>
+    );
   }
 
   if (phase === "error") {
-    return <p className="p-6 text-sm text-red-600">{loadError}</p>;
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center sm:px-6">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-600">
+          <TriangleAlert size={26} aria-hidden="true" />
+        </div>
+        <h1 className="mt-6 text-xl font-semibold tracking-tight text-slate-950">Não foi possível carregar o checkout</h1>
+        <p className="mt-2 text-sm text-slate-500">{loadError}</p>
+      </div>
+    );
   }
 
+  const currentStepIndex = STEP_INDEX_BY_PHASE[phase] ?? 0;
+
   return (
-    <div className="mx-auto max-w-lg px-4 py-10 sm:px-6">
-      <h1 className="mb-6 text-2xl font-bold text-gray-900">Contratar curso</h1>
+    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:py-14">
+      <header>
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-blue-600">
+          <ShieldCheck size={16} aria-hidden="true" />
+          Checkout seguro
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Contratar curso</h1>
+        <p className="mt-2 text-[15px] text-slate-500">{course.name}</p>
+      </header>
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        {phase === "step1" && (
-          <Step1CoursePlan
-            course={course}
-            plans={plans}
-            selectedPlanId={selectedPlanId}
-            onSelectPlan={setSelectedPlanId}
-            onNext={handleStep1Next}
-            submitting={step1Submitting}
-            error={step1Error}
-          />
-        )}
+      <div className="mt-8">
+        <CheckoutStepper steps={STEP_LABELS} currentIndex={currentStepIndex} />
+      </div>
 
-        {phase === "verifying" && (
-          <CheckoutEmailVerificationPending checkoutToken={checkoutToken} email={checkoutEmail} onVerified={handleVerified} />
-        )}
+      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_360px] lg:gap-8">
+        <div className="order-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:order-1">
+          {phase === "step1" && (
+            <Step1CoursePlan
+              course={course}
+              plans={plans}
+              selectedPlanId={selectedPlanId}
+              onSelectPlan={setSelectedPlanId}
+              onNext={handleStep1Next}
+              submitting={step1Submitting}
+              error={step1Error}
+            />
+          )}
 
-        {phase === "step2" && (
-          <Step2Recipient
-            recipientMode={recipientMode}
-            onSelect={setRecipientMode}
-            onNext={handleRecipientNext}
-            onBack={() => setPhase("step1")}
-          />
-        )}
+          {phase === "verifying" && (
+            <CheckoutEmailVerificationPending checkoutToken={checkoutToken} email={checkoutEmail} onVerified={handleVerified} />
+          )}
 
-        {phase === "step3" && (
-          <Step3ContractingPartyData
-            recipientMode={recipientMode}
-            studentCandidate={studentCandidate}
-            onChangeStudent={setStudentCandidate}
-            contractingPartyData={contractingPartyData}
-            onChangeContractingParty={setContractingPartyData}
-            onNext={() => setPhase("step4")}
-            onBack={() => setPhase("step2")}
-          />
-        )}
+          {phase === "step2" && (
+            <Step2Recipient
+              recipientMode={recipientMode}
+              onSelect={setRecipientMode}
+              onNext={handleRecipientNext}
+              onBack={() => setPhase("step1")}
+            />
+          )}
 
-        {phase === "step4" && selectedPlan && (
-          <Step4ReviewAcceptance
-            course={course}
-            plan={selectedPlan}
-            studentCandidate={studentCandidate}
-            recipientMode={recipientMode}
-            contractingPartyData={contractingPartyData}
-            accepted={accepted}
-            onToggleAccepted={() => setAccepted((current) => !current)}
-            onNext={() => setPhase("step5")}
-            onBack={() => setPhase("step3")}
-          />
-        )}
+          {phase === "step3" && (
+            <Step3ContractingPartyData
+              recipientMode={recipientMode}
+              studentCandidate={studentCandidate}
+              onChangeStudent={setStudentCandidate}
+              contractingPartyData={contractingPartyData}
+              onChangeContractingParty={setContractingPartyData}
+              onNext={() => setPhase("step4")}
+              onBack={() => setPhase("step2")}
+            />
+          )}
 
-        {phase === "step5" && selectedPlan && (
-          <Step5Payment
-            plan={selectedPlan}
-            acceptedMethods={{
-              pix: selectedPlan.acceptsPix,
-              boleto: selectedPlan.acceptsBoleto,
-              creditCard: selectedPlan.acceptsCreditCard,
-            }}
-            selectedMethod={selectedMethod}
-            onSelectMethod={handleSelectMethod}
-            onCardToken={handleCardToken}
-            submitting={submitting}
-            error={submitError}
-            onBack={() => setPhase("step4")}
-          />
-        )}
+          {phase === "step4" && selectedPlan && (
+            <Step4ReviewAcceptance
+              course={course}
+              plan={selectedPlan}
+              studentCandidate={studentCandidate}
+              recipientMode={recipientMode}
+              contractingPartyData={contractingPartyData}
+              accepted={accepted}
+              onToggleAccepted={() => setAccepted((current) => !current)}
+              onNext={() => setPhase("step5")}
+              onBack={() => setPhase("step3")}
+            />
+          )}
+
+          {phase === "step5" && selectedPlan && (
+            <Step5Payment
+              plan={selectedPlan}
+              acceptedMethods={{
+                pix: selectedPlan.acceptsPix,
+                boleto: selectedPlan.acceptsBoleto,
+                creditCard: selectedPlan.acceptsCreditCard,
+              }}
+              selectedMethod={selectedMethod}
+              onSelectMethod={handleSelectMethod}
+              onCardToken={handleCardToken}
+              submitting={submitting}
+              error={submitError}
+              onBack={() => setPhase("step4")}
+            />
+          )}
+        </div>
+
+        <div className="order-1 lg:order-2">
+          <div className="lg:sticky lg:top-24">
+            <CheckoutSummaryCard course={course} plan={selectedPlan} />
+          </div>
+        </div>
       </div>
     </div>
   );

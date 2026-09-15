@@ -451,95 +451,6 @@ async function softDeleteUser(db, id, actingUserId) {
 }
 
 /**
- * Alteração de role. Bloqueada sempre que a conta já possui entidade
- * vinculada (student/teacher) — converter uma entidade acadêmica em
- * outra exigiria uma migração de dados que não existe nesta versão
- * (campos diferentes, sem fluxo de conversão). Só permite alternar
- * contas sem vínculo (tipicamente admins) e nunca deixa o último
- * admin ativo sem substituto.
- */
-async function updateUserRole(db, id, role, actingUserId) {
-  const userId = normalizeId(id, "ID do usuário inválido.");
-
-  if (!ALLOWED_ROLES.includes(role)) {
-    throw createServiceError("Papel (role) inválido.", 400);
-  }
-
-  const [userRows] = await db.promise().query(
-    `
-      SELECT u.id, u.role, u.status, s.id AS student_id, t.id AS teacher_id
-      FROM users u
-      LEFT JOIN students s ON s.user_id = u.id
-      LEFT JOIN teachers t ON t.user_id = u.id
-      WHERE u.id = ?
-      LIMIT 1
-    `,
-    [userId]
-  );
-
-  if (userRows.length === 0) {
-    throw createServiceError("Usuário não encontrado.", 404);
-  }
-
-  const targetUser = userRows[0];
-
-  if (targetUser.role === role) {
-    return getUserById(db, userId);
-  }
-
-  // Virar "teacher" ou "student" sempre exige criar (e validar) o
-  // registro correspondente em teachers/students -- não existe fluxo
-  // de conversão que faça isso a partir de uma troca de role isolada,
-  // então esse alvo é bloqueado incondicionalmente, mesmo para uma
-  // conta sem nenhum vínculo hoje (ex.: um admin puro). Isso fecha a
-  // lacuna que o check abaixo (conta já vinculada) sozinho não cobria:
-  // ele já bloqueava aluno<->professor, mas deixava passar admin sem
-  // vínculo virando "teacher"/"student" sem nunca criar o perfil,
-  // gerando uma conta inconsistente (role diz uma coisa, nenhuma
-  // tabela de perfil concorda).
-  if (role === "teacher" || role === "student") {
-    throw createServiceError(
-      "Não é possível converter esta conta para professor ou aluno por aqui -- isso exigiria criar um novo cadastro acadêmico/profissional vinculado, que este fluxo não suporta nesta versão. Para isso, crie um novo cadastro de aluno ou professor.",
-      409
-    );
-  }
-
-  if (targetUser.student_id || targetUser.teacher_id) {
-    throw createServiceError(
-      "Esta conta possui uma entidade acadêmica/profissional vinculada. Alteração de papel não é suportada nesta versão — evolução futura.",
-      409
-    );
-  }
-
-  if (Number(actingUserId) === userId && targetUser.role === "admin") {
-    throw createServiceError(
-      "Você não pode alterar o próprio papel de administrador por aqui.",
-      409
-    );
-  }
-
-  if (targetUser.role === "admin") {
-    const remainingActiveAdmins = await countActiveAdmins(db.promise(), userId);
-
-    if (remainingActiveAdmins === 0) {
-      throw createServiceError(
-        "Não é possível remover o papel do último administrador ativo.",
-        409
-      );
-    }
-  }
-
-  await db
-    .promise()
-    .query(`UPDATE users SET role = ?, updated_at = NOW() WHERE id = ?`, [
-      role,
-      userId,
-    ]);
-
-  return getUserById(db, userId);
-}
-
-/**
  * Reaproveita o fluxo de recuperação de senha já existente
  * (requestPasswordReset) — nunca gera/retorna senha em texto puro.
  */
@@ -567,7 +478,6 @@ module.exports = {
   createUser,
   updateUser,
   updateUserStatus,
-  updateUserRole,
   softDeleteUser,
   sendPasswordReset,
   countActiveAdmins,

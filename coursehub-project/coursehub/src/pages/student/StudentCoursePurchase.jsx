@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check, Loader2, ShieldCheck } from "lucide-react";
 
 import { API_URL } from "../../services/APIService";
 import { purchaseCourseAsAuthenticatedStudent } from "../../services/StudentCheckoutService";
 import { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } from "../../constants/legalVersions";
 import PaymentMethodSelector from "../../components/payment/PaymentMethodSelector";
 import CreditCardPaymentPanel from "../../components/payment/CreditCardPaymentPanel";
+import CheckoutSummaryCard from "../../components/checkout/CheckoutSummaryCard";
 
 function formatCurrency(value) {
   return Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -134,15 +135,24 @@ export default function StudentCoursePurchase() {
   }
 
   if (loading) {
-    return <p className="p-6 text-sm text-gray-500">Carregando...</p>;
+    return (
+      <div className="flex flex-col items-center px-4 py-24 text-center">
+        <Loader2 size={32} className="animate-spin text-blue-600" aria-hidden="true" />
+        <p className="mt-4 text-sm text-slate-500">Carregando checkout...</p>
+      </div>
+    );
   }
 
   if (loadError || !course) {
-    return <p className="p-6 text-sm text-red-600">{loadError || "Curso não encontrado."}</p>;
+    return (
+      <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {loadError || "Curso não encontrado."}
+      </p>
+    );
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
+    <main className="mx-auto max-w-5xl pb-10">
       <Link
         to={`/courses/${courseId}`}
         className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
@@ -150,83 +160,99 @@ export default function StudentCoursePurchase() {
         <ArrowLeft size={16} /> Voltar para o curso
       </Link>
 
-      <h1 className="text-2xl font-bold text-gray-900">Contratar {course.name}</h1>
+      <header>
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-blue-600">
+          <ShieldCheck size={16} aria-hidden="true" />
+          Checkout seguro
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Contratar {course.name}</h1>
+      </header>
 
       {plans.length > 1 && !preselectedPlanId && (
-        <div className="mt-6">
-          <p className="mb-2 text-sm font-semibold text-gray-700">Escolha o plano</p>
+        <div className="mt-8">
+          <p className="mb-3 text-sm font-semibold text-slate-700">Escolha o plano</p>
           <div className="space-y-2">
-            {plans.map((plan) => (
-              <button
-                key={plan.id}
-                type="button"
-                onClick={() => setSelectedPlanId(plan.id)}
-                className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition ${
-                  String(selectedPlanId) === String(plan.id)
-                    ? "border-blue-600 bg-blue-50"
-                    : "border-gray-200 bg-white hover:border-gray-300"
-                }`}
-              >
-                <span className="font-semibold text-gray-900">{plan.name}</span>{" "}
-                <span className="text-gray-500">— {formatCurrency(plan.totalAmount)}</span>
-              </button>
-            ))}
+            {plans.map((plan) => {
+              const isSelected = String(selectedPlanId) === String(plan.id);
+
+              return (
+                <button
+                  key={plan.id}
+                  type="button"
+                  onClick={() => setSelectedPlanId(plan.id)}
+                  className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left text-sm transition ${
+                    isSelected
+                      ? "border-blue-600 bg-blue-50/60 ring-1 ring-blue-600"
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                  }`}
+                >
+                  <span
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
+                      isSelected ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-white"
+                    }`}
+                  >
+                    {isSelected && <Check size={12} className="text-white" strokeWidth={3} aria-hidden="true" />}
+                  </span>
+                  <span className="font-semibold text-slate-950">{plan.name}</span>
+                  <span className="text-slate-500">— {formatCurrency(plan.totalAmount)}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
 
       {selectedPlan && (
-        <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-6">
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-gray-500">Plano</dt>
-              <dd className="font-medium text-gray-900">{selectedPlan.name}</dd>
+        <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_360px] lg:gap-8">
+          <div className="order-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:order-1">
+            <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 px-4 py-3.5 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={accepted}
+                onChange={(event) => setAccepted(event.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>
+                Li e aceito os{" "}
+                <Link to="/termos-de-uso" target="_blank" className="font-medium text-blue-600 underline underline-offset-2">
+                  Termos de Uso
+                </Link>{" "}
+                e a{" "}
+                <Link to="/politica-de-privacidade" target="_blank" className="font-medium text-blue-600 underline underline-offset-2">
+                  Política de Privacidade
+                </Link>
+                .
+              </span>
+            </label>
+
+            <div className="mt-6">
+              <p className="mb-3 text-sm font-semibold text-slate-700">Forma de pagamento</p>
+
+              <PaymentMethodSelector
+                acceptedMethods={acceptedMethods}
+                selected={selectedMethod}
+                onSelect={handleSelectMethod}
+                disabled={!accepted || submitting}
+              />
+
+              {selectedMethod === "credit_card" && (
+                <div className="mt-4">
+                  <CreditCardPaymentPanel amount={selectedPlan.totalAmount} onToken={handleCardToken} submitting={submitting} />
+                </div>
+              )}
+
+              {submitError && (
+                <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
+                  {submitError}
+                </div>
+              )}
             </div>
-            <div className="flex justify-between">
-              <dt className="text-gray-500">Valor</dt>
-              <dd className="font-semibold text-gray-900">{formatCurrency(selectedPlan.totalAmount)}</dd>
+          </div>
+
+          <div className="order-1 lg:order-2">
+            <div className="lg:sticky lg:top-24">
+              <CheckoutSummaryCard course={course} plan={selectedPlan} />
             </div>
-          </dl>
-
-          <label className="mt-5 flex items-start gap-2 text-sm text-gray-600">
-            <input
-              type="checkbox"
-              checked={accepted}
-              onChange={(event) => setAccepted(event.target.checked)}
-              className="mt-0.5"
-            />
-            <span>
-              Li e aceito os{" "}
-              <Link to="/termos-de-uso" target="_blank" className="text-blue-600 underline">
-                Termos de Uso
-              </Link>{" "}
-              e a{" "}
-              <Link to="/politica-de-privacidade" target="_blank" className="text-blue-600 underline">
-                Política de Privacidade
-              </Link>
-              .
-            </span>
-          </label>
-
-          <div className="mt-6">
-            <PaymentMethodSelector
-              acceptedMethods={acceptedMethods}
-              selected={selectedMethod}
-              onSelect={handleSelectMethod}
-              disabled={!accepted || submitting}
-            />
-
-            {selectedMethod === "credit_card" && (
-              <div className="mt-4">
-                <CreditCardPaymentPanel amount={selectedPlan.totalAmount} onToken={handleCardToken} submitting={submitting} />
-              </div>
-            )}
-
-            {submitError && (
-              <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
-                {submitError}
-              </p>
-            )}
           </div>
         </div>
       )}

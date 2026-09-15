@@ -1,5 +1,6 @@
 import InvoiceStatusBadge from "./InvoiceStatusBadge";
 import TableActionButton from "../ui/actions/TableActionButton";
+import MobileExpandableCard from "../ui/MobileExpandableCard";
 
 function formatCurrency(value) {
   const numericValue = Number(value);
@@ -83,7 +84,8 @@ export default function ContractInvoicesTable({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <>
+    <div className="hidden overflow-x-auto md:block">
       <table className="w-full min-w-[980px] border-collapse">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
@@ -204,5 +206,57 @@ export default function ContractInvoicesTable({
         </tbody>
       </table>
     </div>
+
+    <div className="space-y-3 md:hidden">
+      {invoices.map((invoice) => {
+        const isOverdue = invoice.status === "overdue";
+
+        return (
+          <MobileExpandableCard
+            key={invoice.id}
+            title={`Fatura #${invoice.id}`}
+            subtitle={`Parcela ${getInstallmentLabel(invoice)} · Vence em ${formatDate(invoice.dueDate)}`}
+            badge={<InvoiceStatusBadge status={invoice.status} />}
+            primaryAction={
+              <TableActionButton
+                variant="accent"
+                size="md"
+                className="w-full"
+                onClick={() => onOpenInvoice?.(invoice.id)}
+              >
+                Detalhes
+              </TableActionButton>
+            }
+          >
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Vencimento</span>
+              <span className={`font-medium ${isOverdue ? "text-red-700" : "text-slate-900"}`}>
+                {formatDate(invoice.dueDate)}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Valor</span>
+              <span className="font-medium text-slate-900">
+                {formatCurrency(invoice.amount ?? invoice.totalAmount)}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Pago</span>
+              <span className="font-medium text-emerald-700">{formatCurrency(invoice.paidAmount)}</span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Pagamento</span>
+              <span className="font-medium text-slate-900">
+                {formatDate(invoice.paidAt ?? invoice.paymentDate)}
+              </span>
+            </div>
+          </MobileExpandableCard>
+        );
+      })}
+    </div>
+    </>
   );
 }

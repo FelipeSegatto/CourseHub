@@ -8,6 +8,7 @@ import AdminTable from "../../components/admin/AdminTable";
 import AdminStatusFilter from "../../components/admin/AdminStatusFilter";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
 import StatusBadge from "../../components/ui/StatusBadge";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const PAGE_LIMIT = 20;
@@ -226,6 +227,34 @@ export default function AdminContacts() {
                     </TableActionButton>
                   </td>
                 </tr>
+              )}
+              renderMobileCard={(contact) => (
+                <MobileExpandableCard
+                  key={contact.id}
+                  title={contact.name}
+                  subtitle={contact.email}
+                  badge={<StatusBadge status={contact.status} size="sm" />}
+                  primaryAction={
+                    <TableActionButton
+                      variant="accent"
+                      size="md"
+                      className="w-full"
+                      onClick={() => handleOpenMessage(contact)}
+                    >
+                      Abrir mensagem
+                    </TableActionButton>
+                  }
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Assunto</span>
+                    <span className="font-medium text-gray-900">{contact.subject}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Data</span>
+                    <span className="font-medium text-gray-900">{formatShortDateTime(contact.createdAt)}</span>
+                  </div>
+                </MobileExpandableCard>
               )}
             />
 

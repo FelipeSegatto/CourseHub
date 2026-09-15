@@ -18,6 +18,7 @@ import ProgressDonutChart from "../../components/charts/ProgressDonutChart";
 import {
   CONTENT_CHART_COLORS as contentChartColors,
   ACADEMIC_CHART_COLORS as academicChartColors,
+  ATTENDANCE_CHART_COLORS as attendanceChartColors,
 } from "../../components/charts/progressChartColors";
 
 /*
@@ -52,6 +53,14 @@ function formatPercentage(value) {
   return `${clampPercentage(value).toFixed(
     0
   )}%`;
+}
+
+function formatAttendanceRate(value) {
+  if (value === null || value === undefined) {
+    return "—";
+  }
+
+  return formatPercentage(value);
 }
 
 function formatGrade(value) {
@@ -532,6 +541,22 @@ function buildAchievements(
   }
 
   if (
+    activeSummary.attendanceRate !==
+      null &&
+    activeSummary.attendanceRate >= 90
+  ) {
+    achievements.push({
+      key: "excellent-attendance",
+      title: "Frequência exemplar",
+      description: selectedCourse
+        ? `Sua frequência em ${selectedCourse.course_title} está acima de 90%.`
+        : "Sua frequência geral está acima de 90%.",
+      icon: "📅",
+      tone: "blue",
+    });
+  }
+
+  if (
     activeSummary.totalAcademicItems > 0 &&
     activeSummary.pendingAcademicItems ===
       0
@@ -721,6 +746,31 @@ export default function StudentProgress() {
           100
         : 0);
 
+    const totalAttendanceSessions =
+      normalizeNumber(
+        apiSummary.total_attendance_sessions
+      );
+
+    const attendancePresent =
+      normalizeNumber(
+        apiSummary.attendance_present
+      );
+
+    const attendanceAbsent =
+      normalizeNumber(
+        apiSummary.attendance_absent
+      );
+
+    const attendanceLate =
+      normalizeNumber(
+        apiSummary.attendance_late
+      );
+
+    const attendanceExcused =
+      normalizeNumber(
+        apiSummary.attendance_excused
+      );
+
     return {
       scope: "all",
       title: "Todos os cursos",
@@ -754,6 +804,22 @@ export default function StudentProgress() {
           undefined
           ? normalizeNumber(
               apiSummary.average_grade
+            )
+          : null,
+
+      totalAttendanceSessions,
+      attendancePresent,
+      attendanceAbsent,
+      attendanceLate,
+      attendanceExcused,
+
+      attendanceRate:
+        apiSummary.attendance_rate !==
+          null &&
+        apiSummary.attendance_rate !==
+          undefined
+          ? normalizeNumber(
+              apiSummary.attendance_rate
             )
           : null,
     };
@@ -824,6 +890,10 @@ export default function StudentProgress() {
 
     const academic =
       selectedCourse.academic_progress ||
+      {};
+
+    const attendance =
+      selectedCourse.attendance_progress ||
       {};
 
     const totalContents =
@@ -928,6 +998,41 @@ export default function StudentProgress() {
               academic.average_grade
             )
           : null,
+
+      totalAttendanceSessions:
+        normalizeNumber(
+          attendance.total_sessions
+        ),
+
+      attendancePresent:
+        normalizeNumber(
+          attendance.present
+        ),
+
+      attendanceAbsent:
+        normalizeNumber(
+          attendance.absent
+        ),
+
+      attendanceLate:
+        normalizeNumber(
+          attendance.late
+        ),
+
+      attendanceExcused:
+        normalizeNumber(
+          attendance.excused
+        ),
+
+      attendanceRate:
+        attendance.attendance_rate !==
+          null &&
+        attendance.attendance_rate !==
+          undefined
+          ? normalizeNumber(
+              attendance.attendance_rate
+            )
+          : null,
     };
   }, [
     selectedCourse,
@@ -1023,6 +1128,36 @@ export default function StudentProgress() {
           name: "Devolvidas",
           value:
             activeSummary.returnedAcademicItems,
+        },
+      ],
+      [activeSummary]
+    );
+
+  /*
+   * Dados da rosca de frequência.
+   */
+  const attendanceChartData =
+    useMemo(
+      () => [
+        {
+          name: "Presente",
+          value:
+            activeSummary.attendancePresent,
+        },
+        {
+          name: "Atrasado",
+          value:
+            activeSummary.attendanceLate,
+        },
+        {
+          name: "Justificado",
+          value:
+            activeSummary.attendanceExcused,
+        },
+        {
+          name: "Ausente",
+          value:
+            activeSummary.attendanceAbsent,
         },
       ],
       [activeSummary]
@@ -1267,7 +1402,7 @@ export default function StudentProgress() {
               </p>
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-2">
+            <div className="grid gap-5 lg:grid-cols-3">
               <ProgressDonutChart
                 title="Progresso de conteúdo"
                 description={
@@ -1294,6 +1429,21 @@ export default function StudentProgress() {
                 centerLabel="entregues"
                 data={academicChartData}
                 colors={academicChartColors}
+              />
+
+              <ProgressDonutChart
+                title="Frequência"
+                description={
+                  selectedCourse
+                    ? `Presenças registradas em ${selectedCourse.course_title}.`
+                    : "Presenças registradas em todos os cursos com turma."
+                }
+                centerValue={formatAttendanceRate(
+                  activeSummary.attendanceRate
+                )}
+                centerLabel="presença"
+                data={attendanceChartData}
+                colors={attendanceChartColors}
               />
             </div>
           </section>

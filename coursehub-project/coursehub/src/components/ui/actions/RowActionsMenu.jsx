@@ -122,6 +122,7 @@ function DestructiveMenuItem({
           left-1/2
           top-1/2
           aspect-square
+          w-[250%]
           -translate-x-1/2
           -translate-y-1/2
           rounded-full
@@ -130,12 +131,12 @@ function DestructiveMenuItem({
 
           ${
             holding || confirmed
-              ? "w-[250%] opacity-100"
-              : "w-0 opacity-0"
+              ? "scale-100 opacity-100"
+              : "scale-0 opacity-0"
           }
         `}
         style={{
-          transitionProperty: "width, opacity",
+          transitionProperty: "transform, opacity",
           transitionDuration: holding
             ? `${item.holdDuration || holdDuration}ms`
             : "180ms",

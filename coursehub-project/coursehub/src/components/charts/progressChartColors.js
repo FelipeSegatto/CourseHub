@@ -6,7 +6,10 @@
  *
  * Conteúdo: verde = concluído, azul = em andamento, cinza = não
  * iniciado. Acadêmico: verde = corrigidas, azul = aguardando
- * correção, amarelo = pendentes, vermelho = devolvidas.
+ * correção, amarelo = pendentes, vermelho = devolvidas. Frequência:
+ * mesma semântica de cor das telas de chamada (verde = presente,
+ * amarelo = atrasado, azul = justificado, vermelho = ausente).
  */
 export const CONTENT_CHART_COLORS = ["#22c55e", "#3b82f6", "#d1d5db"];
 export const ACADEMIC_CHART_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#ef4444"];
+export const ATTENDANCE_CHART_COLORS = ["#22c55e", "#f59e0b", "#3b82f6", "#ef4444"];

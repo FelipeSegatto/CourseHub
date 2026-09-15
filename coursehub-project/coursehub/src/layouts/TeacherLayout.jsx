@@ -5,7 +5,7 @@ export default function TeacherLayout() {
   return (
     <div>
       <NavbarTeacher />
-      <main className="p-6">
+      <main className="p-4 sm:p-6">
             <Outlet />
        
         <footer className="mt-12 py-6 text-center text-sm text-gray-500">

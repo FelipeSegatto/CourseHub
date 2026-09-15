@@ -8,6 +8,7 @@ import AdminTable from "../../../components/admin/AdminTable";
 import AdminStatusFilter from "../../../components/admin/AdminStatusFilter";
 import TableActionButton from "../../../components/ui/actions/TableActionButton";
 import StatusBadge from "../../../components/ui/StatusBadge";
+import MobileExpandableCard from "../../../components/ui/MobileExpandableCard";
 import EditContractingPartyContactModal from "../../../components/financial/EditContractingPartyContactModal";
 import { formatDisplayDate } from "../../../utils/dateUtils";
 
@@ -231,6 +232,46 @@ export default function ContractingPartiesAdmin() {
                     </TableActionButton>
                   </td>
                 </tr>
+              )}
+              renderMobileCard={(party) => (
+                <MobileExpandableCard
+                  key={party.id}
+                  title={party.name}
+                  subtitle={party.documentNumber || "-"}
+                  badge={<StatusBadge status={party.status} size="sm" />}
+                  primaryAction={
+                    <TableActionButton
+                      variant="accent"
+                      size="md"
+                      className="w-full"
+                      onClick={() => setEditTarget(party)}
+                    >
+                      Editar contato
+                    </TableActionButton>
+                  }
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">E-mail</span>
+                    <span className="font-medium text-gray-900">{party.email || "-"}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Telefone</span>
+                    <span className="font-medium text-gray-900">{party.phone || "-"}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Tipo</span>
+                    <span className="font-medium text-gray-900">
+                      {PARTY_TYPE_LABEL[party.partyType] || party.partyType}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Última atualização</span>
+                    <span className="font-medium text-gray-900">{formatShortDateTime(party.updatedAt)}</span>
+                  </div>
+                </MobileExpandableCard>
               )}
             />
 

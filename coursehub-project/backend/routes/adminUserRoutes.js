@@ -10,7 +10,6 @@ const {
   createUser,
   updateUser,
   updateUserStatus,
-  updateUserRole,
   softDeleteUser,
   sendPasswordReset,
 } = require("../services/admin/adminUserService");
@@ -142,32 +141,6 @@ router.patch(
       });
     } catch (error) {
       return handleServiceError(res, error, "Erro ao atualizar status do usuário.");
-    }
-  }
-);
-
-/**
- * PATCH /api/admin/users/:userId/role
- */
-router.patch(
-  "/admin/users/:userId/role",
-  authenticateToken,
-  authorizeRoles("admin"),
-  async (req, res) => {
-    try {
-      const user = await updateUserRole(
-        db,
-        req.params.userId,
-        req.body.role,
-        req.auth.userId
-      );
-
-      return res.status(200).json({
-        message: "Papel do usuário atualizado com sucesso.",
-        user,
-      });
-    } catch (error) {
-      return handleServiceError(res, error, "Erro ao atualizar papel do usuário.");
     }
   }
 );

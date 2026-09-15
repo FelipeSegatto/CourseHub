@@ -48,7 +48,7 @@ export default function VerifyDocument() {
   }, [codeFromUrl]);
 
   return (
-    <main className="mx-auto max-w-lg px-6 py-16">
+    <main className="mx-auto max-w-lg px-4 py-16 sm:px-6">
       <h1 className="text-3xl font-bold text-gray-900">Verificar documento</h1>
       <p className="mt-2 text-gray-600">
         Digite o código impresso no certificado ou declaração para confirmar sua autenticidade.
@@ -59,7 +59,7 @@ export default function VerifyDocument() {
           event.preventDefault();
           runVerification(code.trim().toUpperCase());
         }}
-        className="mt-6 flex gap-3"
+        className="mt-6 flex flex-col gap-3 sm:flex-row"
       >
         <input
           type="text"

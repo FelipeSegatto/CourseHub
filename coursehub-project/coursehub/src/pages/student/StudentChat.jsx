@@ -89,7 +89,7 @@ export default function StudentChat() {
   const canPost = selectedConversation ? selectedConversation.canPost !== false : true;
 
   return (
-    <main className="p-6">
+    <main className="p-4 sm:p-6">
       <section className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Chat</h1>
         <p className="mt-2 text-gray-600">
@@ -98,8 +98,15 @@ export default function StudentChat() {
         <InstitutionalChatNotice className="mt-2" />
       </section>
 
-      <section className="grid gap-6 rounded-2xl bg-white shadow md:grid-cols-[320px_1fr]" style={{ minHeight: 520 }}>
-        <div className="flex flex-col border-b border-gray-200 md:border-b-0 md:border-r">
+      <section
+        className="grid overflow-hidden rounded-2xl bg-white shadow md:grid-cols-[320px_1fr] md:gap-6"
+        style={{ minHeight: 520 }}
+      >
+        <div
+          className={`${
+            selectedConversationId ? "hidden md:flex" : "flex"
+          } flex-col border-b border-gray-200 md:border-b-0 md:border-r`}
+        >
           <div className="flex gap-1 border-b border-gray-200 p-2">
             {TABS.map((tab) => (
               <button
@@ -170,7 +177,7 @@ export default function StudentChat() {
           </ul>
         </div>
 
-        <div className="flex flex-col">
+        <div className={`${selectedConversationId ? "flex" : "hidden md:flex"} flex-col`}>
           <ChatThreadPanel
             title={selectedConversation ? conversationTitle(selectedConversation) : ""}
             conversation={selectedConversation}
@@ -186,6 +193,7 @@ export default function StudentChat() {
             onResolve={
               selectedConversation && RESOLVABLE_TYPES.has(selectedConversation.type) ? handleResolve : undefined
             }
+            onBack={() => setSelectedConversationId(null)}
           />
         </div>
       </section>

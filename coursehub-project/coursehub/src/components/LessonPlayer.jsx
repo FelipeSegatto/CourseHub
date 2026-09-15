@@ -37,15 +37,17 @@ export default function LessonPlayer({ lesson }) {
           {lesson.title}
         </h2>
 
-        <iframe
-          width="100%"
-          height="420"
-          src={getYoutubeEmbedUrl(lesson.content_url)}
-          title={lesson.title}
-          frameBorder="0"
-          allowFullScreen
-          className="rounded-xl border"
-        />
+        <div className="aspect-video w-full overflow-hidden rounded-xl border">
+          <iframe
+            width="100%"
+            height="100%"
+            src={getYoutubeEmbedUrl(lesson.content_url)}
+            title={lesson.title}
+            frameBorder="0"
+            allowFullScreen
+            className="h-full w-full"
+          />
+        </div>
       </div>
     );
   }
@@ -60,9 +62,8 @@ export default function LessonPlayer({ lesson }) {
         <iframe
           src={getDrivePreviewUrl(lesson.content_url)}
           width="100%"
-          height="520"
           title={lesson.title}
-          className="rounded-xl border"
+          className="h-[380px] w-full rounded-xl border sm:h-[520px]"
         />
       </div>
     );

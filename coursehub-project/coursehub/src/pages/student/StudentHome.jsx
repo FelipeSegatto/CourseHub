@@ -19,7 +19,7 @@ export default function StudentHome() {
 
    
   return (
-    <section className="px-6 py-12 mb-4">
+    <section className="px-4 py-12 mb-4 sm:px-6">
       <div className="mx-auto max-w-6xl">
         <HeroGreetingsText />
 

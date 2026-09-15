@@ -196,7 +196,7 @@ export default function CoursePage() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-5xl px-6 py-12">
+      <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <h1 className="text-3xl font-bold text-gray-900">
           Carregando curso...
         </h1>
@@ -206,7 +206,7 @@ export default function CoursePage() {
 
   if (error || !course) {
     return (
-      <main className="mx-auto max-w-5xl px-6 py-12">
+      <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <h1 className="text-3xl font-bold text-gray-900">
           Curso não encontrado
         </h1>
@@ -253,7 +253,7 @@ export default function CoursePage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-12">
+    <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
       <Link
         to="/courses"
         className="text-sm font-semibold text-blue-600 hover:text-blue-700"
@@ -261,7 +261,7 @@ export default function CoursePage() {
         ← Voltar para cursos
       </Link>
 
-      <h1 className="mt-6 text-5xl font-bold text-gray-900">
+      <h1 className="mt-6 text-3xl font-bold text-gray-900 sm:text-4xl lg:text-5xl">
         {course.name}
       </h1>
 

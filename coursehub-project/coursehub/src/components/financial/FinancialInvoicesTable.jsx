@@ -1,5 +1,6 @@
 import InvoiceStatusBadge from "./InvoiceStatusBadge";
 import TableActionButton from "../ui/actions/TableActionButton";
+import MobileExpandableCard from "../ui/MobileExpandableCard";
 
 function formatCurrency(value) {
   const numericValue = Number(value);
@@ -157,7 +158,8 @@ export default function FinancialInvoicesTable({
   onOpenContract,
 }) {
   return (
-    <div className="overflow-x-auto">
+    <>
+    <div className="hidden overflow-x-auto md:block">
       <table className="w-full min-w-[1080px] border-collapse">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
@@ -373,5 +375,73 @@ export default function FinancialInvoicesTable({
         </tbody>
       </table>
     </div>
+
+    <div className="space-y-3 md:hidden">
+      {invoices.map((invoice) => {
+        const contractId = getContractId(invoice);
+        const enrollmentId = getEnrollmentId(invoice);
+        const remainingAmount = getRemainingAmount(invoice);
+        const isOverdue = invoice.status === "overdue";
+
+        return (
+          <MobileExpandableCard
+            key={invoice.id}
+            title={`Fatura #${invoice.id} — ${getStudentName(invoice)}`}
+            subtitle={`Parcela ${getInstallmentLabel(invoice)} · Vence em ${formatDate(getDueDate(invoice))}`}
+            badge={<InvoiceStatusBadge status={invoice.status} />}
+            primaryAction={
+              <TableActionButton
+                variant="accent"
+                size="md"
+                className="w-full"
+                onClick={() => onOpenInvoice(invoice.id)}
+              >
+                Detalhes
+              </TableActionButton>
+            }
+          >
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Contrato</span>
+              <span className="font-medium text-slate-900">{contractId ? `#${contractId}` : "—"}</span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Matrícula</span>
+              <span className="font-medium text-slate-900">{enrollmentId ? `#${enrollmentId}` : "—"}</span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Vencimento</span>
+              <span className={`font-medium ${isOverdue ? "text-red-700" : "text-slate-900"}`}>
+                {formatDate(getDueDate(invoice))}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Valor</span>
+              <span className="font-medium text-slate-900">{formatCurrency(getInvoiceAmount(invoice))}</span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Pago</span>
+              <span className="font-medium text-emerald-700">{formatCurrency(getPaidAmount(invoice))}</span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Restante</span>
+              <span className={`font-medium ${remainingAmount > 0 && isOverdue ? "text-red-700" : "text-slate-900"}`}>
+                {formatCurrency(remainingAmount)}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Pagamento em</span>
+              <span className="font-medium text-slate-900">{formatDate(getPaidAt(invoice))}</span>
+            </div>
+          </MobileExpandableCard>
+        );
+      })}
+    </div>
+    </>
   );
 }

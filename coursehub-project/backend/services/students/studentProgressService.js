@@ -2,6 +2,7 @@ const {
   getStudentIdByUserId,
   createServiceError,
 } = require("../classes/classAccessService");
+const { loadAttendanceSummary } = require("../attendance/studentAttendanceSummaryService");
 
 /**
  * Normaliza o status acadêmico de um item (atividade/avaliação).
@@ -287,6 +288,12 @@ const EMPTY_PROGRESS_OVERVIEW_SUMMARY = {
   academic_progress_percentage: 0,
   average_grade: null,
   average_percentage: null,
+  total_attendance_sessions: 0,
+  attendance_present: 0,
+  attendance_absent: 0,
+  attendance_late: 0,
+  attendance_excused: 0,
+  attendance_rate: null,
 };
 
 /**
@@ -452,6 +459,20 @@ async function getProgressOverview(db, { userId }) {
     academicItemsByCourse.get(courseId).push(mapAcademicItem(row));
   }
 
+  // Uma consulta de frequência por turma (não por curso) -- cursos
+  // sem turma na matrícula simplesmente não têm frequência a mostrar.
+  const attendanceByCourse = new Map(
+    await Promise.all(
+      courseIds.map(async (courseId) => [
+        courseId,
+        await loadAttendanceSummary(db, {
+          studentId,
+          classId: classIdByCourse.get(courseId) || null,
+        }),
+      ])
+    )
+  );
+
   const courses = courseRows.map((courseRow) => {
     const courseId = Number(courseRow.course_id);
     const courseContents = contentsByCourse.get(courseId) || [];
@@ -507,6 +528,8 @@ async function getProgressOverview(db, { userId }) {
     );
     const examItems = academicItems.filter((item) => item.activity_kind === "exam");
 
+    const attendance = attendanceByCourse.get(courseId) || null;
+
     return {
       course_id: courseId,
       course_title: courseRow.course_title,
@@ -535,6 +558,16 @@ async function getProgressOverview(db, { userId }) {
         activities: summarizeAcademicItems(activityItems),
         exams: summarizeAcademicItems(examItems),
       },
+      attendance_progress: attendance
+        ? {
+            total_sessions: attendance.total,
+            present: attendance.present,
+            absent: attendance.absent,
+            late: attendance.late,
+            excused: attendance.excused,
+            attendance_rate: attendance.attendanceRate,
+          }
+        : null,
       // Listas completas — a página geral só usa os resumos hoje,
       // mas ficam disponíveis para expansões futuras.
       contents: courseContents,
@@ -567,6 +600,36 @@ async function getProgressOverview(db, { userId }) {
 
   const allAcademicItems = courses.flatMap((course) => course.academic_items || []);
   const globalAcademicSummary = summarizeAcademicItems(allAcademicItems);
+
+  const attendanceSummaries = courses
+    .map((course) => course.attendance_progress)
+    .filter(Boolean);
+
+  const totalAttendanceSessions = attendanceSummaries.reduce(
+    (sum, summary) => sum + summary.total_sessions,
+    0
+  );
+  const totalAttendancePresent = attendanceSummaries.reduce(
+    (sum, summary) => sum + summary.present,
+    0
+  );
+  const totalAttendanceAbsent = attendanceSummaries.reduce(
+    (sum, summary) => sum + summary.absent,
+    0
+  );
+  const totalAttendanceLate = attendanceSummaries.reduce(
+    (sum, summary) => sum + summary.late,
+    0
+  );
+  const totalAttendanceExcused = attendanceSummaries.reduce(
+    (sum, summary) => sum + summary.excused,
+    0
+  );
+
+  const globalAttendanceRate =
+    totalAttendanceSessions > 0
+      ? Number(((totalAttendancePresent / totalAttendanceSessions) * 100).toFixed(2))
+      : null;
 
   const totalCourses = courses.length;
   const coursesInProgress = courses.filter(
@@ -638,6 +701,12 @@ async function getProgressOverview(db, { userId }) {
       academic_progress_percentage: globalAcademicSummary.progress_percentage,
       average_grade: globalAcademicSummary.average_grade,
       average_percentage: globalAcademicSummary.average_percentage,
+      total_attendance_sessions: totalAttendanceSessions,
+      attendance_present: totalAttendancePresent,
+      attendance_absent: totalAttendanceAbsent,
+      attendance_late: totalAttendanceLate,
+      attendance_excused: totalAttendanceExcused,
+      attendance_rate: globalAttendanceRate,
     },
     continue_learning: continueLearning,
     recent_graded_item: recentGradedItem,

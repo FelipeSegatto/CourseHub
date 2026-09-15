@@ -16,6 +16,7 @@ import {
 
 import FinancialInvoicesTable from "../../../components/financial/FinancialInvoicesTable";
 import ExportPdfButton from "../../../components/reports/ExportPdfButton";
+import MobileFilterToggle from "../../../components/ui/MobileFilterToggle";
 
 const INITIAL_PAGINATION = {
   page: 1,
@@ -450,6 +451,14 @@ export default function FinancialInvoicesAdmin() {
     ]
   );
 
+  const activeFilterCount = [
+    filters.status,
+    filters.contractId,
+    filters.dueDateFrom,
+    filters.dueDateTo,
+    filters.overdueOnly,
+  ].filter(Boolean).length;
+
   const firstVisibleItem =
     pagination.total === 0
       ? 0
@@ -652,39 +661,41 @@ export default function FinancialInvoicesAdmin() {
 
         <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 p-4 sm:p-5">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <div className="md:col-span-2">
-                <label
-                  htmlFor="invoice-search"
-                  className="mb-1.5 block text-xs font-semibold text-slate-600"
-                >
-                  Buscar
-                </label>
+            <div>
+              <label
+                htmlFor="invoice-search"
+                className="mb-1.5 block text-xs font-semibold text-slate-600"
+              >
+                Buscar
+              </label>
 
-                <input
-                  id="invoice-search"
-                  type="search"
-                  name="search"
-                  value={filters.search}
-                  onChange={
-                    handleFilterChange
-                  }
-                  placeholder="Fatura, aluno, matrícula ou contrato"
-                  className={[
-                    "min-h-11 w-full rounded-lg",
-                    "border border-slate-300",
-                    "bg-white px-3 text-sm",
-                    "text-slate-900",
-                    "placeholder:text-slate-400",
-                    "transition",
-                    "focus:border-blue-500",
-                    "focus:outline-none",
-                    "focus:ring-2",
-                    "focus:ring-blue-500/20",
-                  ].join(" ")}
-                />
-              </div>
+              <input
+                id="invoice-search"
+                type="search"
+                name="search"
+                value={filters.search}
+                onChange={
+                  handleFilterChange
+                }
+                placeholder="Fatura, aluno, matrícula ou contrato"
+                className={[
+                  "min-h-11 w-full rounded-lg",
+                  "border border-slate-300",
+                  "bg-white px-3 text-sm",
+                  "text-slate-900",
+                  "placeholder:text-slate-400",
+                  "transition",
+                  "focus:border-blue-500",
+                  "focus:outline-none",
+                  "focus:ring-2",
+                  "focus:ring-blue-500/20",
+                ].join(" ")}
+              />
+            </div>
 
+            <div className="mt-4">
+            <MobileFilterToggle activeCount={activeFilterCount}>
+            <div className="grid w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <div>
                 <label
                   htmlFor="invoice-status"
@@ -907,6 +918,8 @@ export default function FinancialInvoicesAdmin() {
                   </span>
                 </label>
               </div>
+            </div>
+            </MobileFilterToggle>
             </div>
 
             {hasActiveFilters && (

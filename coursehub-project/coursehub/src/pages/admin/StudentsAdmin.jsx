@@ -12,6 +12,8 @@ import AdminTable from "../../components/admin/AdminTable";
 import AdminStatusFilter from "../../components/admin/AdminStatusFilter";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
 import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
+import MobileFilterToggle from "../../components/ui/MobileFilterToggle";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 
 import StatusBadge from "../../components/ui/StatusBadge";
 
@@ -24,7 +26,7 @@ const studentStatusOptions = [
 const INITIAL_DRAFT = { courseId: "", classId: "", status: "active" };
 
 const inputClass =
-  "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
+  "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-auto";
 
 /**
  * Não carrega todos os alunos da plataforma de cara -- exige um
@@ -247,6 +249,10 @@ export default function StudentsAdmin() {
     { key: "actions", label: "Ações", align: "right" },
   ];
 
+  const activeFilterCount =
+    [draft.courseId, draft.classId].filter(Boolean).length +
+    (draft.status && draft.status !== INITIAL_DRAFT.status ? 1 : 0);
+
   return (
     <>
       <ManagementPageShell
@@ -258,7 +264,7 @@ export default function StudentsAdmin() {
         stats={hasApplied ? stats : []}
         tableTitle="Lista de alunos"
         tableActions={
-          <div className="flex flex-wrap items-center gap-3">
+          <MobileFilterToggle activeCount={activeFilterCount}>
             <select
               value={draft.courseId}
               onChange={(event) => updateDraft({ courseId: event.target.value, classId: "" })}
@@ -309,7 +315,7 @@ export default function StudentsAdmin() {
                 Limpar filtros
               </button>
             )}
-          </div>
+          </MobileFilterToggle>
         }
         searchValue={busca}
         onSearchChange={setBusca}
@@ -382,6 +388,55 @@ export default function StudentsAdmin() {
                   </div>
                 </td>
               </tr>
+            )}
+            renderMobileCard={(student) => (
+              <MobileExpandableCard
+                key={student.id}
+                title={student.name}
+                subtitle={student.email}
+                badge={<StatusBadge status={student.status} size="sm" />}
+                primaryAction={
+                  <div className="flex items-center gap-2">
+                    <TableActionButton
+                      variant="accent"
+                      size="md"
+                      className="flex-1"
+                      onClick={() => handleEditClick(student)}
+                    >
+                      Editar
+                    </TableActionButton>
+
+                    <RowActionsMenu
+                      items={[
+                        {
+                          key: "delete",
+                          label: "Remover",
+                          icon: Trash2,
+                          variant: "danger",
+                          onClick: () => handleDeleteClick(student),
+                        },
+                      ]}
+                    />
+                  </div>
+                }
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Matrícula</span>
+                  <span className="font-medium text-gray-900">
+                    {student.registration_number || "-"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">CPF</span>
+                  <span className="font-medium text-gray-900">{student.cpf || "-"}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Telefone</span>
+                  <span className="font-medium text-gray-900">{student.phone || "-"}</span>
+                </div>
+              </MobileExpandableCard>
             )}
           />
         )}

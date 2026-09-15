@@ -8,6 +8,8 @@ import { useAppliedFilters } from "../../hooks/useAppliedFilters";
 
 import SessionCard from "../../components/sessions/SessionCard";
 import SessionModal from "../../components/teachers/SessionModal";
+import HoldToConfirmButton from "../../components/ui/actions/HoldToConfirmButton";
+import MobileFilterToggle from "../../components/ui/MobileFilterToggle";
 
 const SESSION_TYPE_OPTIONS = [
   { value: "class", label: "Aula" },
@@ -205,6 +207,8 @@ export default function AdminSessionsPage() {
 
   const canApply = Boolean(draft.classId);
 
+  const activeFilterCount = [draft.status, draft.sessionType, draft.from, draft.to].filter(Boolean).length;
+
   return (
     <main className="p-6">
       <section className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -265,47 +269,49 @@ export default function AdminSessionsPage() {
             ))}
           </select>
 
-          <select
-            value={draft.status}
-            onChange={(event) => updateDraft({ status: event.target.value })}
-            className={inputClass}
-          >
-            <option value="">Todos os status</option>
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <MobileFilterToggle activeCount={activeFilterCount}>
+            <select
+              value={draft.status}
+              onChange={(event) => updateDraft({ status: event.target.value })}
+              className={inputClass}
+            >
+              <option value="">Todos os status</option>
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
 
-          <select
-            value={draft.sessionType}
-            onChange={(event) => updateDraft({ sessionType: event.target.value })}
-            className={inputClass}
-          >
-            <option value="">Todos os tipos</option>
-            {SESSION_TYPE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            <select
+              value={draft.sessionType}
+              onChange={(event) => updateDraft({ sessionType: event.target.value })}
+              className={inputClass}
+            >
+              <option value="">Todos os tipos</option>
+              {SESSION_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
 
-          <input
-            type="date"
-            value={draft.from}
-            onChange={(event) => updateDraft({ from: event.target.value })}
-            className={dateInputClass}
-            title="De"
-          />
+            <input
+              type="date"
+              value={draft.from}
+              onChange={(event) => updateDraft({ from: event.target.value })}
+              className={dateInputClass}
+              title="De"
+            />
 
-          <input
-            type="date"
-            value={draft.to}
-            onChange={(event) => updateDraft({ to: event.target.value })}
-            className={dateInputClass}
-            title="Até"
-          />
+            <input
+              type="date"
+              value={draft.to}
+              onChange={(event) => updateDraft({ to: event.target.value })}
+              className={dateInputClass}
+              title="Até"
+            />
+          </MobileFilterToggle>
 
           <button
             type="button"
@@ -419,14 +425,15 @@ export default function AdminSessionsPage() {
                 Voltar
               </button>
 
-              <button
-                type="button"
-                onClick={handleConfirmCancel}
+              <HoldToConfirmButton
+                variant="danger"
+                holdDuration={1200}
+                onConfirm={handleConfirmCancel}
                 disabled={cancelling}
-                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+                loading={cancelling}
               >
-                {cancelling ? "Cancelando..." : "Confirmar cancelamento"}
-              </button>
+                Confirmar cancelamento
+              </HoldToConfirmButton>
             </div>
           </div>
         </div>

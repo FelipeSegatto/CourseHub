@@ -1,4 +1,4 @@
-import { QrCode, Barcode, CreditCard } from "lucide-react";
+import { QrCode, Barcode, CreditCard, Check } from "lucide-react";
 
 const METHODS = [
   { key: "pix", label: "Pix", icon: QrCode },
@@ -35,12 +35,17 @@ export default function PaymentMethodSelector({ acceptedMethods, selected, onSel
           type="button"
           disabled={disabled}
           onClick={() => onSelect(key)}
-          className={`flex flex-col items-center gap-2 rounded-xl border px-4 py-4 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+          className={`relative flex flex-col items-center gap-2 rounded-xl border px-4 py-4 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
             selected === key
-              ? "border-blue-600 bg-blue-50 text-blue-700"
+              ? "border-blue-600 bg-blue-50/60 text-blue-700 ring-1 ring-blue-600"
               : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
           }`}
         >
+          {selected === key && (
+            <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white">
+              <Check size={10} strokeWidth={3} aria-hidden="true" />
+            </span>
+          )}
           <Icon size={22} aria-hidden="true" />
           {label}
         </button>

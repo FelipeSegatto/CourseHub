@@ -5,6 +5,9 @@ import { apiFetch } from "../../services/APIService";
 import { getAttendanceHistory } from "../../services/TeacherAttendanceHistoryService";
 import StatCard from "../../components/ui/StatCard";
 import StatusBadge from "../../components/ui/StatusBadge";
+import MobileFilterToggle from "../../components/ui/MobileFilterToggle";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
+import TableActionButton from "../../components/ui/actions/TableActionButton";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const SESSION_STATUS_OPTIONS = [
@@ -133,9 +136,11 @@ export default function TeacherAttendanceHistory() {
   }
 
   const inputClass =
-    "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
+    "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-auto";
 
   const pagination = history?.pagination;
+
+  const activeFilterCount = [from, to, sessionStatus, attendanceStatus].filter(Boolean).length;
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
@@ -192,63 +197,65 @@ export default function TeacherAttendanceHistory() {
               ))}
             </select>
 
-            <input
-              type="date"
-              value={from}
-              onChange={(event) => {
-                setFrom(event.target.value);
-                setPage(1);
-              }}
-              disabled={!classId}
-              className={inputClass}
-              title="De"
-            />
+            <MobileFilterToggle activeCount={activeFilterCount}>
+              <input
+                type="date"
+                value={from}
+                onChange={(event) => {
+                  setFrom(event.target.value);
+                  setPage(1);
+                }}
+                disabled={!classId}
+                className={inputClass}
+                title="De"
+              />
 
-            <input
-              type="date"
-              value={to}
-              onChange={(event) => {
-                setTo(event.target.value);
-                setPage(1);
-              }}
-              disabled={!classId}
-              className={inputClass}
-              title="Até"
-            />
+              <input
+                type="date"
+                value={to}
+                onChange={(event) => {
+                  setTo(event.target.value);
+                  setPage(1);
+                }}
+                disabled={!classId}
+                className={inputClass}
+                title="Até"
+              />
 
-            <select
-              value={sessionStatus}
-              onChange={(event) => {
-                setSessionStatus(event.target.value);
-                setPage(1);
-              }}
-              disabled={!classId}
-              className={inputClass}
-            >
-              <option value="">Todos os status de sessão</option>
-              {SESSION_STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              <select
+                value={sessionStatus}
+                onChange={(event) => {
+                  setSessionStatus(event.target.value);
+                  setPage(1);
+                }}
+                disabled={!classId}
+                className={inputClass}
+              >
+                <option value="">Todos os status de sessão</option>
+                {SESSION_STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
 
-            <select
-              value={attendanceStatus}
-              onChange={(event) => {
-                setAttendanceStatus(event.target.value);
-                setPage(1);
-              }}
-              disabled={!classId}
-              className={inputClass}
-            >
-              <option value="">Chamada pendente e concluída</option>
-              {ATTENDANCE_STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              <select
+                value={attendanceStatus}
+                onChange={(event) => {
+                  setAttendanceStatus(event.target.value);
+                  setPage(1);
+                }}
+                disabled={!classId}
+                className={inputClass}
+              >
+                <option value="">Chamada pendente e concluída</option>
+                {ATTENDANCE_STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </MobileFilterToggle>
           </div>
         </section>
 
@@ -320,54 +327,97 @@ export default function TeacherAttendanceHistory() {
                   Nenhuma sessão encontrada para os filtros selecionados.
                 </p>
               ) : (
-                <div className="mt-6 space-y-4">
-                  {history.sessions.map((session) => (
-                    <div
-                      key={session.id}
-                      className="rounded-xl border border-gray-100 bg-gray-50 p-5"
-                    >
-                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <p className="font-semibold text-gray-900">{session.title}</p>
+                <>
+                  <div className="mt-6 hidden space-y-4 md:block">
+                    {history.sessions.map((session) => (
+                      <div
+                        key={session.id}
+                        className="rounded-xl border border-gray-100 bg-gray-50 p-5"
+                      >
+                        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <p className="font-semibold text-gray-900">{session.title}</p>
 
-                          <p className="mt-1 text-sm text-gray-500">
-                            {formatShortDate(session.sessionDate)}
-                            {session.startTime ? ` · ${session.startTime.slice(0, 5)}` : ""}
-                          </p>
+                            <p className="mt-1 text-sm text-gray-500">
+                              {formatShortDate(session.sessionDate)}
+                              {session.startTime ? ` · ${session.startTime.slice(0, 5)}` : ""}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3">
+                            <StatusBadge status={session.status} />
+
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                session.attendanceStatus === "complete"
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-yellow-100 text-yellow-700"
+                              }`}
+                            >
+                              {session.attendanceStatus === "complete"
+                                ? "Chamada concluída"
+                                : "Chamada pendente"}
+                            </span>
+
+                            <span className="text-sm text-gray-600">
+                              {session.counts.present}/{session.counts.total} presentes
+                            </span>
+
+                            <Link
+                              to={session.deepLink}
+                              className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-200"
+                            >
+                              {session.attendanceStatus === "complete"
+                                ? "Ver chamada"
+                                : "Registrar chamada"}
+                            </Link>
+                          </div>
                         </div>
+                      </div>
+                    ))}
+                  </div>
 
-                        <div className="flex flex-wrap items-center gap-3">
-                          <StatusBadge status={session.status} />
-
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                              session.attendanceStatus === "complete"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-yellow-100 text-yellow-700"
-                            }`}
-                          >
-                            {session.attendanceStatus === "complete"
-                              ? "Chamada concluída"
-                              : "Chamada pendente"}
-                          </span>
-
-                          <span className="text-sm text-gray-600">
-                            {session.counts.present}/{session.counts.total} presentes
-                          </span>
-
-                          <Link
+                  <div className="mt-6 space-y-3 md:hidden">
+                    {history.sessions.map((session) => (
+                      <MobileExpandableCard
+                        key={session.id}
+                        title={session.title}
+                        subtitle={`${formatShortDate(session.sessionDate)}${
+                          session.startTime ? ` · ${session.startTime.slice(0, 5)}` : ""
+                        }`}
+                        badge={<StatusBadge status={session.status} size="sm" />}
+                        primaryAction={
+                          <TableActionButton
+                            variant="accent"
+                            size="md"
+                            className="w-full"
                             to={session.deepLink}
-                            className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-200"
                           >
                             {session.attendanceStatus === "complete"
                               ? "Ver chamada"
                               : "Registrar chamada"}
-                          </Link>
+                          </TableActionButton>
+                        }
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">Chamada</span>
+                          <span className="font-medium text-gray-900">
+                            {session.attendanceStatus === "complete"
+                              ? "Chamada concluída"
+                              : "Chamada pendente"}
+                          </span>
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">Presentes</span>
+                          <span className="font-medium text-gray-900">
+                            {session.counts.present}/{session.counts.total}
+                          </span>
+                        </div>
+                      </MobileExpandableCard>
+                    ))}
+                  </div>
+                </>
               )}
 
               {pagination && pagination.totalPages > 1 && (

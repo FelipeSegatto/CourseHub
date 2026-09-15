@@ -11,6 +11,7 @@ import TeacherStatusFilter from "../../components/teachers/TeacherStatusFilter";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
 import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
 import StatusBadge from "../../components/ui/StatusBadge";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 
 const contentStatusOptions = [
   {
@@ -179,6 +180,62 @@ export default function TeacherMaterials() {
           Number(classItem.courseId ?? classItem.course_id) ===
           Number(courseId)
       ) || null
+    );
+  }
+
+  /*
+   * Botão "Ver" -- compartilhado entre a linha desktop e o card
+   * mobile para não duplicar (e desalinhar) a lógica de resolução
+   * de turma.
+   */
+  function renderViewButton(content, size = "sm") {
+    const specificClassId = content.classId ?? content.class_id ?? null;
+
+    /*
+     * Conteúdo específico: navega exatamente para a
+     * turma dona do conteúdo — nunca para outra.
+     */
+    if (specificClassId) {
+      return (
+        <TableActionButton
+          variant="neutral"
+          size={size}
+          to={`/professor/turmas/${specificClassId}/materiais`}
+        >
+          Ver
+        </TableActionButton>
+      );
+    }
+
+    /*
+     * Conteúdo geral: não pertence a uma turma
+     * específica, então é uma escolha de contexto
+     * abrir na primeira turma disponível do curso.
+     */
+    const fallbackClass = findClassForCourse(content.course_id);
+
+    if (!fallbackClass) {
+      return (
+        <TableActionButton
+          variant="neutral"
+          size={size}
+          disabled
+          title="Nenhuma turma cadastrada para este curso."
+        >
+          Ver
+        </TableActionButton>
+      );
+    }
+
+    return (
+      <TableActionButton
+        variant="neutral"
+        size={size}
+        to={`/professor/turmas/${fallbackClass.id}/materiais`}
+        title="Conteúdo geral do curso. Abrir na primeira turma disponível."
+      >
+        Ver
+      </TableActionButton>
     );
   }
 
@@ -652,59 +709,7 @@ export default function TeacherMaterials() {
 
                 <td className="whitespace-nowrap px-3 py-3">
                   <div className="flex items-center justify-end gap-2">
-                    {(() => {
-                      const specificClassId =
-                        content.classId ?? content.class_id ?? null;
-
-                      /*
-                       * Conteúdo específico: navega exatamente para a
-                       * turma dona do conteúdo — nunca para outra.
-                       */
-                      if (specificClassId) {
-                        return (
-                          <TableActionButton
-                            variant="neutral"
-                            size="sm"
-                            to={`/professor/turmas/${specificClassId}/materiais`}
-                          >
-                            Ver
-                          </TableActionButton>
-                        );
-                      }
-
-                      /*
-                       * Conteúdo geral: não pertence a uma turma
-                       * específica, então é uma escolha de contexto
-                       * abrir na primeira turma disponível do curso.
-                       */
-                      const fallbackClass = findClassForCourse(
-                        content.course_id
-                      );
-
-                      if (!fallbackClass) {
-                        return (
-                          <TableActionButton
-                            variant="neutral"
-                            size="sm"
-                            disabled
-                            title="Nenhuma turma cadastrada para este curso."
-                          >
-                            Ver
-                          </TableActionButton>
-                        );
-                      }
-
-                      return (
-                        <TableActionButton
-                          variant="neutral"
-                          size="sm"
-                          to={`/professor/turmas/${fallbackClass.id}/materiais`}
-                          title="Conteúdo geral do curso. Abrir na primeira turma disponível."
-                        >
-                          Ver
-                        </TableActionButton>
-                      );
-                    })()}
+                    {renderViewButton(content)}
 
                     <TableActionButton
                       variant="accent"
@@ -730,6 +735,67 @@ export default function TeacherMaterials() {
                   </div>
                 </td>
               </tr>
+            )}
+            renderMobileCard={(content) => (
+              <MobileExpandableCard
+                key={content.id}
+                title={content.title}
+                subtitle={content.description}
+                badge={<StatusBadge status={content.status} size="sm" />}
+                primaryAction={
+                  <div className="flex items-center gap-2">
+                    <TableActionButton
+                      variant="accent"
+                      size="md"
+                      className="flex-1"
+                      onClick={() => handleEditClick(content)}
+                    >
+                      Editar
+                    </TableActionButton>
+
+                    <RowActionsMenu
+                      items={[
+                        {
+                          key: "remove",
+                          label: "Remover",
+                          icon: Trash2,
+                          variant: "danger",
+                          onClick: () => handleDeleteClick(content),
+                        },
+                      ]}
+                    />
+                  </div>
+                }
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Curso</span>
+                  <span className="font-medium text-gray-900">
+                    {content.course_name ||
+                      content.course_title ||
+                      `Curso #${content.course_id}`}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Turma</span>
+                  <span className="font-medium text-gray-900">
+                    {content.classId ?? content.class_id
+                      ? content.className ||
+                        content.class_name ||
+                        `Turma #${content.classId ?? content.class_id}`
+                      : "Todas as turmas"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Tipo</span>
+                  <span className="font-medium text-gray-900">
+                    {contentTypeLabels[content.type] || content.type || "-"}
+                  </span>
+                </div>
+
+                <div className="pt-1">{renderViewButton(content, "sm")}</div>
+              </MobileExpandableCard>
             )}
           />
         )}

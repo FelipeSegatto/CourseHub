@@ -15,6 +15,8 @@ import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
 import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
+import MobileFilterToggle from "../../components/ui/MobileFilterToggle";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 
 const BILLING_TYPE_OPTIONS = [
   { value: "one_time", label: "Pagamento único" },
@@ -210,7 +212,9 @@ export default function PricingPlansAdmin() {
   ];
 
   const inputClass =
-    "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
+    "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-auto";
+
+  const activeFilterCount = [courseId, billingType, status].filter(Boolean).length;
 
   return (
     <>
@@ -223,7 +227,7 @@ export default function PricingPlansAdmin() {
         stats={stats}
         tableTitle="Lista de planos comerciais"
         tableActions={
-          <div className="flex flex-wrap gap-3">
+          <MobileFilterToggle activeCount={activeFilterCount}>
             <select
               value={courseId}
               onChange={(event) => {
@@ -271,7 +275,7 @@ export default function PricingPlansAdmin() {
                 </option>
               ))}
             </select>
-          </div>
+          </MobileFilterToggle>
         }
         searchValue={searchInput}
         onSearchChange={setSearchInput}
@@ -366,6 +370,81 @@ export default function PricingPlansAdmin() {
                     </div>
                   </td>
                 </tr>
+              )}
+              renderMobileCard={(plan) => (
+                <MobileExpandableCard
+                  key={plan.id}
+                  title={plan.name}
+                  subtitle={plan.courseName}
+                  badge={<StatusBadge status={plan.status} size="sm" />}
+                  primaryAction={
+                    <div className="flex items-center gap-2">
+                      <TableActionButton
+                        variant="accent"
+                        size="md"
+                        className="flex-1"
+                        onClick={() => handleEditClick(plan)}
+                      >
+                        Editar
+                      </TableActionButton>
+
+                      <RowActionsMenu
+                        items={[
+                          {
+                            key: "toggle-status",
+                            label: plan.status === "active" ? "Inativar" : "Ativar",
+                            icon: Power,
+                            variant: "warning",
+                            disabled: rowActionLoading === plan.id,
+                            onClick: () => handleToggleStatus(plan),
+                          },
+                          {
+                            key: "remove",
+                            label: "Remover",
+                            icon: Trash2,
+                            variant: "danger",
+                            separator: true,
+                            disabled: rowActionLoading === plan.id || plan.status === "inactive",
+                            title: plan.status === "inactive" ? "Este plano já está inativo." : undefined,
+                            onClick: () => handleDeleteClick(plan),
+                          },
+                        ]}
+                      />
+                    </div>
+                  }
+                >
+                  {plan.description && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Descrição</span>
+                      <span className="font-medium text-gray-900">{plan.description}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Tipo de cobrança</span>
+                    <span className="font-medium text-gray-900">{billingTypeLabel(plan.billingType)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Valor</span>
+                    <span className="font-medium text-gray-900">
+                      {formatCurrency(plan.totalAmount)}
+                      {plan.billingType === "monthly_plan" && plan.monthlyPaymentCount
+                        ? ` (${plan.monthlyPaymentCount}x de ${formatCurrency(plan.monthlyPaymentAmount)})`
+                        : ""}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Formas de pagamento</span>
+                    <span className="font-medium text-gray-900">{paymentMethodsLabel(plan)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Contratos</span>
+                    <span className="font-medium text-gray-900">{plan.contractCount}</span>
+                  </div>
+                </MobileExpandableCard>
               )}
             />
 

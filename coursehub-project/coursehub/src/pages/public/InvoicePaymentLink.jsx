@@ -158,7 +158,7 @@ export default function InvoicePaymentLink() {
   return (
   <main className="min-h-screen bg-slate-50">
     <section className="border-b border-slate-200 bg-white">
-      <div className="mx-auto max-w-6xl px-6 py-10 lg:px-8">
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="flex items-center gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
             <Receipt size={22} aria-hidden="true" />
@@ -181,7 +181,7 @@ export default function InvoicePaymentLink() {
       </div>
     </section>
 
-    <section className="mx-auto max-w-6xl px-6 py-10 lg:px-8 lg:py-14">
+    <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
       {pageState === "loading" && (
         <p className="text-sm text-slate-500">
           Carregando cobrança...

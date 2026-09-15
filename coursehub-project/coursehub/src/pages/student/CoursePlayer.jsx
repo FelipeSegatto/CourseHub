@@ -469,7 +469,7 @@ export default function CoursePlayer() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-5xl px-6 py-12">
+      <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <h1 className="text-3xl font-bold text-gray-900">
           Carregando curso...
         </h1>
@@ -479,7 +479,7 @@ export default function CoursePlayer() {
 
   if (!course) {
     return (
-      <main className="mx-auto max-w-5xl px-6 py-12">
+      <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <h1 className="text-3xl font-bold text-gray-900">
           Curso não encontrado
         </h1>
@@ -501,7 +501,7 @@ export default function CoursePlayer() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-12">
+    <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
       <Link
         to="/aluno/dashboard-aluno"
         className="text-sm font-semibold text-blue-600 hover:text-blue-700"
@@ -509,18 +509,18 @@ export default function CoursePlayer() {
         ← Voltar para o Portal do Aluno
       </Link>
 
-      <h1 className="mt-6 text-5xl font-bold text-gray-900">
+      <h1 className="mt-6 text-3xl font-bold text-gray-900 sm:text-4xl lg:text-5xl">
         {course.name}
       </h1>
 
       <section className="mt-10 flex flex-col gap-8 lg:flex-row">
-        <div className="flex-[1.5] rounded-2xl border border-gray-200 p-6">
+        <div className="flex-[1.5] rounded-2xl border border-gray-200 p-4 sm:p-6">
           <LessonPlayer
             lesson={selectedContent}
           />
         </div>
 
-        <aside className="flex-1 rounded-2xl border border-gray-200 p-6">
+        <aside className="flex-1 rounded-2xl border border-gray-200 p-4 sm:p-6">
           <h2 className="text-xl font-bold text-gray-900">
             Conteúdo do curso
           </h2>

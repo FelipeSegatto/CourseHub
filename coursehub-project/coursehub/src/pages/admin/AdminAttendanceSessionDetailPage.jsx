@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AdminAttendanceService } from "../../services/AdminAttendanceService";
 import StatusBadge from "../../components/ui/StatusBadge";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const STATUS_OPTIONS = [
@@ -187,7 +188,7 @@ export default function AdminAttendanceSessionDetailPage() {
         <section className="rounded-2xl bg-white p-6 shadow">
           <h2 className="text-lg font-bold text-gray-900">Alunos</h2>
 
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="w-full min-w-[700px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
@@ -229,6 +230,46 @@ export default function AdminAttendanceSessionDetailPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="mt-4 space-y-3 md:hidden">
+            {students.map((row) => (
+              <MobileExpandableCard
+                key={row.attendanceId}
+                title={row.student.name}
+                subtitle={row.student.registrationNumber}
+                badge={<StatusBadge status={row.status} />}
+                primaryAction={
+                  <TableActionButton
+                    variant="accent"
+                    size="md"
+                    className="w-full"
+                    onClick={() => handleAdjustClick(row)}
+                  >
+                    Ajustar
+                  </TableActionButton>
+                }
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Observação</span>
+                  <span className="font-medium text-gray-900">{row.notes || "-"}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Ajuste admin</span>
+                  {row.adjustment ? (
+                    <span
+                      title={row.adjustment.reason || ""}
+                      className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700"
+                    >
+                      {formatShortDate(row.adjustment.adjustedAt)}
+                    </span>
+                  ) : (
+                    <span className="font-medium text-gray-400">-</span>
+                  )}
+                </div>
+              </MobileExpandableCard>
+            ))}
           </div>
         </section>
       </div>

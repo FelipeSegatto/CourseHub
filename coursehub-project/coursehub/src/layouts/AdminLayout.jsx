@@ -7,7 +7,7 @@ export default function AdminLayout() {
       <div className="print-hide">
         <NavbarAdmin />
       </div>
-      <main className="p-6">
+      <main className="p-4 sm:p-6">
             <Outlet />
 
         <footer className="print-hide mt-12 py-6 text-center text-sm text-gray-500">

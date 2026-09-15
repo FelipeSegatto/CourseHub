@@ -54,14 +54,14 @@ export default function StudentDocuments() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-4xl px-6 py-12">
+      <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
         <p className="text-gray-500">Carregando seus documentos...</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-12">
+    <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
       <h1 className="text-3xl font-bold text-gray-900">Meus Documentos</h1>
       <p className="mt-2 text-gray-600">Declarações e certificados emitidos para as suas matrículas.</p>
 

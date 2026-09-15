@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Power, KeyRound, Shield, Trash2 } from "lucide-react";
+import { Power, KeyRound, Trash2 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 
 import {
   listUsers,
   updateUserStatus,
-  updateUserRole,
   sendPasswordReset,
   softDeleteUser,
 } from "../../services/AdminUserService";
@@ -17,6 +16,8 @@ import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
 import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
+import MobileFilterToggle from "../../components/ui/MobileFilterToggle";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const ROLE_OPTIONS = [
@@ -76,8 +77,6 @@ export default function UsersAdmin() {
   const [selectedUser, setSelectedUser] = useState(null);
 
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [roleTarget, setRoleTarget] = useState(null);
-  const [roleSelection, setRoleSelection] = useState("");
   const [rowActionLoading, setRowActionLoading] = useState(null);
   const [rowActionError, setRowActionError] = useState("");
   const [feedback, setFeedback] = useState("");
@@ -180,31 +179,6 @@ export default function UsersAdmin() {
     }
   }
 
-  function openRoleModal(user) {
-    setRoleTarget(user);
-    setRoleSelection(user.role);
-    setRowActionError("");
-  }
-
-  async function handleConfirmRoleChange() {
-    if (!roleTarget) return;
-
-    try {
-      setRowActionLoading(roleTarget.id);
-      setRowActionError("");
-
-      await updateUserRole(roleTarget.id, roleSelection);
-
-      setRoleTarget(null);
-      await fetchUsers();
-    } catch (requestError) {
-      console.error("Erro ao alterar papel:", requestError);
-      setRowActionError(requestError.message || "Erro ao alterar papel.");
-    } finally {
-      setRowActionLoading(null);
-    }
-  }
-
   function handleDeleteClick(user) {
     setDeleteTarget(user);
     setRowActionError("");
@@ -248,7 +222,9 @@ export default function UsersAdmin() {
   ];
 
   const inputClass =
-    "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
+    "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-auto";
+
+  const activeFilterCount = [role, status, linkedEntityType].filter(Boolean).length;
 
   return (
     <>
@@ -261,7 +237,7 @@ export default function UsersAdmin() {
         stats={stats}
         tableTitle="Lista de usuários"
         tableActions={
-          <div className="flex flex-wrap gap-3">
+          <MobileFilterToggle activeCount={activeFilterCount}>
             <select
               value={role}
               onChange={(event) => {
@@ -309,7 +285,7 @@ export default function UsersAdmin() {
                 </option>
               ))}
             </select>
-          </div>
+          </MobileFilterToggle>
         }
         searchValue={searchInput}
         onSearchChange={setSearchInput}
@@ -403,19 +379,6 @@ export default function UsersAdmin() {
                             onClick: () => handleSendPasswordReset(user),
                           },
                           {
-                            key: "change-role",
-                            label: "Alterar papel",
-                            icon: Shield,
-                            variant: "neutral",
-                            disabled: Boolean(user.linkedEntity) || isSelf(user),
-                            title: user.linkedEntity
-                              ? "Contas com entidade acadêmica/profissional vinculada não suportam troca de papel nesta versão."
-                              : isSelf(user)
-                                ? "Você não pode alterar o próprio papel."
-                                : undefined,
-                            onClick: () => openRoleModal(user),
-                          },
-                          {
                             key: "delete",
                             label: "Remover",
                             icon: Trash2,
@@ -430,6 +393,79 @@ export default function UsersAdmin() {
                     </div>
                   </td>
                 </tr>
+              )}
+              renderMobileCard={(user) => (
+                <MobileExpandableCard
+                  key={user.id}
+                  title={user.name}
+                  subtitle={user.email}
+                  badge={<StatusBadge status={user.status} size="sm" />}
+                  primaryAction={
+                    <div className="flex items-center gap-2">
+                      <TableActionButton
+                        variant="accent"
+                        size="md"
+                        className="flex-1"
+                        onClick={() => handleEditClick(user)}
+                      >
+                        Editar
+                      </TableActionButton>
+
+                      <RowActionsMenu
+                        items={[
+                          {
+                            key: "toggle-status",
+                            label: user.status === "active" ? "Inativar" : "Ativar",
+                            icon: Power,
+                            variant: "warning",
+                            disabled: isSelf(user) || rowActionLoading === user.id,
+                            title: isSelf(user) ? "Você não pode alterar o próprio status." : undefined,
+                            onClick: () => handleToggleStatus(user),
+                          },
+                          {
+                            key: "reset-password",
+                            label: "Redefinir senha",
+                            icon: KeyRound,
+                            variant: "neutral",
+                            disabled: rowActionLoading === user.id,
+                            onClick: () => handleSendPasswordReset(user),
+                          },
+                          {
+                            key: "delete",
+                            label: "Remover",
+                            icon: Trash2,
+                            variant: "danger",
+                            separator: true,
+                            disabled: isSelf(user) || rowActionLoading === user.id,
+                            title: isSelf(user) ? "Você não pode remover a própria conta." : undefined,
+                            onClick: () => handleDeleteClick(user),
+                          },
+                        ]}
+                      />
+                    </div>
+                  }
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Papel</span>
+                    <span className="font-medium text-gray-900">
+                      {ROLE_OPTIONS.find((option) => option.value === user.role)?.label || user.role}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Vínculo</span>
+                    <span className="font-medium text-gray-900">
+                      {user.linkedEntity
+                        ? `${user.linkedEntity.type === "student" ? "Aluno" : "Professor"} · ${user.linkedEntity.displayName}`
+                        : "Sem vínculo"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Criado em</span>
+                    <span className="font-medium text-gray-900">{formatShortDate(user.createdAt)}</span>
+                  </div>
+                </MobileExpandableCard>
               )}
             />
 
@@ -487,71 +523,6 @@ export default function UsersAdmin() {
         />
       )}
 
-      {roleTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-gray-900">Alterar papel</h2>
-
-            <p className="mt-3 rounded-xl bg-gray-100 px-4 py-3 text-sm font-semibold text-gray-800">
-              {roleTarget.name}
-            </p>
-
-            {rowActionError && (
-              <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {rowActionError}
-              </p>
-            )}
-
-            <label className="mt-4 block text-sm font-medium text-gray-700">
-              Novo papel
-              <select
-                value={roleSelection}
-                onChange={(event) => setRoleSelection(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-              >
-                {/* Professor/Aluno nunca aparecem aqui -- converter para
-                    esses papéis exigiria criar o cadastro acadêmico/
-                    profissional correspondente, e este fluxo isolado de
-                    troca de papel não suporta isso (o backend também
-                    rejeita, esta é só a camada visual). */}
-                {ROLE_OPTIONS.filter((option) => option.value === "admin").map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <p className="mt-3 text-xs text-gray-500">
-              Conversão para professor ou aluno não é suportada por aqui — exigiria criar o
-              cadastro acadêmico/profissional correspondente. Para isso, cadastre um novo usuário
-              com o papel desejado.
-            </p>
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setRoleTarget(null)}
-                disabled={rowActionLoading === roleTarget.id}
-                className="rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:opacity-60"
-              >
-                Cancelar
-              </button>
-
-              <button
-                type="button"
-                onClick={handleConfirmRoleChange}
-                disabled={
-                  rowActionLoading === roleTarget.id || roleSelection === roleTarget.role
-                }
-                className="rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60"
-              >
-                {rowActionLoading === roleTarget.id ? "Salvando..." : "Confirmar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

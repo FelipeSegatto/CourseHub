@@ -13,6 +13,7 @@ import {
 import { useAuth } from "../../auth/AuthContext";
 import { apiFetch } from "../../services/APIService";
 import SessionModal from "../../components/teachers/SessionModal";
+import HoldToConfirmButton from "../../components/ui/actions/HoldToConfirmButton";
 import { saveTeacherSession } from "../../services/TeacherSessionService";
 
 const sessionTypeOptions = [
@@ -237,6 +238,9 @@ export default function TeacherClassDetails() {
   const [cancellingSessionId, setCancellingSessionId] =
     useState(null);
 
+  const [cancelTarget, setCancelTarget] =
+    useState(null);
+
   async function loadClassSessions() {
     if (!usuarioLogado?.id || !classId) return;
 
@@ -328,21 +332,15 @@ export default function TeacherClassDetails() {
     await loadClassSessions();
   }
 
-  async function handleCancelSession(session) {
-    if (!usuarioLogado?.id) return;
-
-    const shouldCancel = window.confirm(
-      `Deseja cancelar o encontro "${session.title}"?`
-    );
-
-    if (!shouldCancel) return;
+  async function handleConfirmCancel() {
+    if (!usuarioLogado?.id || !cancelTarget) return;
 
     try {
-      setCancellingSessionId(session.id);
+      setCancellingSessionId(cancelTarget.id);
       setError("");
 
       const data = await apiFetch(
-        `/api/teacher/by-user/${usuarioLogado.id}/class-sessions/${session.id}`,
+        `/api/teacher/by-user/${usuarioLogado.id}/class-sessions/${cancelTarget.id}`,
         {
           method: "DELETE",
         }
@@ -365,6 +363,8 @@ export default function TeacherClassDetails() {
           )
         );
       }
+
+      setCancelTarget(null);
 
       await loadClassSessions();
     } catch (cancelError) {
@@ -613,7 +613,7 @@ export default function TeacherClassDetails() {
                       openEditModal(session)
                     }
                     onCancel={() =>
-                      handleCancelSession(
+                      setCancelTarget(
                         session
                       )
                     }
@@ -638,6 +638,38 @@ export default function TeacherClassDetails() {
         onSaved={handleSessionSaved}
         onSubmit={saveTeacherSession(usuarioLogado?.id)}
       />
+
+      {cancelTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-bold text-gray-900">Cancelar encontro</h2>
+            <p className="mt-3 text-sm text-gray-600">
+              Tem certeza que deseja cancelar <strong>{cancelTarget.title}</strong>?
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setCancelTarget(null)}
+                disabled={cancellingSessionId === cancelTarget.id}
+                className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              >
+                Voltar
+              </button>
+
+              <HoldToConfirmButton
+                variant="danger"
+                holdDuration={1200}
+                onConfirm={handleConfirmCancel}
+                disabled={cancellingSessionId === cancelTarget.id}
+                loading={cancellingSessionId === cancelTarget.id}
+              >
+                Confirmar cancelamento
+              </HoldToConfirmButton>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

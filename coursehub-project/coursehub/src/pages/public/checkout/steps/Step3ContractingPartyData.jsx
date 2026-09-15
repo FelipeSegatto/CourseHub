@@ -3,14 +3,14 @@ import { useState } from "react";
 function TextField({ label, value, onChange, type = "text", placeholder, required = true }) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-gray-700">{label}</label>
+      <label className="mb-1.5 block text-sm font-medium text-slate-700">{label}</label>
       <input
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         required={required}
-        className="h-11 w-full rounded-xl border border-gray-300 px-3.5 text-[15px] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+        className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-[15px] text-slate-950 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
       />
     </div>
   );
@@ -55,10 +55,10 @@ export default function Step3ContractingPartyData({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <div>
-        <p className="text-sm font-semibold text-blue-600">Etapa 3 de 5</p>
-        <h2 className="mt-1 text-xl font-bold text-gray-900">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Etapa 3 de 5</p>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
           {recipientMode === "self" ? "Seus dados" : "Dados do aluno"}
         </h2>
       </div>
@@ -82,11 +82,11 @@ export default function Step3ContractingPartyData({
       </div>
 
       {recipientMode === "other" && (
-        <div className="space-y-4 border-t border-gray-100 pt-5">
-          <h3 className="text-base font-bold text-gray-900">Dados do contratante</h3>
+        <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Dados do contratante</h3>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Tipo</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Tipo</label>
             <div className="flex gap-2">
               {["individual", "company"].map((type) => (
                 <button
@@ -97,7 +97,9 @@ export default function Step3ContractingPartyData({
                     updateParty("party_type", type);
                   }}
                   className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition ${
-                    partyType === type ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600"
+                    partyType === type
+                      ? "border-blue-600 bg-blue-50 text-blue-700"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                   }`}
                 >
                   {type === "individual" ? "Pessoa física" : "Empresa"}
@@ -115,13 +117,10 @@ export default function Step3ContractingPartyData({
             label={partyType === "company" ? "CNPJ" : "CPF"}
             value={contractingPartyData?.document_number || ""}
             onChange={(v) => {
-            onChangeContractingParty({
+              onChangeContractingParty({
                 ...contractingPartyData,
                 document_number: v,
-                document_type:
-                  partyType === "company"
-                    ? "cnpj"
-                    : "cpf",
+                document_type: partyType === "company" ? "cnpj" : "cpf",
               });
             }}
           />
@@ -134,11 +133,11 @@ export default function Step3ContractingPartyData({
           <TextField label="Telefone" required={false} value={contractingPartyData?.phone || ""} onChange={(v) => updateParty("phone", v)} />
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Relação com o aluno</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Relação com o aluno</label>
             <select
               value={contractingPartyData?.relationshipType || ""}
               onChange={(event) => updateParty("relationshipType", event.target.value)}
-              className="h-11 w-full rounded-xl border border-gray-300 px-3.5 text-[15px] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-[15px] text-slate-950 outline-none transition hover:border-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
             >
               <option value="">Selecione</option>
               <option value="parent">Pai/Mãe</option>
@@ -154,7 +153,7 @@ export default function Step3ContractingPartyData({
         <button
           type="button"
           onClick={onBack}
-          className="h-12 flex-1 rounded-xl border border-gray-300 px-5 text-[15px] font-semibold text-gray-700 transition hover:bg-gray-50"
+          className="h-12 flex-1 rounded-xl border border-slate-300 px-5 text-[15px] font-semibold text-slate-700 transition hover:bg-slate-50"
         >
           Voltar
         </button>
@@ -162,7 +161,7 @@ export default function Step3ContractingPartyData({
           type="button"
           onClick={onNext}
           disabled={!studentReady || !partyReady}
-          className="h-12 flex-[2] rounded-xl bg-blue-600 px-5 text-[15px] font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+          className="h-12 flex-[2] rounded-xl bg-blue-600 px-5 text-[15px] font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-600/20 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
           Continuar
         </button>

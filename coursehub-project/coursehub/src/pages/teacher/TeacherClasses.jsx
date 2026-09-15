@@ -13,6 +13,7 @@ import TeacherStatusFilter from "../../components/teachers/TeacherStatusFilter";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
 
 import StatusBadge from "../../components/ui/StatusBadge";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 
 const classStatusOptions = [
   {
@@ -547,6 +548,78 @@ export default function TeacherClasses() {
                 </div>
               </td>
             </tr>
+          )}
+          renderMobileCard={(classItem) => (
+            <MobileExpandableCard
+              key={classItem.id}
+              title={classItem.name}
+              subtitle={`Turma #${classItem.id}`}
+              badge={<StatusBadge status={classItem.status} size="sm" />}
+              primaryAction={
+                <TableActionButton
+                  variant="accent"
+                  size="md"
+                  className="w-full"
+                  to={`/professor/turmas/${classItem.id}`}
+                >
+                  Abrir turma
+                </TableActionButton>
+              }
+            >
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">Curso</span>
+                <span className="font-medium text-gray-900">
+                  {classItem.courseName ||
+                    (classItem.courseId
+                      ? `Curso #${classItem.courseId}`
+                      : "Curso não informado")}
+                </span>
+              </div>
+
+              {classItem.shift && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Turno</span>
+                  <span className="font-medium capitalize text-gray-900">
+                    {classItem.shift}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">Período</span>
+                <span className="font-medium text-gray-900">
+                  {formatDate(classItem.startDate)} até{" "}
+                  {formatDate(classItem.endDate)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">Alunos matriculados</span>
+                <span className="font-medium text-gray-900">
+                  {classItem.studentCount}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <TableActionButton
+                  variant="neutral"
+                  size="sm"
+                  className="flex-1"
+                  to={`/professor/turmas/${classItem.id}/frequencia`}
+                >
+                  Frequência
+                </TableActionButton>
+
+                <TableActionButton
+                  variant="neutral"
+                  size="sm"
+                  className="flex-1"
+                  to={`/professor/turmas/${classItem.id}/materiais`}
+                >
+                  Materiais
+                </TableActionButton>
+              </div>
+            </MobileExpandableCard>
           )}
         />
       )}

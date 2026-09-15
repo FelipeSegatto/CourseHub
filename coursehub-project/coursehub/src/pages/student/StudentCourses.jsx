@@ -19,7 +19,7 @@ export default function StudentCourses() {
   }
 
   return (
-    <main className="bg-gray-50 px-6 py-12">
+    <main className="bg-gray-50 px-4 py-12 sm:px-6">
       <div className="mx-auto max-w-6xl">
         <section className="mb-10">
           <p className="text-sm font-semibold text-blue-600">

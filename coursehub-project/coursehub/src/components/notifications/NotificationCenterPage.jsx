@@ -31,7 +31,7 @@ export default function NotificationCenterPage({ title, description, backLink, c
   } = useNotificationInbox();
 
   return (
-    <main className="p-6">
+    <main className="p-4 sm:p-6">
       <section className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
         <p className="mt-2 text-gray-600">{description}</p>

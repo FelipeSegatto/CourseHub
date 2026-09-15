@@ -1,8 +1,11 @@
+import TableActionButton from "../ui/actions/TableActionButton";
+
 function DeleteContentModal({
   item,
   variant = "content",
   handleCloseModal,
   onConfirm,
+  loading = false,
 }) {
   const isActivityVariant = variant === "activity";
 
@@ -49,18 +52,26 @@ function DeleteContentModal({
                 <button
                     type="button"
                     onClick={handleCloseModal}
-                    className="rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100"
+                    disabled={loading}
+                    className="rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:opacity-60"
                 >
                     Cancelar
                 </button>
 
-                <button
-                    type="button"
+                <TableActionButton
+                    variant="danger"
+                    size="md"
+                    holdToConfirm
+                    holdDuration={1500}
+                    holdLabel="Continue segurando..."
+                    confirmedLabel="Excluído"
                     onClick={() => onConfirm(item)}
-                    className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-red-700 hover:shadow-lg"
+                    disabled={loading}
+                    loading={loading}
+                    className="px-5 py-2.5"
                 >
                     Excluir
-                </button>
+                </TableActionButton>
             </div>
       </div>
     </div>

@@ -10,6 +10,7 @@ import AdminTable from "../../components/admin/AdminTable";
 import AdminStatusFilter from "../../components/admin/AdminStatusFilter";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
 import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 
 import StatusBadge from "../../components/ui/StatusBadge";
 
@@ -237,6 +238,57 @@ export default function TeachersAdmin() {
                   </div>
                 </td>
               </tr>
+            )}
+            renderMobileCard={(teacher) => (
+              <MobileExpandableCard
+                key={teacher.id}
+                title={teacher.name}
+                subtitle={teacher.email}
+                badge={<StatusBadge status={teacher.status} size="sm" />}
+                primaryAction={
+                  <div className="flex items-center gap-2">
+                    <TableActionButton
+                      variant="accent"
+                      size="md"
+                      className="flex-1"
+                      onClick={() => handleEditClick(teacher)}
+                    >
+                      Editar
+                    </TableActionButton>
+
+                    <RowActionsMenu
+                      items={[
+                        {
+                          key: "delete",
+                          label: "Remover",
+                          icon: Trash2,
+                          variant: "danger",
+                          onClick: () => handleDeleteClick(teacher),
+                        },
+                      ]}
+                    />
+                  </div>
+                }
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Matrícula</span>
+                  <span className="font-medium text-gray-900">
+                    {teacher.registration_number || "-"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Cursos</span>
+                  <span className="font-medium text-gray-900">
+                    {teacher.course_names || "-"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Telefone</span>
+                  <span className="font-medium text-gray-900">{teacher.phone || "-"}</span>
+                </div>
+              </MobileExpandableCard>
             )}
           />
         )}

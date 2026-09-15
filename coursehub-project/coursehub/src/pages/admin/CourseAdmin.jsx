@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Trash2 } from "lucide-react";
+import { Eye, Trash2 } from "lucide-react";
 import { apiFetch } from "../../services/APIService";
 
 import ManagementPageShell from "../../components/ui/ManagementPageShell";
@@ -12,6 +12,7 @@ import AdminStatusFilter from "../../components/admin/AdminStatusFilter";
 import StatusBadge from "../../components/ui/StatusBadge";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
 import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 
 function formatCurrency(value) {
   return Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -449,6 +450,70 @@ export default function CourseAdmin() {
                   </div>
                 </td>
               </tr>
+            )}
+            renderMobileCard={(course) => (
+              <MobileExpandableCard
+                key={course.id}
+                title={course.name}
+                subtitle={course.category}
+                badge={<StatusBadge status={course.status} size="sm" />}
+                primaryAction={
+                  <div className="flex items-center gap-2">
+                    <TableActionButton
+                      variant="accent"
+                      size="md"
+                      className="flex-1"
+                      onClick={() => handleEditClick(course)}
+                    >
+                      Editar
+                    </TableActionButton>
+
+                    <RowActionsMenu
+                      items={[
+                        {
+                          key: "view",
+                          label: "Ver detalhes",
+                          icon: Eye,
+                          variant: "neutral",
+                          onClick: () => setViewTarget(course),
+                        },
+                        {
+                          key: "delete",
+                          label: "Remover",
+                          icon: Trash2,
+                          variant: "danger",
+                          separator: true,
+                          onClick: () => handleDeleteClick(course),
+                        },
+                      ]}
+                    />
+                  </div>
+                }
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Docente</span>
+                  <span className="font-medium text-gray-900">{formatCourseTeachers(course)}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Alunos matriculados</span>
+                  <span className="font-medium text-gray-900">
+                    {Number(course.total_students || 0)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Carga horária</span>
+                  <span className="font-medium text-gray-900">
+                    {course.workload_hours ? `${course.workload_hours}h` : "-"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Preço</span>
+                  <PricingCell pricing={course.pricing} />
+                </div>
+              </MobileExpandableCard>
             )}
           />
         )}

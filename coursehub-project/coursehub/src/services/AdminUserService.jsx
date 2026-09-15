@@ -48,13 +48,6 @@ export async function updateUserStatus(userId, status) {
   });
 }
 
-export async function updateUserRole(userId, role) {
-  return apiFetch(`/api/admin/users/${userId}/role`, {
-    method: "PATCH",
-    body: JSON.stringify({ role }),
-  });
-}
-
 export async function sendPasswordReset(userId) {
   return apiFetch(`/api/admin/users/${userId}/send-password-reset`, {
     method: "POST",

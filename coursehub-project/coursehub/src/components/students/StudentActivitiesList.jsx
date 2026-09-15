@@ -6,6 +6,7 @@ import StudentTable from "./StudentTable";
 import StudentStatusFilter from "./StudentStatusFilter";
 import StatusBadge from "../ui/StatusBadge";
 import TableActionButton from "../ui/actions/TableActionButton";
+import MobileExpandableCard from "../ui/MobileExpandableCard";
 
 
 
@@ -317,58 +318,121 @@ export default function StudentActivitiesList({
       )}
 
       {!loading && !error && (
-        <StudentTable
-          columns={columns}
-          data={filteredActivities}
-          emptyMessage={emptyMessage}
-          renderRow={(activity) => {
-            const isPending =
-              activity.status === "pending" ||
-              activity.status === "overdue" ||
-              activity.status === "returned";
+        <>
+          {/* Desktop/tablet: tabela completa */}
+          <div className="hidden md:block">
+            <StudentTable
+              columns={columns}
+              data={filteredActivities}
+              emptyMessage={emptyMessage}
+              renderRow={(activity) => {
+                const isPending =
+                  activity.status === "pending" ||
+                  activity.status === "overdue" ||
+                  activity.status === "returned";
 
-            return (
-              <tr
-                key={activity.id}
-                className="border-b border-gray-100"
-              >
-                <td className="px-4 py-3">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {activity.title}
-                  </p>
-
-                  <p className="mt-1 text-xs text-gray-500">
-                    ID: #{activity.id}
-                  </p>
-                </td>
-
-                <td className="px-4 py-3 text-sm text-gray-600">
-                  {activity.courseTitle}
-                </td>
-
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                  {activity.dueDate}
-                </td>
-
-                <td className="whitespace-nowrap px-4 py-3">
-                  <StatusBadge status={activity.status} />
-                </td>
-
-                <td className="whitespace-nowrap px-4 py-3 text-right">
-                  <TableActionButton
-                    variant={isPending ? "accent" : "neutral"}
-                    size="sm"
-                    to={`${detailsPath}/${activity.id}`}
+                return (
+                  <tr
+                    key={activity.id}
+                    className="border-b border-gray-100"
                   >
-                    {isPending
-                      ? actionPendingLabel
-                      : "Ver detalhes"}
-                  </TableActionButton>
-                </td>
-              </tr>
-            );
-          }}
-        />
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-semibold text-gray-900">
+                        {activity.title}
+                      </p>
+
+                      <p className="mt-1 text-xs text-gray-500">
+                        ID: #{activity.id}
+                      </p>
+                    </td>
+
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {activity.courseTitle}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+                      {activity.dueDate}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <StatusBadge status={activity.status} />
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      <TableActionButton
+                        variant={isPending ? "accent" : "neutral"}
+                        size="sm"
+                        to={`${detailsPath}/${activity.id}`}
+                      >
+                        {isPending
+                          ? actionPendingLabel
+                          : "Ver detalhes"}
+                      </TableActionButton>
+                    </td>
+                  </tr>
+                );
+              }}
+            />
+          </div>
+
+          {/* Mobile: cards com título e ação sempre visíveis; detalhes só ao expandir */}
+          <div className="space-y-3 md:hidden">
+            {filteredActivities.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-500">
+                {emptyMessage}
+              </p>
+            ) : (
+              filteredActivities.map((activity) => {
+                const isPending =
+                  activity.status === "pending" ||
+                  activity.status === "overdue" ||
+                  activity.status === "returned";
+
+                return (
+                  <MobileExpandableCard
+                    key={activity.id}
+                    title={activity.title}
+                    subtitle={activity.courseTitle}
+                    badge={<StatusBadge status={activity.status} size="sm" />}
+                    primaryAction={
+                      <TableActionButton
+                        variant={isPending ? "accent" : "neutral"}
+                        size="md"
+                        to={`${detailsPath}/${activity.id}`}
+                        className="w-full"
+                      >
+                        {isPending
+                          ? actionPendingLabel
+                          : "Ver detalhes"}
+                      </TableActionButton>
+                    }
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Prazo</span>
+                      <span className="font-medium text-gray-900">
+                        {activity.dueDate}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Nota</span>
+                      <span className="font-medium text-gray-900">
+                        {activity.grade}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">ID</span>
+                      <span className="font-medium text-gray-900">
+                        #{activity.id}
+                      </span>
+                    </div>
+                  </MobileExpandableCard>
+                );
+              })
+            )}
+          </div>
+        </>
       )}
     </StudentManagementPage>
   );

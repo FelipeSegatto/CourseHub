@@ -9,6 +9,7 @@ import TeacherStatusFilter from "../../components/teachers/TeacherStatusFilter";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
 
 import StatusBadge from "../../components/ui/StatusBadge";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 
 const submissionStatusOptions = [
   { value: "", label: "Todos os envios" },
@@ -429,6 +430,72 @@ export default function TeacherActivitySubmissions() {
                     </div>
                   </td>
                 </tr>
+              );
+            }}
+            renderMobileCard={(submission) => {
+              const canGrade =
+                submission.status === "pending_review" ||
+                submission.status === "submitted";
+
+              const isGraded = submission.status === "graded";
+
+              return (
+                <MobileExpandableCard
+                  key={submission.id}
+                  title={submission.student_name || "Aluno sem nome"}
+                  subtitle={submission.student_email || "-"}
+                  badge={<StatusBadge status={submission.status} size="sm" />}
+                  primaryAction={
+                    <div className="flex items-center gap-2">
+                      <TableActionButton
+                        variant={canGrade ? "accent" : "neutral"}
+                        size="md"
+                        className="flex-1"
+                        to={`/professor/envios/${submission.id}/corrigir`}
+                      >
+                        {canGrade
+                          ? "Corrigir"
+                          : isGraded
+                            ? "Ver correção"
+                            : "Ver entrega"}
+                      </TableActionButton>
+
+                      {submission.status === "returned" && (
+                        <span className="whitespace-nowrap rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">
+                          Aguardando reenvio
+                        </span>
+                      )}
+                    </div>
+                  }
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Matrícula</span>
+                    <span className="font-medium text-gray-900">
+                      {submission.registration_number || "-"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Turma</span>
+                    <span className="font-medium text-gray-900">
+                      {submission.className || submission.class_name || "-"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Enviado em</span>
+                    <span className="font-medium text-gray-900">
+                      {formatDate(submission.submitted_at)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Nota</span>
+                    <span className="font-medium text-gray-900">
+                      {formatScore(submission.score, activity?.max_score)}
+                    </span>
+                  </div>
+                </MobileExpandableCard>
               );
             }}
           />

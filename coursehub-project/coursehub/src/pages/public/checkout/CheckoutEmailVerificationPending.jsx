@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MailCheck } from "lucide-react";
+import { MailCheck, Loader2 } from "lucide-react";
 
 import { getCheckoutSession } from "../../../services/PublicCheckoutService";
 
@@ -53,17 +53,24 @@ export default function CheckoutEmailVerificationPending({ checkoutToken, email,
   }, [checkoutToken, onVerified]);
 
   return (
-    <div className="space-y-4 text-center">
+    <div className="space-y-4 py-4 text-center">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-600">
         <MailCheck size={26} aria-hidden="true" />
       </div>
 
-      <h2 className="text-xl font-bold text-gray-900">Confirme seu e-mail</h2>
+      <h2 className="text-xl font-semibold tracking-tight text-slate-950">Confirme seu e-mail</h2>
 
-      <p className="text-sm text-gray-500">
-        Enviamos um link de confirmação para <strong className="text-gray-700">{email}</strong>. Abra
+      <p className="text-sm text-slate-500">
+        Enviamos um link de confirmação para <strong className="font-medium text-slate-700">{email}</strong>. Abra
         o link em uma nova aba para continuar -- esta página atualiza sozinha assim que confirmado.
       </p>
+
+      {!expired && (
+        <div className="mx-auto flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-medium text-slate-500">
+          <Loader2 size={13} className="animate-spin" aria-hidden="true" />
+          Aguardando confirmação...
+        </div>
+      )}
 
       {expired && (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">

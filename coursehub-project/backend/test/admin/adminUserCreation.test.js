@@ -9,7 +9,6 @@ require("../../services/notifications/eventDefinitions"); // registers admin.use
 
 const {
   createUser,
-  updateUserRole,
   countActiveAdmins,
 } = require("../../services/admin/adminUserService");
 const { createStudent } = require("../../services/admin/adminStudentService");
@@ -240,61 +239,6 @@ test("manager and staff are not available roles, even though they exist in the D
   );
 });
 
-// -----------------------------------------------------------------
-// Proteção de alteração de papel
-// -----------------------------------------------------------------
-
-test("blocks converting a profile-less account (e.g. admin) into teacher or student", async () => {
-  const admin = await createUser(db, {
-    role: "admin",
-    name: "Test Admin For Role Change",
-    email: testEmail("roleadmin"),
-    password: "senha123",
-  });
-
-  createdUserIds.push(admin.id);
-
-  await assert.rejects(
-    () => updateUserRole(db, admin.id, "teacher", /* actingUserId */ 999999),
-    (error) => {
-      assert.equal(error.statusCode, 409);
-      return true;
-    }
-  );
-
-  await assert.rejects(
-    () => updateUserRole(db, admin.id, "student", 999999),
-    (error) => {
-      assert.equal(error.statusCode, 409);
-      return true;
-    }
-  );
-
-  const [[stillAdmin]] = await db.promise().query(`SELECT role FROM users WHERE id = ?`, [admin.id]);
-  assert.equal(stillAdmin.role, "admin");
-});
-
-test("blocks converting an account that already has a linked academic/professional entity", async () => {
-  const teacher = await createUser(db, {
-    role: "teacher",
-    name: "Test Teacher For Role Change",
-    email: testEmail("roleteacher"),
-    password: "senha123",
-    cpf: testCpf(),
-    status: "inactive",
-  });
-
-  createdUserIds.push(teacher.id);
-
-  await assert.rejects(
-    () => updateUserRole(db, teacher.id, "admin", 999999),
-    (error) => {
-      assert.equal(error.statusCode, 409);
-      return true;
-    }
-  );
-});
-
 // Section 6 also requires preserving the existing "last active admin"
 // protection. Forcing the real zero-admin scenario would require
 // deactivating the two genuinely active admin accounts in this shared
@@ -427,8 +371,8 @@ test("countActiveAdmins correctly excludes the given user id from the count", as
   const excludingA = await countActiveAdmins(db.promise(), adminA.id);
 
   // Excluir um admin específico deve baixar a contagem em exatamente
-  // 1 -- é exatamente esse cálculo que updateUserStatus/updateUserRole
-  // usam para decidir se a mudança deixaria zero admins ativos.
+  // 1 -- é exatamente esse cálculo que updateUserStatus usa para
+  // decidir se a mudança deixaria zero admins ativos.
   assert.equal(excludingA, totalActiveAdmins - 1);
 
   // As duas contas de teste criadas acima precisam estar incluídas na

@@ -51,7 +51,7 @@ export default function StudentDashboard() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-50 px-6 py-10">
+      <main className="min-h-screen bg-gray-50 px-4 py-10 sm:px-6">
         <div className="mx-auto max-w-6xl">
           <div className="rounded-2xl bg-white p-8 shadow-sm">
             <p className="text-gray-500">
@@ -85,7 +85,7 @@ export default function StudentDashboard() {
 
   if (error) {
     return (
-      <main className="min-h-screen bg-gray-50 px-6 py-10">
+      <main className="min-h-screen bg-gray-50 px-4 py-10 sm:px-6">
         <div className="mx-auto max-w-6xl">
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
             <p className="font-semibold text-red-700">
@@ -233,7 +233,7 @@ export default function StudentDashboard() {
 
           {/* Conteúdo */}
 
-          <div className="relative grid gap-10 px-8 py-10 md:px-10 md:py-12 lg:grid-cols-[1.3fr_0.7fr] lg:items-center">
+          <div className="relative grid gap-10 px-5 py-10 md:px-10 md:py-12 lg:grid-cols-[1.3fr_0.7fr] lg:items-center">
 
             <div>
               <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-sm font-medium text-blue-200 backdrop-blur-sm">
@@ -425,7 +425,7 @@ export default function StudentDashboard() {
 
         <section>
 
-          <div className="ms-6 mb-6">
+          <div className="mb-6">
 
             <h2 className="text-2xl font-bold text-gray-900">
               Meus cursos

@@ -12,6 +12,7 @@ import TableActionButton from "../ui/actions/TableActionButton";
 import RowActionsMenu from "../ui/actions/RowActionsMenu";
 
 import StatusBadge from "../ui/StatusBadge";
+import MobileExpandableCard from "../ui/MobileExpandableCard";
 
 const statusOptions = [
   { value: "", label: "Todos" },
@@ -529,6 +530,90 @@ export default function TeacherActivitiesPage({
                   </div>
                 </td>
               </tr>
+            )}
+            renderMobileCard={(activity) => (
+              <MobileExpandableCard
+                key={activity.id}
+                title={activity.title}
+                subtitle={activity.description}
+                badge={<StatusBadge status={activity.status} size="sm" />}
+                primaryAction={
+                  <div className="flex items-center gap-2">
+                    <TableActionButton
+                      variant="accent"
+                      size="md"
+                      className="flex-1"
+                      to={
+                        activity.activity_kind === "exam"
+                          ? `/professor/avaliacoes/${activity.id}/envios`
+                          : `/professor/atividades/${activity.id}/envios`
+                      }
+                    >
+                      Ver envios
+                    </TableActionButton>
+
+                    <RowActionsMenu
+                      items={[
+                        {
+                          key: "remove",
+                          label: "Remover",
+                          icon: Trash2,
+                          variant: "danger",
+                          onClick: () => handleDeleteClick(activity),
+                        },
+                      ]}
+                    />
+                  </div>
+                }
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Curso</span>
+                  <span className="font-medium text-gray-900">
+                    {activity.course_name ||
+                      activity.course_title ||
+                      `Curso #${activity.course_id}`}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Turma</span>
+                  <span className="font-medium text-gray-900">
+                    {resolveActivityClassName(activity) || "Todas as turmas"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Tipo</span>
+                  <span className="font-medium text-gray-900">
+                    {typeLabels[activity.type] || activity.type || "-"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Prazo</span>
+                  <span className="font-medium text-gray-900">
+                    {formatDate(activity.due_date)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Nota máxima</span>
+                  <span className="font-medium text-gray-900">
+                    {formatScore(activity.max_score)}
+                  </span>
+                </div>
+
+                <div className="pt-1">
+                  <TableActionButton
+                    variant="neutral"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => handleEditClick(activity)}
+                  >
+                    Editar
+                  </TableActionButton>
+                </div>
+              </MobileExpandableCard>
             )}
           />
         )}

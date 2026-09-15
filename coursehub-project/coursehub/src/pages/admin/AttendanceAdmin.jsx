@@ -9,6 +9,8 @@ import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import ExportPdfButton from "../../components/reports/ExportPdfButton";
 import AdminTable from "../../components/admin/AdminTable";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
+import MobileFilterToggle from "../../components/ui/MobileFilterToggle";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const PAGE_LIMIT = 10;
@@ -149,9 +151,11 @@ export default function AttendanceAdmin() {
   ];
 
   const inputClass =
-    "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
+    "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-auto";
 
   const canApply = hasValidScope(draft);
+
+  const activeFilterCount = [draft.courseId, draft.classId, draft.from, draft.to].filter(Boolean).length;
 
   return (
     <ManagementPageShell
@@ -161,48 +165,50 @@ export default function AttendanceAdmin() {
       tableTitle="Chamadas lançadas"
       tableActions={
         <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={draft.courseId}
-            onChange={(event) => updateDraft({ courseId: event.target.value })}
-            className={inputClass}
-          >
-            <option value="">Todos os cursos</option>
-            {courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.name}
-              </option>
-            ))}
-          </select>
+          <MobileFilterToggle activeCount={activeFilterCount}>
+            <select
+              value={draft.courseId}
+              onChange={(event) => updateDraft({ courseId: event.target.value })}
+              className={inputClass}
+            >
+              <option value="">Todos os cursos</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name}
+                </option>
+              ))}
+            </select>
 
-          <select
-            value={draft.classId}
-            onChange={(event) => updateDraft({ classId: event.target.value })}
-            disabled={!draft.courseId}
-            className={inputClass}
-          >
-            <option value="">Selecione a turma</option>
-            {filterClasses.map((classItem) => (
-              <option key={classItem.id} value={classItem.id}>
-                {classItem.name}
-              </option>
-            ))}
-          </select>
+            <select
+              value={draft.classId}
+              onChange={(event) => updateDraft({ classId: event.target.value })}
+              disabled={!draft.courseId}
+              className={inputClass}
+            >
+              <option value="">Selecione a turma</option>
+              {filterClasses.map((classItem) => (
+                <option key={classItem.id} value={classItem.id}>
+                  {classItem.name}
+                </option>
+              ))}
+            </select>
 
-          <input
-            type="date"
-            value={draft.from}
-            onChange={(event) => updateDraft({ from: event.target.value })}
-            className={inputClass}
-            title="De"
-          />
+            <input
+              type="date"
+              value={draft.from}
+              onChange={(event) => updateDraft({ from: event.target.value })}
+              className={inputClass}
+              title="De"
+            />
 
-          <input
-            type="date"
-            value={draft.to}
-            onChange={(event) => updateDraft({ to: event.target.value })}
-            className={inputClass}
-            title="Até"
-          />
+            <input
+              type="date"
+              value={draft.to}
+              onChange={(event) => updateDraft({ to: event.target.value })}
+              className={inputClass}
+              title="Até"
+            />
+          </MobileFilterToggle>
 
           <button
             type="button"
@@ -293,6 +299,65 @@ export default function AttendanceAdmin() {
                   </TableActionButton>
                 </td>
               </tr>
+            )}
+            renderMobileCard={(item) => (
+              <MobileExpandableCard
+                key={item.sessionId}
+                title={`Encontro ${item.sessionNumber} · ${item.title}`}
+                subtitle={`${item.course.name} · ${item.class.name}`}
+                badge={
+                  item.adjustedCount > 0 ? (
+                    <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
+                      {item.adjustedCount}
+                    </span>
+                  ) : null
+                }
+                primaryAction={
+                  <TableActionButton
+                    variant="accent"
+                    size="md"
+                    className="w-full"
+                    onClick={() => navigate(`/admin/frequencia/encontros/${item.sessionId}`)}
+                  >
+                    Ver chamada
+                  </TableActionButton>
+                }
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Data</span>
+                  <span className="font-medium text-gray-900">{formatShortDate(item.sessionDate)}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Professor</span>
+                  <span className="font-medium text-gray-900">{item.teacher?.name || "-"}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Total</span>
+                  <span className="font-medium text-gray-900">{item.total}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Presentes</span>
+                  <span className="font-medium text-gray-900">{item.present}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Ausentes</span>
+                  <span className="font-medium text-gray-900">{item.absent}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Atrasados</span>
+                  <span className="font-medium text-gray-900">{item.late}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Justificados</span>
+                  <span className="font-medium text-gray-900">{item.excused}</span>
+                </div>
+              </MobileExpandableCard>
             )}
           />
 

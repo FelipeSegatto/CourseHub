@@ -18,6 +18,8 @@ import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
 import RowActionsMenu from "../../components/ui/actions/RowActionsMenu";
+import MobileFilterToggle from "../../components/ui/MobileFilterToggle";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const STATUS_OPTIONS = [
@@ -308,7 +310,9 @@ export default function EnrollmentsAdmin() {
   ];
 
   const inputClass =
-    "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-40 truncate";
+    "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-40 truncate";
+
+  const activeFilterCount = [courseId, classId, status].filter(Boolean).length;
 
   const dateInputClass =
     "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
@@ -336,83 +340,87 @@ export default function EnrollmentsAdmin() {
           </span>
         }
         tableActions={
-          <div className="grid grid-cols-3 items-center gap-x-3 gap-y-4">
-            <select
-              value={courseId}
-              onChange={(event) => {
-                setCourseId(event.target.value);
-                setPage(1);
-              }}
-              className={inputClass}
-            >
-              <option value="">Todos os cursos</option>
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.name}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-col gap-4">
+            <MobileFilterToggle activeCount={activeFilterCount}>
+              <select
+                value={courseId}
+                onChange={(event) => {
+                  setCourseId(event.target.value);
+                  setPage(1);
+                }}
+                className={inputClass}
+              >
+                <option value="">Todos os cursos</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.name}
+                  </option>
+                ))}
+              </select>
 
-            <select
-              value={classId}
-              onChange={(event) => {
-                setClassId(event.target.value);
-                setPage(1);
-              }}
-              disabled={!courseId}
-              className={inputClass}
-            >
-              <option value="">Todas as turmas</option>
-              {filterClasses.map((classItem) => (
-                <option key={classItem.id} value={classItem.id}>
-                  {classItem.name}
-                </option>
-              ))}
-            </select>
+              <select
+                value={classId}
+                onChange={(event) => {
+                  setClassId(event.target.value);
+                  setPage(1);
+                }}
+                disabled={!courseId}
+                className={inputClass}
+              >
+                <option value="">Todas as turmas</option>
+                {filterClasses.map((classItem) => (
+                  <option key={classItem.id} value={classItem.id}>
+                    {classItem.name}
+                  </option>
+                ))}
+              </select>
 
-            <select
-              value={status}
-              onChange={(event) => {
-                setStatus(event.target.value);
-                setPage(1);
-              }}
-              className={inputClass}
-            >
-              <option value="">Todos os status</option>
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              <select
+                value={status}
+                onChange={(event) => {
+                  setStatus(event.target.value);
+                  setPage(1);
+                }}
+                className={inputClass}
+              >
+                <option value="">Todos os status</option>
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </MobileFilterToggle>
 
-            <input
-              type="date"
-              value={from}
-              onChange={(event) => {
-                setFrom(event.target.value);
-                setPage(1);
-              }}
-              className={dateInputClass}
-              title="De"
-            />
+            <div className="grid grid-cols-3 items-center gap-x-3 gap-y-4">
+              <input
+                type="date"
+                value={from}
+                onChange={(event) => {
+                  setFrom(event.target.value);
+                  setPage(1);
+                }}
+                className={dateInputClass}
+                title="De"
+              />
 
-            <input
-              type="date"
-              value={to}
-              onChange={(event) => {
-                setTo(event.target.value);
-                setPage(1);
-              }}
-              className={dateInputClass}
-              title="Até"
-            />
+              <input
+                type="date"
+                value={to}
+                onChange={(event) => {
+                  setTo(event.target.value);
+                  setPage(1);
+                }}
+                className={dateInputClass}
+                title="Até"
+              />
 
-            <ExportPdfButton
-              basePath="/api/admin/reports/enrollments"
-              filters={{ search, courseId, classId, status, from, to }}
-              className={exportButtonClass}
-            />
+              <ExportPdfButton
+                basePath="/api/admin/reports/enrollments"
+                filters={{ search, courseId, classId, status, from, to }}
+                className={exportButtonClass}
+              />
+            </div>
           </div>
         }
         searchValue={searchInput}
@@ -533,6 +541,9 @@ export default function EnrollmentsAdmin() {
                             variant: "danger",
                             separator: true,
                             disabled: rowActionLoading === enrollment.id,
+                            holdToConfirm: true,
+                            holdDuration: 1200,
+                            confirmedLabel: "Cancelada",
                             onClick: () => handleStatusChange(enrollment, "cancelled"),
                           },
                         ]}
@@ -564,6 +575,117 @@ export default function EnrollmentsAdmin() {
                   </td>
                 </tr>
               )}
+              renderMobileCard={(enrollment) => {
+                const blockedReason =
+                  enrollment.status !== "active"
+                    ? getReactivationBlockedReason(enrollment)
+                    : null;
+
+                return (
+                  <MobileExpandableCard
+                    key={enrollment.id}
+                    title={enrollment.student.name}
+                    subtitle={enrollment.student.registrationNumber}
+                    badge={<StatusBadge status={enrollment.status} size="sm" />}
+                    primaryAction={
+                      enrollment.status === "active" ? (
+                        <div className="flex justify-end">
+                          <RowActionsMenu
+                            items={[
+                              {
+                                key: "change-class",
+                                label: "Trocar turma",
+                                icon: Repeat,
+                                variant: "neutral",
+                                disabled: rowActionLoading === enrollment.id,
+                                onClick: () => openClassChangeModal(enrollment),
+                              },
+                              {
+                                key: "complete",
+                                label: "Concluir",
+                                icon: CheckCircle2,
+                                variant: "neutral",
+                                disabled: rowActionLoading === enrollment.id,
+                                onClick: () => handleStatusChange(enrollment, "completed"),
+                              },
+                              {
+                                key: "cancel",
+                                label: "Cancelar matrícula",
+                                icon: XCircle,
+                                variant: "danger",
+                                separator: true,
+                                disabled: rowActionLoading === enrollment.id,
+                                holdToConfirm: true,
+                                holdDuration: 1200,
+                                confirmedLabel: "Cancelada",
+                                onClick: () => handleStatusChange(enrollment, "cancelled"),
+                              },
+                            ]}
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-stretch gap-1">
+                          <TableActionButton
+                            variant="warning"
+                            size="md"
+                            icon={RotateCcw}
+                            className="w-full"
+                            disabled={rowActionLoading === enrollment.id || Boolean(blockedReason)}
+                            title={blockedReason || undefined}
+                            onClick={() => handleStatusChange(enrollment, "active")}
+                          >
+                            Reativar
+                          </TableActionButton>
+
+                          {blockedReason && (
+                            <p className="text-xs text-gray-500">{blockedReason}</p>
+                          )}
+                        </div>
+                      )
+                    }
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Curso</span>
+                      <span className="font-medium text-gray-900">{enrollment.course.name}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Turma</span>
+                      <span className="font-medium text-gray-900">
+                        {enrollment.class?.name || "Sem turma"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Data</span>
+                      <span className="font-medium text-gray-900">
+                        {formatShortDate(enrollment.enrolledAt)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Contrato financeiro</span>
+                      <span className="font-medium text-gray-900">
+                        {enrollment.financialContract ? (
+                          <StatusBadge status={enrollment.financialContract.status} size="sm" />
+                        ) : (
+                          "Sem contrato"
+                        )}
+                      </span>
+                    </div>
+
+                    {enrollment.financialContract?.activationInvoice?.paidAt && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500">Fatura paga em</span>
+                        <span className="font-medium text-gray-900">
+                          #{enrollment.financialContract.activationInvoice.id} ·{" "}
+                          {formatShortDate(enrollment.financialContract.activationInvoice.paidAt)}
+                        </span>
+                      </div>
+                    )}
+                  </MobileExpandableCard>
+                );
+              }}
             />
 
             {pagination.totalPages > 1 && (

@@ -9,11 +9,13 @@ import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
+import MobileFilterToggle from "../../components/ui/MobileFilterToggle";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 
 const PAGE_LIMIT = 20;
 
 const inputClass =
-  "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-44 truncate";
+  "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-44 truncate";
 
 /**
  * Igual à visão admin (AdminStudentProgressPage) na estrutura e no
@@ -169,6 +171,39 @@ export default function TeacherStudentProgressPage() {
     );
   }
 
+  function renderMobileCard(row) {
+    return (
+      <MobileExpandableCard
+        key={row.enrollmentId}
+        title={row.student.name}
+        subtitle={row.student.registrationNumber}
+        badge={<StatusBadge status={row.status} size="sm" />}
+        primaryAction={
+          <TableActionButton
+            variant="accent"
+            size="md"
+            className="w-full"
+            onClick={() => navigate(`/professor/progressao/matriculas/${row.enrollmentId}`)}
+          >
+            Ver progresso
+          </TableActionButton>
+        }
+      >
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-gray-500">Curso</span>
+          <span className="font-medium text-gray-900">{row.course.name}</span>
+        </div>
+
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-gray-500">Turma</span>
+          <span className="font-medium text-gray-900">{row.class?.name || "—"}</span>
+        </div>
+      </MobileExpandableCard>
+    );
+  }
+
+  const activeFilterCount = [courseId, classId].filter(Boolean).length;
+
   return (
     <ManagementPageShell
       backTo="/professor/dashboard-professor"
@@ -176,7 +211,7 @@ export default function TeacherStudentProgressPage() {
       description="Consulte o progresso acadêmico dos alunos das suas turmas e exporte um relatório individual em PDF."
       tableTitle="Matrículas"
       tableActions={
-        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-3">
+        <MobileFilterToggle activeCount={activeFilterCount}>
           <select
             value={courseId}
             onChange={(event) => {
@@ -209,7 +244,7 @@ export default function TeacherStudentProgressPage() {
               </option>
             ))}
           </select>
-        </div>
+        </MobileFilterToggle>
       }
     >
       {loading && <p className="py-6 text-center text-gray-500">Carregando progressão dos alunos...</p>}
@@ -226,6 +261,7 @@ export default function TeacherStudentProgressPage() {
             columns={columns}
             data={items}
             renderRow={renderRow}
+            renderMobileCard={renderMobileCard}
             emptyMessage="Nenhuma matrícula encontrada para os filtros selecionados."
           />
 

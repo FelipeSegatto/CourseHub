@@ -7,6 +7,7 @@ import StudentTable from "../../components/students/StudentTable";
 import StudentStatusFilter from "../../components/students/StudentStatusFilter";
 import StatusBadge from "../../components/ui/StatusBadge";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 
 const typeOptions = [
   {
@@ -361,6 +362,8 @@ export default function StudentGrades() {
       )}
 
       {!loading && !error && (
+        <>
+        <div className="hidden md:block">
         <StudentTable
           columns={columns}
           data={filteredGrades}
@@ -471,6 +474,79 @@ export default function StudentGrades() {
             );
           }}
         />
+        </div>
+
+        {/* Mobile: cards com título e ação sempre visíveis; detalhes só ao expandir */}
+        <div className="space-y-3 md:hidden">
+          {filteredGrades.length === 0 ? (
+            <p className="py-8 text-center text-sm text-gray-500">
+              Nenhuma nota foi lançada até o momento.
+            </p>
+          ) : (
+            filteredGrades.map((grade) => {
+              const performance = getPerformanceLabel(grade.percentage);
+
+              const typeLabel =
+                grade.activityKind === "exam" ? "Avaliação" : "Atividade";
+
+              return (
+                <MobileExpandableCard
+                  key={grade.id}
+                  title={grade.title}
+                  subtitle={grade.courseName}
+                  badge={<StatusBadge status={grade.status} size="sm" />}
+                  primaryAction={
+                    grade.submissionId && grade.activityId ? (
+                      <TableActionButton
+                        variant="accent"
+                        size="md"
+                        className="w-full"
+                        to={`${
+                          grade.activityKind === "exam"
+                            ? "/aluno/avaliacoes"
+                            : "/aluno/atividades"
+                        }/${grade.activityId}?from=notas`}
+                      >
+                        Ver correção
+                      </TableActionButton>
+                    ) : (
+                      <span className="text-sm text-gray-400">Sem detalhes</span>
+                    )
+                  }
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Tipo</span>
+                    <span className="font-medium text-gray-900">{typeLabel}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Nota</span>
+                    <span className="font-medium text-gray-900">
+                      {formatNumber(grade.score)} / {formatNumber(grade.maxScore)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Aproveitamento</span>
+                    <span className={`font-medium ${performance.className}`}>
+                      {grade.percentage !== null
+                        ? `${grade.percentage.toFixed(1)}% · ${performance.label}`
+                        : "-"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Corrigida em</span>
+                    <span className="font-medium text-gray-900">
+                      {formatDate(grade.gradedAt)}
+                    </span>
+                  </div>
+                </MobileExpandableCard>
+              );
+            })
+          )}
+        </div>
+        </>
       )}
     </StudentManagementPage>
   );

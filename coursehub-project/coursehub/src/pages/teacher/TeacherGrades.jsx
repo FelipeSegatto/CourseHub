@@ -8,6 +8,7 @@ import {
 import StatCard from "../../components/ui/StatCard";
 import StatusBadge from "../../components/ui/StatusBadge";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 
 const inputClass =
   "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
@@ -262,7 +263,7 @@ export default function TeacherGrades() {
               {gradesData.class.name} · {gradesData.activity.title}
             </h2>
 
-            <div className="overflow-x-auto">
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[800px] border-collapse">
                 <thead>
                   <tr className="border-b border-gray-200">
@@ -352,6 +353,78 @@ export default function TeacherGrades() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            <div className="space-y-3 md:hidden">
+              {students.map((student) => (
+                <MobileExpandableCard
+                  key={student.studentId}
+                  title={student.studentName}
+                  subtitle={student.registrationNumber}
+                  badge={
+                    student.submissionId === null ? (
+                      <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500">
+                        Não enviado
+                      </span>
+                    ) : (
+                      <StatusBadge status={student.status} size="sm" />
+                    )
+                  }
+                  primaryAction={
+                    student.submissionId === null ? null : (
+                      <div className="flex flex-col gap-2">
+                        <div>
+                          <input
+                            type="number"
+                            min="0"
+                            max={gradesData.activity.maxScore}
+                            step="0.1"
+                            value={
+                              scoreDrafts[student.submissionId] !== undefined
+                                ? scoreDrafts[student.submissionId]
+                                : (student.score ?? "")
+                            }
+                            onChange={(event) =>
+                              setScoreDrafts((current) => ({
+                                ...current,
+                                [student.submissionId]: event.target.value,
+                              }))
+                            }
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500"
+                          />
+
+                          {rowErrors[student.submissionId] && (
+                            <p className="mt-1 text-xs text-red-600">
+                              {rowErrors[student.submissionId]}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <TableActionButton
+                            variant="accent"
+                            size="md"
+                            className="flex-1"
+                            loading={savingId === student.submissionId}
+                            disabled={savingId === student.submissionId}
+                            onClick={() => handleSaveScore(student)}
+                          >
+                            {savingId === student.submissionId ? "Salvando..." : "Salvar nota"}
+                          </TableActionButton>
+
+                          <TableActionButton
+                            variant="neutral"
+                            size="md"
+                            to={`/professor/envios/${student.submissionId}/corrigir`}
+                          >
+                            Ver correção
+                          </TableActionButton>
+                        </div>
+                      </div>
+                    )
+                  }
+                />
+              ))}
             </div>
           </section>
         </>

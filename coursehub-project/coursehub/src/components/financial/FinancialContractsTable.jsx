@@ -1,5 +1,6 @@
 import ContractStatusBadge from "./ContractStatusBadge";
 import TableActionButton from "../ui/actions/TableActionButton";
+import MobileExpandableCard from "../ui/MobileExpandableCard";
 
 const BILLING_TYPE_LABELS = {
   one_time: "Pagamento único",
@@ -57,7 +58,8 @@ export default function FinancialContractsTable({
   onOpenContract,
 }) {
   return (
-    <div className="overflow-x-auto">
+    <>
+    <div className="hidden overflow-x-auto md:block">
       <table className="min-w-[1280px] w-full border-collapse">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
@@ -208,5 +210,63 @@ export default function FinancialContractsTable({
         </tbody>
       </table>
     </div>
+
+    <div className="space-y-3 md:hidden">
+      {contracts.map((contract) => {
+        const hasOverdueAmount = Number(contract.overdueAmount) > 0;
+
+        return (
+          <MobileExpandableCard
+            key={contract.id}
+            title={`Contrato #${contract.id} — ${contract.planName || "Plano não informado"}`}
+            subtitle={`Matrícula #${contract.enrollmentId} · ${getInvoiceLabel(contract.invoiceCount)}`}
+            badge={<ContractStatusBadge status={contract.status} />}
+            primaryAction={
+              <TableActionButton
+                variant="accent"
+                size="md"
+                className="w-full"
+                onClick={() => onOpenContract(contract.id)}
+              >
+                Detalhes
+              </TableActionButton>
+            }
+          >
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Cobrança</span>
+              <span className="font-medium text-slate-900">{getBillingTypeLabel(contract.billingType)}</span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Valor total</span>
+              <span className="font-medium text-slate-900">{formatCurrency(contract.totalAmount)}</span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Pago</span>
+              <span className="font-medium text-emerald-700">{formatCurrency(contract.paidAmount)}</span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Pendente</span>
+              <span className="font-medium text-slate-900">{formatCurrency(contract.pendingAmount)}</span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Em atraso</span>
+              <span className={`font-medium ${hasOverdueAmount ? "text-red-700" : "text-slate-900"}`}>
+                {formatCurrency(contract.overdueAmount)}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">Próximo vencimento</span>
+              <span className="font-medium text-slate-900">{formatDate(contract.nextDueDate)}</span>
+            </div>
+          </MobileExpandableCard>
+        );
+      })}
+    </div>
+    </>
   );
 }

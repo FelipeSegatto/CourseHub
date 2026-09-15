@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { apiFetch } from "../../services/APIService";
 
 import {
@@ -14,6 +15,9 @@ import AdminContentModal from "../../components/admin/AdminContentModal";
 import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
+import HoldToConfirmButton from "../../components/ui/actions/HoldToConfirmButton";
+import MobileFilterToggle from "../../components/ui/MobileFilterToggle";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const TYPE_OPTIONS = [
@@ -285,7 +289,9 @@ export default function MaterialsAdmin() {
   ];
 
   const inputClass =
-    "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-36 truncate";
+    "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-36 truncate";
+
+  const activeFilterCount = [courseId, classId, type, scope, status].filter(Boolean).length;
 
   return (
     <>
@@ -298,7 +304,7 @@ export default function MaterialsAdmin() {
         stats={stats}
         tableTitle="Lista de materiais"
         tableActions={
-          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-3">
+          <MobileFilterToggle activeCount={activeFilterCount}>
             <select
               value={courseId}
               onChange={(event) => {
@@ -379,7 +385,7 @@ export default function MaterialsAdmin() {
                 </option>
               ))}
             </select>
-          </div>
+          </MobileFilterToggle>
         }
         searchValue={searchInput}
         onSearchChange={setSearchInput}
@@ -459,6 +465,68 @@ export default function MaterialsAdmin() {
                     </div>
                   </td>
                 </tr>
+              )}
+              renderMobileCard={(material) => (
+                <MobileExpandableCard
+                  key={material.id}
+                  title={material.title}
+                  subtitle={`${
+                    TYPE_OPTIONS.find((option) => option.value === material.type)?.label ||
+                    material.type
+                  }${material.course?.name ? ` · ${material.course.name}` : ""}`}
+                  badge={<StatusBadge status={material.status} size="sm" />}
+                  primaryAction={
+                    <div className="flex items-center gap-2">
+                      <TableActionButton
+                        variant="accent"
+                        size="md"
+                        className="flex-1"
+                        onClick={() => handleEditClick(material)}
+                      >
+                        Editar
+                      </TableActionButton>
+
+                      <TableActionButton
+                        variant="danger"
+                        size="md"
+                        onClick={() => handleRemoveClick(material)}
+                      >
+                        Remover
+                      </TableActionButton>
+                    </div>
+                  }
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Turma</span>
+                    <span className="font-medium text-gray-900">{material.scopeLabel}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Obrigatório</span>
+                    <span className="font-medium text-gray-900">
+                      {material.isRequired ? "Sim" : "Não"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Prazo</span>
+                    <span className="font-medium text-gray-900">
+                      {formatShortDateTime(material.dueDate)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Ordem</span>
+                    <span className="font-medium text-gray-900">{material.orderIndex}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Atualizado em</span>
+                    <span className="font-medium text-gray-900">
+                      {formatShortDateTime(material.updatedAt)}
+                    </span>
+                  </div>
+                </MobileExpandableCard>
               )}
             />
 
@@ -573,14 +641,16 @@ export default function MaterialsAdmin() {
               )}
 
               {!impactLoading && impactData && !hasImpact && (
-                <button
-                  type="button"
-                  onClick={handleConfirmDelete}
+                <HoldToConfirmButton
+                  variant="danger"
+                  holdDuration={1500}
+                  onConfirm={handleConfirmDelete}
                   disabled={actionLoading}
-                  className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+                  loading={actionLoading}
+                  icon={Trash2}
                 >
-                  {actionLoading ? "Removendo..." : "Remover permanentemente"}
-                </button>
+                  Remover permanentemente
+                </HoldToConfirmButton>
               )}
             </div>
           </div>

@@ -143,36 +143,7 @@ export default function TableActionButton({
         )
       )}
 
-      {children && (
-       <span
-        aria-hidden="true"
-        className={`
-          pointer-events-none
-          absolute
-          left-1/2
-          top-1/2
-          aspect-square
-          -translate-x-1/2
-          -translate-y-1/2
-          rounded-full
-          transition-all
-          ease-linear
-
-          ${HOLD_FILL_CLASSES[variant] || "bg-gray-700"}
-
-          ${
-            holding || confirmed
-              ? "w-[220%] opacity-100"
-              : "w-0 opacity-0"
-          }
-        `}
-        style={{
-          transitionDuration: holding
-            ? `${holdDuration}ms`
-            : "180ms",
-        }}
-      />
-      )}
+      {children}
     </>
   );
 
@@ -213,7 +184,7 @@ export default function TableActionButton({
       aria-label={ariaLabel}
       title={title}
     >
-      {/* preenchimento vermelho durante o hold */}
+      {/* preenchimento durante o hold */}
       {isHoldAction && (
         <span
           aria-hidden="true"
@@ -223,19 +194,19 @@ export default function TableActionButton({
             left-1/2
             top-1/2
             aspect-square
+            w-[220%]
             -translate-x-1/2
             -translate-y-1/2
             rounded-full
-            bg-red-600
-            transition-all
+            transition-[transform,opacity]
             ease-linear
 
+            ${HOLD_FILL_CLASSES[variant] || "bg-red-600"}
+
             ${
-              holding
-                ? "w-[220%] opacity-100"
-                : confirmed
-                  ? "w-[220%] opacity-100"
-                  : "w-0 opacity-0"
+              holding || confirmed
+                ? "scale-100 opacity-100"
+                : "scale-0 opacity-0"
             }
           `}
           style={{

@@ -58,11 +58,11 @@ export default function NotificationItem({ item, onMarkRead, onArchive }) {
           <p className="mt-3 text-sm text-gray-500">{formatDateTime(item.createdAt)}</p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Link
             to={item.actionPath}
             onClick={() => isUnread && onMarkRead(item.notificationId)}
-            className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200 transition"
+            className="shrink-0 whitespace-nowrap rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200 transition"
           >
             Ver detalhes
           </Link>
@@ -71,7 +71,7 @@ export default function NotificationItem({ item, onMarkRead, onArchive }) {
             <button
               type="button"
               onClick={() => onMarkRead(item.notificationId)}
-              className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition"
+              className="shrink-0 whitespace-nowrap rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition"
             >
               Marcar como lida
             </button>
@@ -80,7 +80,7 @@ export default function NotificationItem({ item, onMarkRead, onArchive }) {
           <button
             type="button"
             onClick={() => onArchive(item.notificationId)}
-            className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition"
+            className="shrink-0 whitespace-nowrap rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition"
           >
             Arquivar
           </button>

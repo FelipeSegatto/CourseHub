@@ -10,6 +10,8 @@ import ManagementPageShell from "../../components/ui/ManagementPageShell";
 import AdminTable from "../../components/admin/AdminTable";
 import StatusBadge from "../../components/ui/StatusBadge";
 import TableActionButton from "../../components/ui/actions/TableActionButton";
+import MobileFilterToggle from "../../components/ui/MobileFilterToggle";
+import MobileExpandableCard from "../../components/ui/MobileExpandableCard";
 
 const PAGE_LIMIT = 20;
 
@@ -22,7 +24,7 @@ const STATUS_OPTIONS = [
 ];
 
 const inputClass =
-  "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto";
+  "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-auto";
 
 const INITIAL_DRAFT = { search: "", courseId: "", classId: "", status: "" };
 
@@ -178,7 +180,40 @@ export default function AdminStudentProgressPage() {
     );
   }
 
+  function renderMobileCard(row) {
+    return (
+      <MobileExpandableCard
+        key={row.enrollmentId}
+        title={row.student.name}
+        subtitle={row.student.registrationNumber}
+        badge={<StatusBadge status={row.status} size="sm" />}
+        primaryAction={
+          <TableActionButton
+            variant="accent"
+            size="md"
+            className="w-full"
+            onClick={() => navigate(`/admin/progressao/matriculas/${row.enrollmentId}`)}
+          >
+            Ver progresso
+          </TableActionButton>
+        }
+      >
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-gray-500">Curso</span>
+          <span className="font-medium text-gray-900">{row.course.name}</span>
+        </div>
+
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-gray-500">Turma</span>
+          <span className="font-medium text-gray-900">{row.class?.name || "—"}</span>
+        </div>
+      </MobileExpandableCard>
+    );
+  }
+
   const canApply = hasValidScope(draft);
+
+  const activeFilterCount = [draft.courseId, draft.classId, draft.status].filter(Boolean).length;
 
   return (
     <ManagementPageShell
@@ -188,44 +223,46 @@ export default function AdminStudentProgressPage() {
       tableTitle="Matrículas"
       tableActions={
         <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={draft.courseId}
-            onChange={(event) => updateDraft({ courseId: event.target.value })}
-            className={inputClass}
-          >
-            <option value="">Todos os cursos</option>
-            {courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.name}
-              </option>
-            ))}
-          </select>
+          <MobileFilterToggle activeCount={activeFilterCount}>
+            <select
+              value={draft.courseId}
+              onChange={(event) => updateDraft({ courseId: event.target.value })}
+              className={inputClass}
+            >
+              <option value="">Todos os cursos</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name}
+                </option>
+              ))}
+            </select>
 
-          <select
-            value={draft.classId}
-            onChange={(event) => updateDraft({ classId: event.target.value })}
-            disabled={!draft.courseId}
-            className={inputClass}
-          >
-            <option value="">Todas as turmas</option>
-            {filterClasses.map((classItem) => (
-              <option key={classItem.id} value={classItem.id}>
-                {classItem.name}
-              </option>
-            ))}
-          </select>
+            <select
+              value={draft.classId}
+              onChange={(event) => updateDraft({ classId: event.target.value })}
+              disabled={!draft.courseId}
+              className={inputClass}
+            >
+              <option value="">Todas as turmas</option>
+              {filterClasses.map((classItem) => (
+                <option key={classItem.id} value={classItem.id}>
+                  {classItem.name}
+                </option>
+              ))}
+            </select>
 
-          <select
-            value={draft.status}
-            onChange={(event) => updateDraft({ status: event.target.value })}
-            className={inputClass}
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value || "active"} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            <select
+              value={draft.status}
+              onChange={(event) => updateDraft({ status: event.target.value })}
+              className={inputClass}
+            >
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value || "active"} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </MobileFilterToggle>
 
           <button
             type="button"
@@ -278,6 +315,7 @@ export default function AdminStudentProgressPage() {
             columns={columns}
             data={items}
             renderRow={renderRow}
+            renderMobileCard={renderMobileCard}
             emptyMessage="Nenhuma matrícula encontrada para os filtros selecionados."
           />
 

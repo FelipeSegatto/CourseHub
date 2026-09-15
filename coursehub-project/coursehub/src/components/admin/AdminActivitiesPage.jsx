@@ -10,6 +10,9 @@ import AdminTable from "./AdminTable";
 import StatusBadge from "../ui/StatusBadge";
 import TableActionButton from "../ui/actions/TableActionButton";
 import RowActionsMenu from "../ui/actions/RowActionsMenu";
+import HoldToConfirmButton from "../ui/actions/HoldToConfirmButton";
+import MobileFilterToggle from "../ui/MobileFilterToggle";
+import MobileExpandableCard from "../ui/MobileExpandableCard";
 import { formatDisplayDate } from "../../utils/dateUtils";
 
 const TYPE_OPTIONS = [
@@ -326,7 +329,11 @@ export default function AdminActivitiesPage({ activityKind }) {
   ];
 
   const inputClass =
-    "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-48 truncate";
+    "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-48 truncate";
+
+  const activeFilterCount = [courseId, classId, teacherId, type, scope, status].filter(
+    Boolean
+  ).length;
 
   return (
     <>
@@ -343,7 +350,7 @@ export default function AdminActivitiesPage({ activityKind }) {
         stats={stats}
         tableTitle={isExam ? "Lista de avaliações" : "Lista de atividades"}
         tableActions={
-          <div className="grid grid-cols-3 items-center gap-x-4 gap-y-3">
+          <MobileFilterToggle activeCount={activeFilterCount}>
             <select
               value={courseId}
               onChange={(event) => {
@@ -440,7 +447,7 @@ export default function AdminActivitiesPage({ activityKind }) {
                 </option>
               ))}
             </select>
-          </div>
+          </MobileFilterToggle>
         }
         searchValue={searchInput}
         onSearchChange={setSearchInput}
@@ -533,6 +540,93 @@ export default function AdminActivitiesPage({ activityKind }) {
                     </div>
                   </td>
                 </tr>
+              )}
+              renderMobileCard={(item) => (
+                <MobileExpandableCard
+                  key={item.id}
+                  title={item.title}
+                  subtitle={item.course?.name}
+                  badge={<StatusBadge status={item.status} size="sm" />}
+                  primaryAction={
+                    <div className="flex items-center gap-2">
+                      <TableActionButton
+                        variant="accent"
+                        size="md"
+                        className="flex-1"
+                        onClick={() => handleEditClick(item)}
+                      >
+                        Editar
+                      </TableActionButton>
+
+                      <RowActionsMenu
+                        items={[
+                          {
+                            key: "toggle-status",
+                            label: item.status === "active" ? "Inativar" : "Ativar",
+                            icon: Power,
+                            variant: "warning",
+                            disabled: actionLoading,
+                            onClick: () =>
+                              handleStatusChange(item, item.status === "active" ? "inactive" : "active"),
+                          },
+                          {
+                            key: "remove",
+                            label: "Remover",
+                            icon: Trash2,
+                            variant: "danger",
+                            separator: true,
+                            disabled: actionLoading,
+                            onClick: () => handleRemoveClick(item),
+                          },
+                        ]}
+                      />
+                    </div>
+                  }
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Turma</span>
+                    <span className="font-medium text-gray-900">{item.scopeLabel}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Professor</span>
+                    <span className="font-medium text-gray-900">{item.teacher?.name || "-"}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Tipo</span>
+                    <span className="font-medium text-gray-900">
+                      {TYPE_OPTIONS.find((option) => option.value === item.type)?.label ||
+                        item.type}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Prazo</span>
+                    <span className="font-medium text-gray-900">
+                      {formatShortDateTime(item.dueDate)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Nota máx.</span>
+                    <span className="font-medium text-gray-900">{item.maxScore}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Envios</span>
+                    <span className="font-medium text-gray-900">
+                      {item.submissionCounts.total}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Pendentes</span>
+                    <span className="font-medium text-gray-900">
+                      {item.submissionCounts.pendingReview}
+                    </span>
+                  </div>
+                </MobileExpandableCard>
               )}
             />
 
@@ -656,14 +750,16 @@ export default function AdminActivitiesPage({ activityKind }) {
               )}
 
               {!impactLoading && impactData && !hasImpact && (
-                <button
-                  type="button"
-                  onClick={handleConfirmDelete}
+                <HoldToConfirmButton
+                  variant="danger"
+                  holdDuration={1500}
+                  onConfirm={handleConfirmDelete}
                   disabled={actionLoading}
-                  className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+                  loading={actionLoading}
+                  icon={Trash2}
                 >
-                  {actionLoading ? "Removendo..." : "Remover permanentemente"}
-                </button>
+                  Remover permanentemente
+                </HoldToConfirmButton>
               )}
             </div>
           </div>

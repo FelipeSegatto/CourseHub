@@ -15,6 +15,7 @@ import StatusBadge from "../../../components/ui/StatusBadge";
 import ContractCreationModal from "../../../components/financial/ContractCreationModal";
 import TableActionButton from "../../../components/ui/actions/TableActionButton";
 import RowActionsMenu from "../../../components/ui/actions/RowActionsMenu";
+import MobileExpandableCard from "../../../components/ui/MobileExpandableCard";
 import { formatDisplayDate } from "../../../utils/dateUtils";
 
 const STATUS_OPTIONS = [
@@ -312,6 +313,87 @@ export default function FinancialContractsAdmin() {
                     </div>
                   </td>
                 </tr>
+              )}
+              renderMobileCard={(contract) => (
+                <MobileExpandableCard
+                  key={contract.id}
+                  title={`#${contract.id} — ${contract.student?.name || "-"}`}
+                  subtitle={contract.contractingParty?.name || "-"}
+                  badge={<StatusBadge status={contract.status} size="sm" />}
+                  primaryAction={
+                    <div className="flex items-center gap-2">
+                      <TableActionButton
+                        variant="accent"
+                        size="md"
+                        className="flex-1"
+                        onClick={() => navigate(`/admin/financeiro/contratos/${contract.id}`)}
+                      >
+                        Ver contrato
+                      </TableActionButton>
+
+                      {contract.status === "pending_payment" && (
+                        <RowActionsMenu
+                          items={[
+                            {
+                              key: "resend-invoice",
+                              label: "Reenviar cobrança",
+                              icon: Send,
+                              variant: "neutral",
+                              disabled: rowActionLoading === contract.id,
+                              onClick: () => handleSendInvoice(contract),
+                            },
+                            {
+                              key: "cancel",
+                              label: "Cancelar contrato",
+                              icon: XCircle,
+                              variant: "danger",
+                              separator: true,
+                              disabled: rowActionLoading === contract.id,
+                              onClick: () => setCancelTarget(contract),
+                            },
+                          ]}
+                        />
+                      )}
+                    </div>
+                  }
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Curso / Plano</span>
+                    <span className="font-medium text-gray-900">
+                      {contract.course?.name || "-"}
+                      {contract.planName ? ` · ${contract.planName}` : ""}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Valor</span>
+                    <span className="font-medium text-gray-900">
+                      {formatCurrency(contract.totalAmount)}
+                      {contract.billingType === "monthly_plan" && contract.monthlyPaymentCount
+                        ? ` (${contract.monthlyPaymentCount}x de ${formatCurrency(contract.monthlyPaymentAmount)})`
+                        : ""}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Matrícula</span>
+                    <span className="font-medium text-gray-900">
+                      {contract.enrollmentId ? `#${contract.enrollmentId}` : "Não criada"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Origem</span>
+                    <span className="font-medium text-gray-900">
+                      {ORIGIN_LABEL[contract.origin] || contract.origin}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Data</span>
+                    <span className="font-medium text-gray-900">{formatShortDate(contract.createdAt)}</span>
+                  </div>
+                </MobileExpandableCard>
               )}
             />
 

@@ -24,6 +24,7 @@ import CancelInvoiceModal from "../../../components/financial/CancelInvoiceModal
 import RefundPaymentModal from "../../../components/financial/RefundPaymentModal";
 import InvoicePaymentLinkMenu from "../../../components/financial/InvoicePaymentLinkMenu";
 import DocumentDownloadButton from "../../../components/documents/DocumentDownloadButton";
+import MobileExpandableCard from "../../../components/ui/MobileExpandableCard";
 import {
   getAdminInvoiceCopyEndpoints,
   getAdminPaymentReceiptEndpoints,
@@ -532,73 +533,123 @@ export default function FinancialInvoicesDetails() {
               esta fatura.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[850px]">
-                <thead className="border-b border-slate-200 bg-slate-50">
-                  <tr>
-                    {[
-                      { label: "Pagamento", align: "left" },
-                      { label: "Valor", align: "right" },
-                      { label: "Forma", align: "left" },
-                      { label: "Status", align: "left" },
-                      { label: "Data", align: "left" },
-                      { label: "Referência", align: "left" },
-                      { label: "", align: "right" },
-                    ].map((column) => (
-                      <th
-                        key={column.label || "actions"}
-                        className={`px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 ${
-                          column.align === "right" ? "text-right" : "text-left"
-                        }`}
+            <>
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[850px]">
+                  <thead className="border-b border-slate-200 bg-slate-50">
+                    <tr>
+                      {[
+                        { label: "Pagamento", align: "left" },
+                        { label: "Valor", align: "right" },
+                        { label: "Forma", align: "left" },
+                        { label: "Status", align: "left" },
+                        { label: "Data", align: "left" },
+                        { label: "Referência", align: "left" },
+                        { label: "", align: "right" },
+                      ].map((column) => (
+                        <th
+                          key={column.label || "actions"}
+                          className={`px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 ${
+                            column.align === "right" ? "text-right" : "text-left"
+                          }`}
+                        >
+                          {column.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {payments.map((payment) => (
+                      <tr
+                        key={payment.id}
+                        className="hover:bg-slate-50"
                       >
-                        {column.label}
-                      </th>
+                        <td className="px-5 py-4 text-sm font-semibold text-slate-800">
+                          #{payment.id}
+                        </td>
+
+                        <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold tabular-nums text-emerald-700">
+                          {formatCurrency(
+                            payment.amount
+                          )}
+                        </td>
+
+                        <td className="px-5 py-4 text-sm text-slate-600">
+                          {getPaymentMethodLabel(
+                            payment.paymentMethod ??
+                              payment.payment_method
+                          )}
+                        </td>
+
+                        <td className="px-5 py-4 text-sm text-slate-600">
+                          {getPaymentStatusLabel(payment.status)}
+                        </td>
+
+                        <td className="px-5 py-4 text-sm text-slate-600">
+                          {formatDateTime(
+                            payment.paymentDate ??
+                              payment.payment_date ??
+                              payment.createdAt ??
+                              payment.created_at
+                          )}
+                        </td>
+
+                        <td className="px-5 py-4 text-sm text-slate-600">
+                          {payment.reference ?? "—"}
+                        </td>
+
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex items-center justify-end gap-3">
+                            {payment.status === "approved" && (
+                              <DocumentDownloadButton
+                                endpoints={getAdminPaymentReceiptEndpoints(payment.id)}
+                                label="recibo"
+                                className="text-sm font-semibold text-blue-600 hover:underline"
+                              />
+                            )}
+
+                            {![
+                              "refunded",
+                              "cancelled",
+                            ].includes(
+                              payment.status
+                            ) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openRefundModal(
+                                    payment
+                                  )
+                                }
+                                className="text-sm font-semibold text-red-600 hover:underline"
+                              >
+                                Reembolsar
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
                     ))}
-                  </tr>
-                </thead>
+                  </tbody>
+                </table>
+              </div>
 
-                <tbody className="divide-y divide-slate-100">
-                  {payments.map((payment) => (
-                    <tr
-                      key={payment.id}
-                      className="hover:bg-slate-50"
-                    >
-                      <td className="px-5 py-4 text-sm font-semibold text-slate-800">
-                        #{payment.id}
-                      </td>
-
-                      <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold tabular-nums text-emerald-700">
-                        {formatCurrency(
-                          payment.amount
-                        )}
-                      </td>
-
-                      <td className="px-5 py-4 text-sm text-slate-600">
-                        {getPaymentMethodLabel(
-                          payment.paymentMethod ??
-                            payment.payment_method
-                        )}
-                      </td>
-
-                      <td className="px-5 py-4 text-sm text-slate-600">
+              <div className="space-y-3 p-4 md:hidden">
+                {payments.map((payment) => (
+                  <MobileExpandableCard
+                    key={payment.id}
+                    title={`Pagamento #${payment.id}`}
+                    subtitle={formatCurrency(payment.amount)}
+                    badge={
+                      <span className="whitespace-nowrap rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
                         {getPaymentStatusLabel(payment.status)}
-                      </td>
-
-                      <td className="px-5 py-4 text-sm text-slate-600">
-                        {formatDateTime(
-                          payment.paymentDate ??
-                            payment.payment_date ??
-                            payment.createdAt ??
-                            payment.created_at
-                        )}
-                      </td>
-
-                      <td className="px-5 py-4 text-sm text-slate-600">
-                        {payment.reference ?? "—"}
-                      </td>
-
-                      <td className="px-5 py-4 text-right">
-                        <div className="flex items-center justify-end gap-3">
+                      </span>
+                    }
+                    primaryAction={
+                      (payment.status === "approved" ||
+                        !["refunded", "cancelled"].includes(payment.status)) && (
+                        <div className="flex items-center gap-4">
                           {payment.status === "approved" && (
                             <DocumentDownloadButton
                               endpoints={getAdminPaymentReceiptEndpoints(payment.id)}
@@ -607,31 +658,43 @@ export default function FinancialInvoicesDetails() {
                             />
                           )}
 
-                          {![
-                            "refunded",
-                            "cancelled",
-                          ].includes(
-                            payment.status
-                          ) && (
+                          {!["refunded", "cancelled"].includes(payment.status) && (
                             <button
                               type="button"
-                              onClick={() =>
-                                openRefundModal(
-                                  payment
-                                )
-                              }
+                              onClick={() => openRefundModal(payment)}
                               className="text-sm font-semibold text-red-600 hover:underline"
                             >
                               Reembolsar
                             </button>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      )
+                    }
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500">Forma</span>
+                      <span className="font-medium text-slate-900">
+                        {getPaymentMethodLabel(payment.paymentMethod ?? payment.payment_method)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500">Data</span>
+                      <span className="font-medium text-slate-900">
+                        {formatDateTime(
+                          payment.paymentDate ?? payment.payment_date ?? payment.createdAt ?? payment.created_at
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500">Referência</span>
+                      <span className="font-medium text-slate-900">{payment.reference ?? "—"}</span>
+                    </div>
+                  </MobileExpandableCard>
+                ))}
+              </div>
+            </>
           )}
         </section>
       </div>

@@ -34,6 +34,7 @@ export default function ChatThreadPanel({
   currentUserId,
   onArchive,
   onResolve,
+  onBack,
   emptyStateText = "Selecione uma conversa ou comece uma nova.",
 }) {
   if (!conversation) {
@@ -48,9 +49,30 @@ export default function ChatThreadPanel({
 
   return (
     <>
-      <div className="flex items-center justify-between border-b border-gray-200 p-4">
-        <div>
-          <h3 className="font-bold text-gray-900">{title}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 p-4">
+        <div className="flex min-w-0 items-center gap-2">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              aria-label="Voltar para as conversas"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 md:hidden"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="h-4 w-4"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 18l-6-6 6-6" />
+              </svg>
+            </button>
+          )}
+
+        <div className="min-w-0">
+          <h3 className="truncate font-bold text-gray-900">{title}</h3>
           <div className="mt-1 flex flex-wrap gap-2">
             {conversation.category && TOPIC_LABEL[conversation.category] && (
               <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
@@ -68,8 +90,9 @@ export default function ChatThreadPanel({
             )}
           </div>
         </div>
+        </div>
 
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           {onResolve && !isResolved && (
             <button
               type="button"
