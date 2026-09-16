@@ -308,7 +308,13 @@ export default function ActivityModal({
         id: null,
         question_text: "",
         question_type: "multiple_choice",
-        points: 1,
+        /*
+         * Em branco por padrão: o backend reparte igualmente o
+         * que resta da nota máxima entre as questões sem
+         * pontuação definida (1 questão = 100%, 2 = 50% cada...).
+         * Só vira um número fixo se o professor digitar um valor.
+         */
+        points: "",
         order_index:
           previousQuestions.length + 1,
         options:
@@ -521,12 +527,19 @@ export default function ActivityModal({
         );
       }
 
+      /*
+       * Pontuação em branco é válida (o backend reparte
+       * automaticamente) -- só rejeita quando o professor digitou
+       * algo e esse algo não é um número maior que zero.
+       */
       if (
-        !Number(question.points) ||
-        Number(question.points) <= 0
+        question.points !== "" &&
+        question.points !== null &&
+        question.points !== undefined &&
+        (!Number(question.points) || Number(question.points) <= 0)
       ) {
         throw new Error(
-          `A pontuação da questão ${displayedQuestionNumber} deve ser maior que zero.`
+          `A pontuação da questão ${displayedQuestionNumber} deve ser maior que zero, ou deixe em branco para dividir automaticamente.`
         );
       }
 
@@ -623,7 +636,11 @@ export default function ActivityModal({
               question.question_type,
 
             points:
-              Number(question.points) || 1,
+              question.points === "" ||
+              question.points === null ||
+              question.points === undefined
+                ? null
+                : Number(question.points),
 
             order_index:
               questionIndex + 1,
@@ -692,6 +709,37 @@ export default function ActivityModal({
       setSubmitting(false);
     }
   }
+
+  const numericMaxScore = Number(formData.max_score) || 0;
+
+  const explicitPointsSum = questions.reduce((total, question) => {
+    const value = Number(question.points);
+
+    return question.points !== "" &&
+      question.points !== null &&
+      question.points !== undefined &&
+      Number.isFinite(value) &&
+      value > 0
+      ? total + value
+      : total;
+  }, 0);
+
+  const questionsWithoutPoints = questions.filter(
+    (question) =>
+      question.points === "" ||
+      question.points === null ||
+      question.points === undefined ||
+      !(Number(question.points) > 0)
+  ).length;
+
+  const remainingToDistribute = Number(
+    (numericMaxScore - explicitPointsSum).toFixed(2)
+  );
+
+  const equalShare =
+    questionsWithoutPoints > 0
+      ? Number((remainingToDistribute / questionsWithoutPoints).toFixed(2))
+      : 0;
 
   const modalTitle = isEditMode
     ? isExam
@@ -986,6 +1034,11 @@ export default function ActivityModal({
                   step="0.5"
                   className={inputClass}
                 />
+
+                <span className="mt-1 block text-xs font-normal text-gray-500">
+                  Questões sem pontuação própria dividem este valor
+                  igualmente entre si.
+                </span>
               </label>
             </div>
 
@@ -1039,6 +1092,26 @@ export default function ActivityModal({
                   + Adicionar questão
                 </button>
               </div>
+
+              {questions.length > 0 && questionsWithoutPoints > 0 && (
+                <p className="mb-4 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                  {questionsWithoutPoints === questions.length
+                    ? `Nenhuma questão tem pontuação definida — as ${questions.length} vão dividir igualmente a nota máxima (${equalShare} ponto(s) cada).`
+                    : remainingToDistribute > 0
+                      ? `${questionsWithoutPoints} questão(ões) sem pontuação definida vão dividir os ${remainingToDistribute} ponto(s) restantes (${equalShare} cada).`
+                      : `A soma das questões já pontuadas (${explicitPointsSum}) atinge ou ultrapassa a nota máxima (${numericMaxScore}) — não resta nada para dividir entre as demais.`}
+                </p>
+              )}
+
+              {questions.length > 0 &&
+                questionsWithoutPoints === 0 &&
+                Number(explicitPointsSum.toFixed(2)) !==
+                  Number(numericMaxScore.toFixed(2)) && (
+                  <p className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    A soma das pontuações das questões ({explicitPointsSum}) não é igual à
+                    nota máxima ({numericMaxScore}). Ajuste algum valor antes de salvar.
+                  </p>
+                )}
 
               {questions.length === 0 && (
                 <p className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-6 text-center text-sm text-gray-500">
@@ -1132,7 +1205,7 @@ export default function ActivityModal({
                         <label
                           className={labelClass}
                         >
-                          Pontos
+                          Pontos (opcional)
 
                           <input
                             type="number"
@@ -1146,6 +1219,7 @@ export default function ActivityModal({
                             }
                             min="0.5"
                             step="0.5"
+                            placeholder="Automático"
                             className={inputClass}
                           />
                         </label>

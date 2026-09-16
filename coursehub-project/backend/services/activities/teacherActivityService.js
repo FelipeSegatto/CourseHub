@@ -18,6 +18,7 @@ const {
   validateQuestions,
   buildQuestionStructureForDiff,
   haveQuestionsChanged,
+  distributeQuestionPoints,
 } = require("./activityQuestionService");
 
 const ALLOWED_ACTIVITY_KINDS = ["activity", "exam"];
@@ -452,6 +453,7 @@ async function createActivity(db, { userId, payload }) {
   validateQuestions(questions);
 
   const normalizedMaxScore = Number(maxScore) > 0 ? Number(maxScore) : 10;
+  const finalQuestionPoints = distributeQuestionPoints(questions, normalizedMaxScore);
   const normalizedStatus = status || "active";
 
   if (!ALLOWED_STATUSES.includes(normalizedStatus)) {
@@ -552,9 +554,6 @@ async function createActivity(db, { userId, payload }) {
     ) {
       const question = questions[questionIndex];
 
-      const normalizedQuestionPoints =
-        Number(question.points) > 0 ? Number(question.points) : 1;
-
       const [questionResult] = await connection.query(
         `
           INSERT INTO activity_questions
@@ -571,7 +570,7 @@ async function createActivity(db, { userId, payload }) {
           activityId,
           question.question_text.trim(),
           question.question_type,
-          normalizedQuestionPoints,
+          finalQuestionPoints[questionIndex],
           questionIndex + 1,
         ]
       );
@@ -733,6 +732,8 @@ async function updateActivity(db, { userId, activityId, payload }) {
   }
 
   validateQuestions(questions);
+
+  const finalQuestionPoints = distributeQuestionPoints(questions, normalizedMaxScore);
 
   return withTransaction(db, async (connection) => {
     const [teacherRows] = await connection.query(
@@ -904,10 +905,17 @@ async function updateActivity(db, { userId, activityId, payload }) {
           : [],
     }));
 
+    const questionsWithFinalPoints = questions.map((question, index) => ({
+      ...question,
+      points: finalQuestionPoints[index],
+    }));
+
     const currentQuestionStructure = buildQuestionStructureForDiff(
       currentQuestionsWithOptions
     );
-    const receivedQuestionStructure = buildQuestionStructureForDiff(questions);
+    const receivedQuestionStructure = buildQuestionStructureForDiff(
+      questionsWithFinalPoints
+    );
 
     const questionsWereChanged = haveQuestionsChanged(
       currentQuestionStructure,
@@ -1004,7 +1012,7 @@ async function updateActivity(db, { userId, activityId, payload }) {
             normalizedActivityId,
             question.question_text.trim(),
             question.question_type,
-            Number(question.points),
+            finalQuestionPoints[questionIndex],
             questionIndex + 1,
           ]
         );

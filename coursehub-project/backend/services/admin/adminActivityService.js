@@ -4,6 +4,7 @@ const {
   validateQuestions,
   buildQuestionStructureForDiff,
   haveQuestionsChanged,
+  distributeQuestionPoints,
 } = require("../activities/activityQuestionService");
 
 const ALLOWED_ACTIVITY_TYPES = ["mixed", "quiz", "text", "upload"];
@@ -403,6 +404,7 @@ async function createActivity(db, activityKind, payload) {
   validateQuestions(questions);
 
   const normalizedMaxScore = Number(maxScore) > 0 ? Number(maxScore) : 10;
+  const finalQuestionPoints = distributeQuestionPoints(questions, normalizedMaxScore);
   const normalizedStatus = status || "active";
 
   if (!ALLOWED_STATUSES.includes(normalizedStatus)) {
@@ -471,7 +473,7 @@ async function createActivity(db, activityKind, payload) {
           activityId,
           question.question_text.trim(),
           question.question_type,
-          Number(question.points) > 0 ? Number(question.points) : 1,
+          finalQuestionPoints[index],
           index + 1,
         ]
       );
@@ -553,6 +555,8 @@ async function updateActivity(db, activityKind, id, payload) {
 
   validateQuestions(questions);
 
+  const finalQuestionPoints = distributeQuestionPoints(questions, normalizedMaxScore);
+
   const connection = await db.promise().getConnection();
 
   try {
@@ -560,7 +564,7 @@ async function updateActivity(db, activityKind, id, payload) {
 
     const [activityRows] = await connection.query(
       `
-        SELECT id, course_id, max_score, order_index, is_required
+        SELECT id, course_id, order_index, is_required
         FROM activities
         WHERE id = ? AND activity_kind = ?
         LIMIT 1
@@ -611,13 +615,13 @@ async function updateActivity(db, activityKind, id, payload) {
 
     const totalGrades = Number(gradeCountRows[0].total);
 
-    if (totalGrades > 0 && normalizedMaxScore !== Number(current.max_score)) {
-      throw createServiceError(
-        "Esta atividade já possui notas lançadas. A nota máxima não pode ser alterada — isso invalidaria as notas existentes.",
-        409
-      );
-    }
-
+    // Não há mais uma guarda dedicada de "max_score não pode mudar com
+    // notas lançadas": como a pontuação de cada questão agora vem de
+    // distributeQuestionPoints (explícita ou repartida a partir da nota
+    // máxima), qualquer mudança de nota máxima que alterasse a pontuação
+    // final de alguma questão já é bloqueada abaixo por
+    // "totalSubmissions > 0 && questionsWereChanged" — totalGrades > 0
+    // implica totalSubmissions > 0.
     const [currentQuestionRows] = await connection.query(
       `
         SELECT id, question_text, question_type, points, order_index
@@ -662,10 +666,17 @@ async function updateActivity(db, activityKind, id, payload) {
           : [],
     }));
 
+    const questionsWithFinalPoints = questions.map((question, index) => ({
+      ...question,
+      points: finalQuestionPoints[index],
+    }));
+
     const currentQuestionStructure = buildQuestionStructureForDiff(
       currentQuestionsWithOptions
     );
-    const receivedQuestionStructure = buildQuestionStructureForDiff(questions);
+    const receivedQuestionStructure = buildQuestionStructureForDiff(
+      questionsWithFinalPoints
+    );
 
     const questionsWereChanged = haveQuestionsChanged(
       currentQuestionStructure,
@@ -735,7 +746,7 @@ async function updateActivity(db, activityKind, id, payload) {
             activityId,
             question.question_text.trim(),
             question.question_type,
-            Number(question.points),
+            finalQuestionPoints[index],
             index + 1,
           ]
         );

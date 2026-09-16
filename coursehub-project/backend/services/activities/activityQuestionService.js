@@ -114,10 +114,94 @@ function haveQuestionsChanged(currentStructure, receivedStructure) {
   return JSON.stringify(currentStructure) !== JSON.stringify(receivedStructure);
 }
 
+function hasExplicitPoints(question) {
+  return (
+    question.points !== undefined &&
+    question.points !== null &&
+    question.points !== "" &&
+    Number.isFinite(Number(question.points)) &&
+    Number(question.points) > 0
+  );
+}
+
+/**
+ * Reparte a pontuação das questões que o professor/admin deixou em
+ * branco pelo que resta do valor total da atividade/avaliação,
+ * depois de reservar a pontuação das questões que ele preencheu à
+ * mão -- 1 questão sem pontuação = 100% do total, 2 = 50% cada, e
+ * assim por diante. Questões com pontuação explícita nunca são
+ * alteradas. A última questão sem pontuação absorve o resto do
+ * arredondamento, pra soma nunca fugir do total por causa de duas
+ * casas decimais.
+ *
+ * Quando TODAS as questões têm pontuação explícita, não há nada
+ * pra repartir -- mas a soma delas precisa bater exatamente com o
+ * valor total, senão o "todo" e as "partes" ficam divergindo (o
+ * problema original que esta função existe para resolver).
+ *
+ * Chame depois de validateQuestions (garante ao menos uma questão
+ * e nenhuma pontuação explícita <= 0).
+ */
+function distributeQuestionPoints(questions, maxScore) {
+  const normalizedMaxScore = Number(maxScore);
+
+  const explicitTotal = questions.reduce(
+    (total, question) => total + (hasExplicitPoints(question) ? Number(question.points) : 0),
+    0
+  );
+
+  const unsetQuestions = questions.filter((question) => !hasExplicitPoints(question));
+
+  if (unsetQuestions.length === 0) {
+    const roundedExplicitTotal = Number(explicitTotal.toFixed(2));
+    const roundedMaxScore = Number(normalizedMaxScore.toFixed(2));
+
+    if (roundedExplicitTotal !== roundedMaxScore) {
+      throw createServiceError(
+        `A soma das pontuações das questões (${roundedExplicitTotal}) precisa ser igual à nota máxima da atividade (${roundedMaxScore}).`,
+        400
+      );
+    }
+
+    return questions.map((question) => Number(question.points));
+  }
+
+  const remaining = Number((normalizedMaxScore - explicitTotal).toFixed(2));
+
+  if (remaining <= 0) {
+    throw createServiceError(
+      "A soma das pontuações já definidas atinge ou ultrapassa a nota máxima da atividade — reduza alguma pontuação ou aumente a nota máxima.",
+      400
+    );
+  }
+
+  const equalShare = Number((remaining / unsetQuestions.length).toFixed(2));
+
+  let allocatedToUnset = 0;
+  let unsetSeen = 0;
+
+  return questions.map((question) => {
+    if (hasExplicitPoints(question)) {
+      return Number(question.points);
+    }
+
+    unsetSeen += 1;
+
+    if (unsetSeen === unsetQuestions.length) {
+      return Number((remaining - allocatedToUnset).toFixed(2));
+    }
+
+    allocatedToUnset = Number((allocatedToUnset + equalShare).toFixed(2));
+
+    return equalShare;
+  });
+}
+
 module.exports = {
   ALLOWED_QUESTION_TYPES,
   isOptionCorrect,
   validateQuestions,
   buildQuestionStructureForDiff,
   haveQuestionsChanged,
+  distributeQuestionPoints,
 };

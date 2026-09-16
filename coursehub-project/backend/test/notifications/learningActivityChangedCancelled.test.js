@@ -36,7 +36,7 @@ function basePayload(overrides = {}) {
     description: "temporary test activity",
     type: "text",
     max_score: 10,
-    questions: [{ question_text: "q1", question_type: "text", points: 1 }],
+    questions: [{ question_text: "q1", question_type: "text" }],
     ...overrides,
   };
 }

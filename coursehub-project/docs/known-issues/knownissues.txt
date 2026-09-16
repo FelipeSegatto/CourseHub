@@ -177,3 +177,32 @@ explicitamente `due_date` para `type = 'live_class'` (400), mas isso é uma
 regra de aplicação — um `UPDATE` direto no banco (fora da API) ainda
 poderia reintroduzir a duplicação. Ficou documentado aqui em vez de virar
 uma constraint `CHECK`, que não foi pedida nesta fase.
+
+---
+
+### 5. Professor não é lembrado de atividades/avaliações pendentes de correção
+
+**Status: gap identificado, ainda não corrigido.**
+
+`learning.submission.received` (`backend/services/notifications/eventDefinitions/learningSubmissionReceived.js`)
+notifica o professor responsável **uma única vez**, no momento em que o
+aluno envia a atividade/avaliação ("Está pendente de correção."). Se o
+professor não corrigir logo — ou simplesmente perder/ignorar essa
+notificação pontual — não existe nenhum lembrete de acompanhamento
+enquanto a entrega continuar pendente. Isso contrasta com o padrão já
+usado no módulo financeiro, que tem lembretes recorrentes para faturas
+vencidas (`financialInvoiceReminder`, `financialInvoiceOverdue`,
+`adminFinancialInvoiceOverdue15Days`/`30Days`) — o lado acadêmico não tem
+o equivalente para correções pendentes.
+
+**Risco atual:** entregas de alunos podem ficar esquecidas sem correção por
+tempo indefinido, sem que o professor (ou um admin) seja avisado de novo.
+Isso afeta diretamente o prazo de retorno ao aluno e a qualidade percebida
+do curso.
+
+**Solução planejada (não implementada):** um evento/worker recorrente
+(nos moldes do `notificationDeliveryWorker`/lembretes financeiros) que
+verifique submissões com `status IN ('submitted', 'pending_review')` acima
+de um limite de dias sem correção e dispare um lembrete ao professor
+responsável (e, opcionalmente, ao admin, se o atraso passar de um segundo
+limite maior).
