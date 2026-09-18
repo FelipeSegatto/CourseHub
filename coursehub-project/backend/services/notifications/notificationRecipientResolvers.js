@@ -47,40 +47,47 @@ async function resolveActiveStudentsForCourseOrClass(runner, { courseId, classId
 }
 
 /**
- * Single-recipient audience: the teacher responsible for a course
- * (used by submission-received). courses.teacher_id is nullable and
- * a teacher can be inactive, so this can legitimately return null --
- * callers must treat that as "nobody to notify", not an error.
- *
- * Deliberately still single-recipient via courses.teacher_id, not
- * migrated to course_teachers, after the N:N multi-teacher-per-course
- * change (see docs/course-teacher-model.md). Fanning submission
- * notifications out to every teacher now linked to a course is a
- * product decision explicitly left out of scope by that task ("NÃO
- * implementar notifications para todos os professores
- * automaticamente... preserve o comportamento atual"), not an
- * oversight.
+ * Professores do curso que devem receber evento de envio: todos os
+ * membros ativos de course_teachers, mais o teacher_id legado se
+ * ainda não estiver na N:N. Conta inativa não entra. Lista vazia é
+ * "ninguém para notificar", não erro.
  */
-async function resolveTeacherForCourse(runner, { courseId }) {
+async function resolveTeachersForCourse(runner, { courseId }) {
   const [rows] = await runner.query(
     `
-      SELECT u.id AS user_id, u.name, u.email
-      FROM courses c
-      INNER JOIN teachers t ON t.id = c.teacher_id
+      SELECT DISTINCT u.id AS user_id, u.name, u.email
+      FROM teachers t
       INNER JOIN users u ON u.id = t.user_id
-      WHERE c.id = ?
-        AND t.status = 'active'
+      WHERE t.status = 'active'
         AND u.status = 'active'
-      LIMIT 1
+        AND (
+          EXISTS (
+            SELECT 1 FROM course_teachers ct
+            WHERE ct.course_id = ?
+              AND ct.teacher_id = t.id
+              AND ct.status = 'active'
+          )
+          OR EXISTS (
+            SELECT 1 FROM courses c
+            WHERE c.id = ? AND c.teacher_id = t.id
+          )
+        )
     `,
-    [courseId]
+    [courseId, courseId]
   );
 
-  if (rows.length === 0) {
-    return null;
-  }
+  return rows.map((row) => ({
+    userId: row.user_id,
+    role: "teacher",
+    name: row.name,
+    email: row.email,
+  }));
+}
 
-  return { userId: rows[0].user_id, role: "teacher", name: rows[0].name, email: rows[0].email };
+async function resolveTeacherForCourse(runner, { courseId }) {
+  const teachers = await resolveTeachersForCourse(runner, { courseId });
+
+  return teachers[0] || null;
 }
 
 /**
@@ -240,6 +247,7 @@ async function resolveOtherActiveParticipants(runner, { conversationId, excludeU
 module.exports = {
   resolveActiveStudentsForCourseOrClass,
   resolveTeacherForCourse,
+  resolveTeachersForCourse,
   resolveStudentOwner,
   resolveAllActiveAdmins,
   resolveCalendarAudience,

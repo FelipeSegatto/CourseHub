@@ -34,5 +34,5 @@ registerNotificationType({
   // the submission id alone is enough to keep this idempotent.
   buildDeduplicationKey: (context) => `learning.submission.received:${context.submissionId}`,
 
-  recipientPolicy: "resolveTeacherForCourse(courseId)",
+  recipientPolicy: "resolveTeachersForCourse(courseId)",
 });

@@ -36,11 +36,21 @@ async function getTeacherSessionByUserId(db, userId, sessionId, options = {}) {
       FROM class_sessions cs
       INNER JOIN classes cl ON cl.id = cs.class_id
       INNER JOIN courses c ON c.id = cl.course_id
-      INNER JOIN teachers t ON t.id = cl.teacher_id
-      WHERE cs.id = ? AND t.user_id = ? ${cancelledCondition}
+      INNER JOIN teachers t ON t.user_id = ?
+      WHERE cs.id = ? ${cancelledCondition}
+        AND (
+          cl.teacher_id = t.id
+          OR EXISTS (
+            SELECT 1 FROM course_teachers ct_access
+            WHERE ct_access.course_id = c.id
+              AND ct_access.teacher_id = t.id
+              AND ct_access.status = 'active'
+          )
+          OR c.teacher_id = t.id
+        )
       LIMIT 1
     `,
-    [sessionId, userId]
+    [userId, sessionId]
   );
 
   return rows[0] || null;
