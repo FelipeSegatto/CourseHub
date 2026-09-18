@@ -95,10 +95,6 @@ const PROGRESS_JOIN = `
 `;
 
 function buildListFilters(filters) {
-  // cc.type IN (CONTENT_TYPES) sempre presente — exclui as linhas
-  // legadas type='activity'/'assessment' (pré-migração para a
-  // tabela activities), que não fazem parte do fluxo ativo de
-  // materiais em lugar nenhum do sistema hoje.
   const conditions = [
     `cc.type IN (${CONTENT_TYPES.map(() => "?").join(", ")})`,
   ];

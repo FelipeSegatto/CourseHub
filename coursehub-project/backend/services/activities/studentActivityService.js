@@ -10,7 +10,7 @@ const {
 } = require("./activityScopeService");
 
 const { createNotificationEvent } = require("../notifications/notificationService");
-const { resolveTeacherForCourse } = require("../notifications/notificationRecipientResolvers");
+const { resolveTeachersForCourse } = require("../notifications/notificationRecipientResolvers");
 
 function normalizePositiveId(value) {
   const normalized = Number(value);
@@ -514,11 +514,11 @@ async function submitActivityAnswers(
      */
     void fullscreenExitCount;
 
-    const teacherRecipient = await resolveTeacherForCourse(connection, {
+    const teacherRecipients = await resolveTeachersForCourse(connection, {
       courseId: activity.course_id,
     });
 
-    if (teacherRecipient) {
+    if (teacherRecipients.length > 0) {
       const [courseRows] = await connection.query(
         "SELECT name FROM courses WHERE id = ? LIMIT 1",
         [activity.course_id]
@@ -545,7 +545,7 @@ async function submitActivityAnswers(
           courseId: activity.course_id,
           courseName: courseRows[0]?.name || "",
         },
-        recipients: [teacherRecipient],
+        recipients: teacherRecipients,
         connection,
       });
     }

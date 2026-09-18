@@ -2,16 +2,29 @@ require("dotenv").config();
 
 const mysql = require("mysql2");
 
-const databaseName =
-  process.env.NODE_ENV === "test" && process.env.DB_NAME_TEST
-    ? process.env.DB_NAME_TEST
-    : process.env.DB_NAME;
+function resolveDatabaseName() {
+  if (process.env.NODE_ENV !== "test") {
+    return process.env.DB_NAME;
+  }
 
-if (process.env.NODE_ENV === "test" && !process.env.DB_NAME_TEST) {
-  console.warn(
-    "DB_NAME_TEST não definido: testes usarão DB_NAME (risco de poluir o banco de desenvolvimento)."
-  );
+  const testName = process.env.DB_NAME_TEST;
+
+  if (!testName) {
+    throw new Error(
+      "DB_NAME_TEST é obrigatório quando NODE_ENV=test. Recuse usar o banco de desenvolvimento."
+    );
+  }
+
+  if (testName === "coursehub_escola") {
+    throw new Error(
+      "DB_NAME_TEST não pode ser coursehub_escola. Crie um schema isolado (ex.: coursehub_test)."
+    );
+  }
+
+  return testName;
 }
+
+const databaseName = resolveDatabaseName();
 
 const db = mysql.createPool({
   host: process.env.DB_HOST,

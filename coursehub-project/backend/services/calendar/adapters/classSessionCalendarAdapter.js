@@ -1,6 +1,8 @@
 const {
   getStudentIdByUserId,
   getTeacherIdByUserId,
+  teacherClassAccessSql,
+  teacherClassAccessParams,
 } = require("../../classes/classAccessService");
 
 const { formatDateOnly, formatTimeOnly } = require("../../../utils/appConfig");
@@ -107,12 +109,12 @@ async function getTeacherClassSessionCalendarEvents(runner, { userId, from, to }
     `
       ${BASE_SELECT}
 
-      WHERE cl.teacher_id = ?
+      WHERE ${teacherClassAccessSql("cl")}
         AND cs.session_date BETWEEN ? AND ?
 
       ORDER BY cs.session_date ASC, cs.start_time ASC
     `,
-    [teacherId, from, to]
+    [...teacherClassAccessParams(teacherId), from, to]
   );
 
   return rows.map((row) => toBasicDto(row, { role: "teacher" }));

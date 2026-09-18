@@ -1,6 +1,8 @@
 const {
   getTeacherIdByUserId,
   getClassOwnedByTeacher,
+  teacherClassAccessSql,
+  teacherClassAccessParams,
   createServiceError,
 } = require("../classes/classAccessService");
 
@@ -54,7 +56,7 @@ async function listClasses(db, { userId, status }) {
     throw createServiceError("Professor não encontrado.", 404);
   }
 
-  const queryParams = [teacherId];
+  const queryParams = [...teacherClassAccessParams(teacherId)];
   let statusCondition = "";
 
   if (normalizedStatus) {
@@ -92,7 +94,7 @@ async function listClasses(db, { userId, status }) {
         WHERE e.status = 'active'
         GROUP BY e.class_id
       ) enrollment_stats ON enrollment_stats.class_id = cl.id
-      WHERE cl.teacher_id = ?
+      WHERE ${teacherClassAccessSql("cl")}
         ${statusCondition}
       ORDER BY
         CASE
@@ -110,10 +112,9 @@ async function listClasses(db, { userId, status }) {
 }
 
 /**
- * Resolve e valida que a turma pertence ao professor autenticado.
- * Lança 404 quando a turma não existe ou não pertence a ele —
- * inclusive quando o próprio users.id não corresponde a um
- * professor, já que nesse caso nenhuma turma jamais casaria.
+ * Resolve e valida que o professor autenticado pode operar a turma
+ * (responsável ou co-professor do curso). 404 se a turma não existe
+ * ou se o users.id não é professor com acesso.
  */
 async function requireOwnedClass(runner, { userId, classId }) {
   const teacherId = await getTeacherIdByUserId(runner, userId);

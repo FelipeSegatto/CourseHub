@@ -67,28 +67,29 @@ toda checagem de acesso numa escrita.
 ## Turmas
 
 `classes.teacher_id` continua representando **um único professor
-responsável pela turma** — não virou N:N (`class_teachers` não foi
-criado). Membership no curso (`course_teachers`) não implica
-ownership automática de nenhuma turma do curso.
+responsável pela turma** no cadastro administrativo — não virou N:N
+(`class_teachers` não foi criado).
 
-O professor de uma turma precisa estar vinculado ao curso da turma
-(`course_teachers` ativo, ou `courses.teacher_id` legado) — validado
-no backend em `adminClassService.js#createClass`/`updateClass` via
-`courseTeacherService.assertTeacherAssignedToCourse`, e refletido no
-frontend filtrando o `<select>` de professor pela resposta de
-`GET /api/admin/courses/:id` (`teachers`/`teacherIds`).
+Co-professor com `course_teachers` ativo **opera** as turmas daquele
+curso: frequência, encontros, correção e listagens. A checagem central
+é `classAccessService.getClassOwnedByTeacher` /
+`teacherClassAccessSql`. Membership no curso não transfere o campo
+`classes.teacher_id`; só o acesso operacional.
+
+O professor *cadastrado* como responsável da turma ainda precisa estar
+vinculado ao curso (`assertTeacherAssignedToCourse` em
+`adminClassService` create/update).
 
 ## O que NÃO foi implementado nesta versão
 
 - `class_teachers` / dois professores responsáveis pela mesma turma.
 - Professor principal/coordenador no frontend, ou qualquer
   comportamento privilegiado baseado em `courses.teacher_id`.
-- Notificações ou chat para todos os professores de um curso
-  automaticamente — `chatTeacherSupportService.getActiveResponsibleTeacher`
-  e `notificationRecipientResolvers.resolveTeacherForCourse` continuam
-  single-recipient via `courses.teacher_id`, de propósito (ver
-  comentários nesses dois arquivos) — fanout para múltiplos
-  professores é decisão de produto futura.
+- Fanout de **chat** para todos os professores de um curso
+  (`chatTeacherSupportService.getActiveResponsibleTeacher` ainda
+  resolve um responsável). Notificação de envio
+  (`learning.submission.received`) passa a todos os
+  `course_teachers` ativos.
 - `access_until` / acesso proporcional ao período pago.
 - Remoção de `courses.teacher_id`.
 

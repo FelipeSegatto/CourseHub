@@ -400,7 +400,7 @@ test("I: professores vinculados ao curso têm acesso geral esperado a uma ativid
 // professor<->curso na criação/edição de turma
 // -----------------------------------------------------------------
 
-test("J: membership no curso não confere ownership automática de turma (João não é dono da Turma A de Ana)", async () => {
+test("J: membership no curso confere acesso operacional às turmas do curso (João acessa a Turma A de Ana)", async () => {
   const ana = await createTeacherFixture("turma-ana");
   const joao = await createTeacherFixture("turma-joao");
 
@@ -420,7 +420,7 @@ test("J: membership no curso não confere ownership automática de turma (João 
   assert.ok(anaOwnsClass, "Ana deveria ser dona da turma que ela mesma foi cadastrada como responsável");
 
   const joaoOwnsClass = await getClassOwnedByTeacher(db.promise(), { classId: classItem.id, teacherId: joao.id });
-  assert.equal(joaoOwnsClass, null, "João não deveria ganhar ownership automática da turma só por estar no curso");
+  assert.ok(joaoOwnsClass, "João deve operar a turma do curso em que é co-professor");
 });
 
 test("K: não é possível cadastrar/editar uma turma com professor não vinculado ao curso", async () => {

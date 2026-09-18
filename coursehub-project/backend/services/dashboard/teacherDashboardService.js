@@ -1,5 +1,7 @@
 const {
   getTeacherIdByUserId,
+  teacherClassAccessSql,
+  teacherClassAccessParams,
   createServiceError,
 } = require("../classes/classAccessService");
 
@@ -30,14 +32,12 @@ const TEACHER_STUDENT_SCOPE_JOIN = `
 
 const TEACHER_STUDENT_SCOPE_CONDITION = `
   AND (
-    (e.class_id IS NOT NULL AND cl.teacher_id = ?)
-    OR (e.class_id IS NULL AND (
-      EXISTS (
-        SELECT 1 FROM course_teachers ct
-        WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
-      )
-      OR c.teacher_id = ?
-    ))
+    EXISTS (
+      SELECT 1 FROM course_teachers ct
+      WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
+    )
+    OR c.teacher_id = ?
+    OR cl.teacher_id = ?
   )
 `;
 
@@ -56,8 +56,9 @@ function buildActivityDeepLink(activityKind, activityId) {
 
 async function countActiveClasses(db, teacherId) {
   const [rows] = await db.promise().query(
-    `SELECT COUNT(*) AS count FROM classes WHERE teacher_id = ? AND status = 'active'`,
-    [teacherId]
+    `SELECT COUNT(*) AS count FROM classes cl
+     WHERE cl.status = 'active' AND ${teacherClassAccessSql("cl")}`,
+    teacherClassAccessParams(teacherId)
   );
 
   return Number(rows[0]?.count || 0);
@@ -88,17 +89,14 @@ async function countPendingReviews(db, teacherId) {
       LEFT JOIN classes cl ON cl.id = a.class_id
       WHERE s.status IN ('submitted', 'pending_review')
         AND (
-          (a.class_id IS NOT NULL AND cl.teacher_id = ?)
-          OR (a.class_id IS NULL AND (
-            EXISTS (
-              SELECT 1 FROM course_teachers ct
-              WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
-            )
-            OR c.teacher_id = ?
-          ))
+          EXISTS (
+            SELECT 1 FROM course_teachers ct
+            WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
+          )
+          OR c.teacher_id = ?
         )
     `,
-    [teacherId, teacherId, teacherId]
+    [teacherId, teacherId]
   );
 
   return Number(rows[0]?.count || 0);
@@ -118,14 +116,11 @@ async function listPendingReviewActivities(db, teacherId) {
       LEFT JOIN submissions s ON s.activity_id = a.id
       WHERE a.status = 'active'
         AND (
-          (a.class_id IS NOT NULL AND cl.teacher_id = ?)
-          OR (a.class_id IS NULL AND (
-            EXISTS (
-              SELECT 1 FROM course_teachers ct
-              WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
-            )
-            OR c.teacher_id = ?
-          ))
+          EXISTS (
+            SELECT 1 FROM course_teachers ct
+            WHERE ct.course_id = c.id AND ct.teacher_id = ? AND ct.status = 'active'
+          )
+          OR c.teacher_id = ?
         )
       GROUP BY a.id, a.title, a.activity_kind, a.due_date, c.name, cl.name
       HAVING pending_count > 0
@@ -134,7 +129,7 @@ async function listPendingReviewActivities(db, teacherId) {
         a.due_date ASC
       LIMIT ${PENDING_REVIEWS_LIMIT}
     `,
-    [teacherId, teacherId, teacherId]
+    [teacherId, teacherId]
   );
 
   return rows.map((row) => ({
@@ -161,13 +156,13 @@ async function listUpcomingSessions(db, teacherId) {
         cl.id AS class_id, cl.name AS class_name
       FROM class_sessions cs
       INNER JOIN classes cl ON cl.id = cs.class_id
-      WHERE cl.teacher_id = ?
+      WHERE ${teacherClassAccessSql("cl")}
         AND cs.status = 'scheduled'
         AND cs.session_date BETWEEN ? AND ?
       ORDER BY cs.session_date ASC, cs.start_time ASC
       LIMIT ${UPCOMING_SESSIONS_LIMIT}
     `,
-    [teacherId, today, windowEnd]
+    [...teacherClassAccessParams(teacherId), today, windowEnd]
   );
 
   return rows.map((row) => ({
@@ -214,11 +209,11 @@ async function listClassesOverview(db, teacherId) {
         INNER JOIN attendance att ON att.class_session_id = cs2.id
         GROUP BY cs2.class_id
       ) attendance_stats ON attendance_stats.class_id = cl.id
-      WHERE cl.teacher_id = ? AND cl.status = 'active'
+      WHERE ${teacherClassAccessSql("cl")} AND cl.status = 'active'
       ORDER BY cl.name ASC
       LIMIT ${CLASSES_OVERVIEW_LIMIT}
     `,
-    [teacherId]
+    teacherClassAccessParams(teacherId)
   );
 
   return rows.map((row) => {

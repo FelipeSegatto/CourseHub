@@ -1,31 +1,8 @@
-import { Link } from "react-router-dom";
-
 export default function LessonPlayer({ lesson }) {
   if (!lesson) {
     return (
       <div className="rounded-xl border border-gray-200 p-6">
         <p className="text-gray-600">Selecione um conteúdo para visualizar.</p>
-      </div>
-    );
-  }
-
-  if (lesson.type === "activity" || lesson.type === "assessment") {
-    return (
-      <div>
-        <h2 className="mb-4 text-2xl font-bold text-gray-900">
-          {lesson.title}
-        </h2>
-
-        <p className="mb-4 rounded-xl border border-gray-200 p-4 text-gray-700">
-          {lesson.description || "Atividade disponível para realização."}
-        </p>
-
-        <Link
-          to={`/aluno/atividades/${lesson.id}`}
-          className="inline-block rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
-        >
-          {lesson.type === "assessment" ? "Realizar avaliação" : "Realizar atividade"}
-        </Link>
       </div>
     );
   }

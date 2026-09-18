@@ -82,7 +82,37 @@ async function assertCourseBelongsToTeacher(runner, { courseId, teacherId }) {
 }
 
 /**
- * Busca uma turma garantindo que pertence ao professor autenticado.
+ * Acesso operacional a uma turma: responsável (`classes.teacher_id`)
+ * OU membro ativo de `course_teachers` do curso da turma (inclui
+ * `courses.teacher_id` legado). `classes.teacher_id` continua sendo
+ * o único responsável cadastrado no admin; co-professor passa a
+ * lançar frequência, ver encontros e corrigir envios da turma.
+ *
+ * Três placeholders, sempre o mesmo teacherId.
+ */
+function teacherClassAccessSql(classAlias = "cl") {
+  return `(
+    ${classAlias}.teacher_id = ?
+    OR EXISTS (
+      SELECT 1 FROM course_teachers ct_access
+      WHERE ct_access.course_id = ${classAlias}.course_id
+        AND ct_access.teacher_id = ?
+        AND ct_access.status = 'active'
+    )
+    OR EXISTS (
+      SELECT 1 FROM courses c_access
+      WHERE c_access.id = ${classAlias}.course_id
+        AND c_access.teacher_id = ?
+    )
+  )`;
+}
+
+function teacherClassAccessParams(teacherId) {
+  return [teacherId, teacherId, teacherId];
+}
+
+/**
+ * Busca uma turma garantindo acesso operacional do professor.
  *
  * Devolve course_name e course_title como aliases da mesma coluna
  * (courses.name) — algumas rotas já em produção leem course_title,
@@ -97,6 +127,7 @@ async function getClassOwnedByTeacher(runner, { classId, teacherId }) {
         c.shift,
         c.status,
         c.course_id,
+        c.teacher_id,
         c.start_date,
         c.end_date,
         c.created_at,
@@ -111,19 +142,16 @@ async function getClassOwnedByTeacher(runner, { classId, teacherId }) {
 
       FROM classes c
 
-      INNER JOIN teachers t
-        ON t.id = c.teacher_id
-
       LEFT JOIN courses co
         ON co.id = c.course_id
 
       WHERE c.id = ?
-        AND t.id = ?
         AND c.status <> 'archived'
+        AND ${teacherClassAccessSql("c")}
 
       LIMIT 1
     `,
-    [classId, teacherId]
+    [classId, ...teacherClassAccessParams(teacherId)]
   );
 
   return rows[0] || null;
@@ -192,6 +220,8 @@ module.exports = {
   getTeacherIdByUserId,
   getStudentIdByUserId,
   assertCourseBelongsToTeacher,
+  teacherClassAccessSql,
+  teacherClassAccessParams,
   getClassOwnedByTeacher,
   assertClassBelongsToCourseAndTeacher,
   getActiveEnrollmentForStudent,
