@@ -48,6 +48,10 @@ export default function NavbarAdmin() {
       label: "Status do sistema",
       to: "/admin/sistema",
     },
+    {
+      label: "Contatos",
+      to: "/admin/contatos",
+    },
   ];
 
   const courseItems = [
@@ -123,6 +127,10 @@ export default function NavbarAdmin() {
     {
       label: "Planos comerciais",
       to: "/admin/financeiro/planos",
+    },
+    {
+      label: "Contratantes",
+      to: "/admin/financeiro/contratantes",
     },
   ];
 

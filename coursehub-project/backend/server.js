@@ -6,6 +6,8 @@
 
 require("dotenv").config();
 
+const { purgeExpiredAuthTokens } = require("./repositories/authTokens");
+
 if (
   process.env.NODE_ENV === "production" &&
   process.env.PAYMENT_GATEWAY === "simulated"
@@ -48,6 +50,7 @@ const studentFinanceRoutes = require("./routes/studentFinanceRoutes");
 const studentContentRoutes = require("./routes/studentContentRoutes");
 const studentActivityRoutes = require("./routes/studentActivityRoutes");
 const studentCalendarRoutes = require("./routes/studentCalendarRoutes");
+const studentAttendanceRoutes = require("./routes/studentAttendanceRoutes");
 
 const teacherCourseRoutes = require("./routes/teacherCourseRoutes");
 const teacherClassRoutes = require("./routes/teacherClassRoutes");
@@ -163,6 +166,7 @@ app.use("/api", studentFinanceRoutes);
 app.use("/api", studentContentRoutes);
 app.use("/api", studentActivityRoutes);
 app.use("/api", studentCalendarRoutes);
+app.use("/api", studentAttendanceRoutes);
 
 app.use("/api", teacherCourseRoutes);
 app.use("/api", teacherClassRoutes);
@@ -207,4 +211,8 @@ app.use("/api", adminClassSessionRoutes);
 
 app.listen(PORT, () => {
   console.log(`Servidor CourseHub rodando em http://localhost:${PORT}`);
+
+  purgeExpiredAuthTokens().catch((error) => {
+    console.error("Falha ao purgar tokens expirados no boot:", error.message);
+  });
 });

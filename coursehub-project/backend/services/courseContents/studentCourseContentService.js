@@ -9,6 +9,8 @@ const {
   withContentScopeFields,
 } = require("./courseContentScopeService");
 
+const { assertPublicCourse } = require("../public/publicCourseService");
+
 /**
  * Valida um ID numérico positivo (course_id, etc).
  */
@@ -32,6 +34,10 @@ async function getPublicCourseContents(db, courseId) {
     throw createServiceError("ID do curso inválido.", 400);
   }
 
+  await assertPublicCourse(db, normalizedCourseId);
+
+  const typePlaceholders = CONTENT_TYPES.map(() => "?").join(", ");
+
   const [rows] = await db.promise().query(
     `
       SELECT
@@ -40,21 +46,18 @@ async function getPublicCourseContents(db, courseId) {
         title,
         description,
         type,
-        content_url,
-        content_text,
         order_index,
         is_required,
         status,
-        due_date,
-        created_at,
-        updated_at
+        due_date
       FROM course_contents
       WHERE course_id = ?
         AND status = 'active'
         AND class_id IS NULL
+        AND type IN (${typePlaceholders})
       ORDER BY order_index ASC
     `,
-    [normalizedCourseId]
+    [normalizedCourseId, ...CONTENT_TYPES]
   );
 
   return rows;

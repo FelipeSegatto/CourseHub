@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "./APIService";
 
 export default function CourseService() {
     const [cursosAPI, setCursosAPI] = useState([]);
@@ -6,8 +7,7 @@ export default function CourseService() {
     useEffect(() => {
       async function fetchCursos() {
         try {
-          const resposta = await fetch("http://localhost:3001/api/courses");
-          const dados = await resposta.json();
+          const dados = await apiFetch("/api/courses");
     
           setCursosAPI(Array.isArray(dados) ? dados : []);
         } catch (error) {

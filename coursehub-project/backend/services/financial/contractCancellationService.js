@@ -209,24 +209,35 @@ async function cancelFinancialContract(
      * ========================================================
      */
     if (
-      contract.status ===
-      "cancelled"
+      contract.status !==
+      "pending_payment"
     ) {
 
+      if (
+        contract.status ===
+        "cancelled"
+      ) {
+
+        throw createServiceError(
+          "Este contrato já está cancelado.",
+          409
+        );
+      }
+
+
+      if (
+        contract.status ===
+        "completed"
+      ) {
+
+        throw createServiceError(
+          "Um contrato concluído não pode ser cancelado.",
+          409
+        );
+      }
+
       throw createServiceError(
-        "Este contrato já está cancelado.",
-        409
-      );
-    }
-
-
-    if (
-      contract.status ===
-      "completed"
-    ) {
-
-      throw createServiceError(
-        "Um contrato concluído não pode ser cancelado.",
+        "Somente contratos aguardando o pagamento inicial podem ser cancelados. Contratos ativos ou em atraso usam o fluxo de desistência.",
         409
       );
     }

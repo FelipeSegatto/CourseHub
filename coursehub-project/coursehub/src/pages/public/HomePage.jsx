@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { apiFetch } from "../../services/APIService";
 import {
   ArrowRight,
   Award,
@@ -141,18 +142,7 @@ export default function HomePage() {
         setLoadingCourses(true);
         setCoursesError("");
 
-        const response = await fetch(
-          "http://localhost:3001/api/courses"
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(
-            data.message ||
-              "Não foi possível carregar os cursos."
-          );
-        }
+        const data = await apiFetch("/api/courses");
 
         setCourses(Array.isArray(data) ? data : []);
       } catch (error) {
@@ -436,10 +426,10 @@ export default function HomePage() {
               </p>
 
               <Link
-                to="/register"
+                to="/courses"
                 className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
               >
-                Criar minha conta
+                Ver cursos
                 <ArrowRight size={17} />
               </Link>
             </div>

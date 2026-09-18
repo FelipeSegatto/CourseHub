@@ -90,7 +90,7 @@ export default function TeacherEligibility() {
           >
             <option value="">Selecione um aluno</option>
             {students.map((student) => (
-              <option key={student.student_id || student.id} value={student.student_id || student.id}>
+              <option key={student.studentId || student.student_id || student.id} value={student.studentId || student.student_id}>
                 {student.name}
               </option>
             ))}

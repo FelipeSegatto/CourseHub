@@ -17,6 +17,10 @@ export default function NavbarStudent() {
 
   const studiesItems = [
     {
+      label: "Meus cursos",
+      to: "/aluno/meus-cursos",
+    },
+    {
       label: "Atividades",
       to: "/aluno/atividades",
     },
@@ -29,12 +33,20 @@ export default function NavbarStudent() {
       to: "/aluno/notas",
     },
     {
+      label: "Frequência",
+      to: "/aluno/frequencia",
+    },
+    {
       label: "Calendário",
       to: "/aluno/calendario",
     },
     {
       label: "Progresso",
       to: "/aluno/progresso",
+    },
+    {
+      label: "Documentos",
+      to: "/aluno/documentos",
     },
   ];
 

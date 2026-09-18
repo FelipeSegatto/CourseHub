@@ -52,7 +52,7 @@ const slides = [
     id: 2,
     image: "/images/coursehub-hero-yellow.png",
     alt: "Materiais de estudo e planejamento sobre fundo amarelo",
-    href: "/register",
+    href: "/courses",
     objectPosition: "object-center",
 
     eyebrow: "Organize sua jornada",

@@ -125,6 +125,26 @@ function StatusBadge({
       text: "Resolvido",
       className: "bg-green-100 text-green-700",
     },
+
+    present: {
+      text: "Presente",
+      className: "bg-green-100 text-green-700",
+    },
+
+    absent: {
+      text: "Ausente",
+      className: "bg-red-100 text-red-700",
+    },
+
+    late: {
+      text: "Atrasado",
+      className: "bg-amber-100 text-amber-700",
+    },
+
+    excused: {
+      text: "Justificado",
+      className: "bg-blue-100 text-blue-700",
+    },
     };
 
   const badge =

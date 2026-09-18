@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
-
-const API_URL = "http://localhost:3001";
+import { apiFetch } from "../../services/APIService";
 
 function formatCurrency(value) {
   return Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -98,32 +97,7 @@ export default function CoursePage() {
 
         console.log("ID recebido pela URL:", id);
 
-        const response = await fetch(
-          `${API_URL}/api/courses/${id}`
-        );
-
-        console.log("Status da resposta:", response.status);
-
-        const responseText = await response.text();
-
-        let data = {};
-
-        if (responseText) {
-          try {
-            data = JSON.parse(responseText);
-          } catch {
-            throw new Error(
-              "O servidor retornou uma resposta que não é JSON."
-            );
-          }
-        }
-
-        if (!response.ok) {
-          throw new Error(
-            data.message ||
-              `Erro ao buscar curso. Status: ${response.status}`
-          );
-        }
+        const data = await apiFetch(`/api/courses/${id}`);
 
         if (componenteMontado) {
           setCourse(data);
@@ -168,8 +142,7 @@ export default function CoursePage() {
       try {
         setPlansLoading(true);
 
-        const response = await fetch(`${API_URL}/api/courses/${id}/pricing-plans`);
-        const data = response.ok ? await response.json() : [];
+        const data = await apiFetch(`/api/courses/${id}/pricing-plans`);
 
         if (componenteMontado) {
           setPricingPlans(Array.isArray(data) ? data : []);

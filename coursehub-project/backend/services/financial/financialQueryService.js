@@ -1,6 +1,9 @@
 /**
- * Cria um erro de negócio com status HTTP.
+ * Consultas financeiras de leitura.
  */
+const { withTransaction } = require("../../utils/dbTransaction");
+const { expireDuePaymentAttempts } = require("./invoicePaymentService");
+
 function createServiceError(message, statusCode) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -50,6 +53,10 @@ async function getInvoiceDetails(db, invoiceId) {
       400
     );
   }
+
+  await withTransaction(db, (connection) =>
+    expireDuePaymentAttempts(connection, normalizedInvoiceId)
+  );
 
   const connection = await db.promise().getConnection();
 
@@ -175,6 +182,17 @@ async function getInvoiceDetails(db, invoiceId) {
       [normalizedInvoiceId]
     );
 
+    // Mesma fonte que a lista de pagamentos exibida abaixo -- soma
+    // em JS a partir do array já buscado, nunca uma segunda consulta
+    // que poderia divergir do que a tela realmente lista.
+    const paidAmount = payments.reduce(
+      (total, payment) =>
+        payment.status === "approved"
+          ? total + Number(payment.amount)
+          : total,
+      0
+    );
+
     return {
       invoice: {
         id: invoice.id,
@@ -191,6 +209,7 @@ async function getInvoiceDetails(db, invoiceId) {
             ? null
             : Number(invoice.original_amount),
         amount: Number(invoice.amount),
+        paidAmount,
         discountAmount: Number(
           invoice.discount_amount
         ),

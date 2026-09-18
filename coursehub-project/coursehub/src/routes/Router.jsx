@@ -43,6 +43,7 @@ import StudentCoursePurchase from "../pages/student/StudentCoursePurchase";
 import StudentActivityRunner from "../pages/student/StudentActivityRunner";
 import StudentCalendar from "../pages/student/StudentCalendar";
 import StudentChat from "../pages/student/StudentChat";
+import StudentAttendance from "../pages/student/StudentAttendance";
 
 import HomeAdmin from "../pages/admin/HomeAdmin";
 import DashboardAdmin from "../pages/admin/DashboardAdmin";
@@ -355,6 +356,10 @@ export const router = createBrowserRouter([
               {
                 path: "calendario",
                 element: <StudentCalendar />,
+              },
+              {
+                path: "frequencia",
+                element: <StudentAttendance />,
               },
               {
                 path: "perfil",

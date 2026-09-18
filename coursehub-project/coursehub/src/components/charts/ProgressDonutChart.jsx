@@ -13,7 +13,7 @@ function normalizeNumber(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
-function ChartLegend({ items, colors }) {
+function ChartLegend({ items, colors, format }) {
   return (
     <div className="mt-5 space-y-2">
       {items.map((item, index) => (
@@ -26,7 +26,7 @@ function ChartLegend({ items, colors }) {
             <span className="text-gray-600">{item.name}</span>
           </div>
 
-          <span className="font-semibold text-gray-900">{item.value}</span>
+          <span className="font-semibold text-gray-900">{format(item.value)}</span>
         </div>
       ))}
     </div>
@@ -41,8 +41,18 @@ function ChartLegend({ items, colors }) {
  * @param {string} props.centerLabel
  * @param {{name:string, value:number}[]} props.data
  * @param {string[]} props.colors
+ * @param {(value: number) => string} [props.formatValue]
  */
-export default function ProgressDonutChart({ title, description, centerValue, centerLabel, data, colors }) {
+export default function ProgressDonutChart({
+  title,
+  description,
+  centerValue,
+  centerLabel,
+  data,
+  colors,
+  formatValue,
+}) {
+  const format = formatValue || ((value) => value);
   const total = data.reduce((sum, item) => sum + normalizeNumber(item.value), 0);
 
   // Quando não existem dados, cria uma fatia cinza só pra manter a
@@ -74,7 +84,7 @@ export default function ProgressDonutChart({ title, description, centerValue, ce
               ))}
             </Pie>
 
-            <Tooltip formatter={(value, name) => [value, name]} />
+            <Tooltip formatter={(value, name) => [total > 0 ? format(value) : "—", name]} />
           </PieChart>
         </ResponsiveContainer>
 
@@ -84,7 +94,7 @@ export default function ProgressDonutChart({ title, description, centerValue, ce
         </div>
       </div>
 
-      <ChartLegend items={data} colors={colors} />
+      <ChartLegend items={data} colors={colors} format={format} />
     </article>
   );
 }

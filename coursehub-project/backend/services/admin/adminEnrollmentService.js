@@ -3,12 +3,10 @@ const {
 } = require("../financial/contractingPartyService");
 const { dispatchAdminEnrollmentNotification } = require("../financial/activateContractService");
 
-// 'withdrawn' é setável por aqui tecnicamente (mesmo endpoint genérico
-// que já permite 'cancelled' sem side effects de contrato), mas o
-// caminho normal para chegar nele é a desistência
-// (contractWithdrawalService.js#registerContractWithdrawal), que
-// também encerra o contrato financeiro na mesma transação -- usar
-// este endpoint genérico para 'withdrawn' pula esse encerramento.
+// 'withdrawn' permanece na lista de filtros/leitura, mas PATCH genérico
+// recusa essa transição: o caminho correto é
+// contractWithdrawalService.js#registerContractWithdrawal, que também
+// encerra o contrato financeiro na mesma transação.
 const ALLOWED_ENROLLMENT_STATUSES = ["active", "inactive", "completed", "cancelled", "withdrawn"];
 
 const DEFAULT_PAGE = 1;
@@ -311,12 +309,23 @@ async function createEnrollment(db, payload) {
     }
 
     const [duplicateRows] = await connection.query(
-      `SELECT id FROM enrollments WHERE student_id = ? AND course_id = ? LIMIT 1`,
+      `
+        SELECT id, status
+        FROM enrollments
+        WHERE student_id = ? AND course_id = ?
+          AND status NOT IN ('cancelled', 'withdrawn')
+        LIMIT 1
+      `,
       [studentId, courseId]
     );
 
     if (duplicateRows.length > 0) {
-      throw createServiceError("Este aluno já está matriculado neste curso.", 409);
+      throw createServiceError(
+        duplicateRows[0].status === "completed"
+          ? "Este aluno já concluiu este curso e não pode se rematricular."
+          : "Este aluno já está matriculado neste curso.",
+        409
+      );
     }
 
     const [planRows] = await connection.query(
@@ -508,6 +517,13 @@ async function updateEnrollmentStatus(db, id, status) {
     throw createServiceError(
       "Status inválido. Use active, inactive, completed, cancelled ou withdrawn.",
       400
+    );
+  }
+
+  if (status === "withdrawn") {
+    throw createServiceError(
+      "Desistência deve ser registrada pelo fluxo financeiro de desistência do contrato.",
+      409
     );
   }
 

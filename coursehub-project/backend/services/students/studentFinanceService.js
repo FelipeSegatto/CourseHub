@@ -2,6 +2,8 @@ const {
   getStudentIdByUserId,
   createServiceError,
 } = require("../classes/classAccessService");
+const { withTransaction } = require("../../utils/dbTransaction");
+const { expireDuePaymentAttempts } = require("../financial/invoicePaymentService");
 
 /**
  * Consolida contratos, faturas e pagamentos do aluno autenticado
@@ -14,6 +16,23 @@ async function getStudentFinance(db, userId) {
   if (!studentId) {
     throw createServiceError("Aluno não encontrado.", 404);
   }
+
+  await withTransaction(db, async (connection) => {
+    const [invoiceRows] = await connection.query(
+      `
+        SELECT i.id
+        FROM invoices i
+        INNER JOIN financial_contracts fc ON fc.id = i.financial_contract_id
+        INNER JOIN enrollments e ON e.id = fc.enrollment_id
+        WHERE e.student_id = ?
+      `,
+      [studentId]
+    );
+
+    for (const invoice of invoiceRows) {
+      await expireDuePaymentAttempts(connection, invoice.id);
+    }
+  });
 
   const [contracts] = await db.promise().query(
     `

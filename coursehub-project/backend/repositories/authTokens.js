@@ -142,6 +142,25 @@ async function markPasswordResetTokenUsed(tokenId) {
   );
 }
 
+async function purgeExpiredAuthTokens() {
+  await db.promise().query(
+    `DELETE FROM refresh_tokens WHERE expires_at < NOW()`
+  );
+  await db.promise().query(
+    `
+      DELETE FROM refresh_tokens
+      WHERE revoked_at IS NOT NULL
+        AND revoked_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+    `
+  );
+  await db.promise().query(
+    `
+      DELETE FROM password_reset_tokens
+      WHERE expires_at < NOW() OR used_at IS NOT NULL
+    `
+  );
+}
+
 module.exports = {
   createRefreshToken,
   findValidRefreshToken,
@@ -150,4 +169,5 @@ module.exports = {
   createPasswordResetToken,
   findValidPasswordResetToken,
   markPasswordResetTokenUsed,
+  purgeExpiredAuthTokens,
 };

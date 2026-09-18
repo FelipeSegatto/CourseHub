@@ -171,12 +171,23 @@ async function assertNoIncompatibleExistingContract(connection, { studentId, cou
   }
 
   const [enrollmentRows] = await connection.query(
-    `SELECT id FROM enrollments WHERE student_id = ? AND course_id = ? AND status = 'active' LIMIT 1`,
+    `
+      SELECT id, status
+      FROM enrollments
+      WHERE student_id = ? AND course_id = ?
+        AND status NOT IN ('cancelled', 'withdrawn')
+      LIMIT 1
+    `,
     [studentId, courseId]
   );
 
   if (enrollmentRows.length > 0) {
-    throw createServiceError("Este aluno já está matriculado neste curso.", 409);
+    throw createServiceError(
+      enrollmentRows[0].status === "completed"
+        ? "Este aluno já concluiu este curso e não pode se rematricular."
+        : "Este aluno já está matriculado neste curso.",
+      409
+    );
   }
 }
 

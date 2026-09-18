@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { getAdminDashboard } from "../../services/DashboardService";
+import ProgressDonutChart from "../../components/charts/ProgressDonutChart";
+import { FINANCIAL_CHART_COLORS } from "../../components/charts/progressChartColors";
 import StatCard from "../../components/ui/StatCard";
 import QuickActionsCard from "../../components/ui/QuickActionsCard";
 import PrintPageButton from "../../components/reports/PrintPageButton";
@@ -82,6 +84,18 @@ export default function DashboardAdmin() {
   const academic = dashboard?.academic;
   const operations = dashboard?.operations;
   const upcomingEvents = dashboard?.upcomingEvents ?? [];
+
+  const paidAmount = Number(financial?.paidAmount || 0);
+  const openAmount = Number(financial?.openAmount || 0);
+  const overdueAmount = Number(financial?.overdueAmount || 0);
+  const financialTotal = paidAmount + openAmount + overdueAmount;
+  const receivedPercent =
+    financialTotal > 0 ? Math.round((paidAmount / financialTotal) * 100) : 0;
+  const financialChartData = [
+    { name: "Recebido", value: paidAmount },
+    { name: "Em aberto", value: openAmount },
+    { name: "Em atraso", value: overdueAmount },
+  ];
 
   const pendingItems = [
     ...(dashboard?.administrativePendingItems ?? []),
@@ -209,6 +223,50 @@ export default function DashboardAdmin() {
               />
             </section>
 
+            <section className="mt-8 grid gap-6 lg:grid-cols-3">
+              <div className="rounded-2xl bg-white p-6 shadow-sm lg:col-span-2">
+                <div className="mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Ações rápidas
+                  </h2>
+
+                  <p className="mt-1 text-gray-500">
+                    Acesse as principais funções administrativas.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {quickActions.map((action) => (
+                    <QuickActionsCard key={action.title} {...action} />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <ProgressDonutChart
+                  title="Resumo financeiro"
+                  description="Composição das faturas vigentes: o que já entrou, o que ainda vence e o que está atrasado."
+                  centerValue={`${receivedPercent}%`}
+                  centerLabel="recebido"
+                  data={financialChartData}
+                  colors={FINANCIAL_CHART_COLORS}
+                  formatValue={formatCurrency}
+                />
+
+                <p className="mt-3 px-1 text-xs text-gray-500">
+                  {operations?.invoicesOverdue15Days ?? 0} faturas com 15+ dias ·{" "}
+                  {operations?.invoicesOverdue30Days ?? 0} com 30+ dias
+                </p>
+
+                <Link
+                  to="/admin/financeiro"
+                  className="mt-2 inline-block px-1 text-sm font-semibold text-blue-600 hover:underline"
+                >
+                  Ver painel financeiro completo →
+                </Link>
+              </div>
+            </section>
+
             <section className="mt-8 rounded-2xl bg-white p-6 shadow-sm">
               <h2 className="text-xl font-bold text-gray-900">Operação recente</h2>
               <p className="mt-1 text-sm text-gray-500">Últimos 7 dias.</p>
@@ -233,25 +291,7 @@ export default function DashboardAdmin() {
               </div>
             </section>
 
-            <section className="mt-8 grid gap-6 lg:grid-cols-3">
-              <div className="rounded-2xl bg-white p-6 shadow-sm lg:col-span-2">
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    Ações rápidas
-                  </h2>
-
-                  <p className="mt-1 text-gray-500">
-                    Acesse as principais funções administrativas.
-                  </p>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {quickActions.map((action) => (
-                    <QuickActionsCard key={action.title} {...action} />
-                  ))}
-                </div>
-              </div>
-
+            <section className="mt-8 grid gap-6 lg:grid-cols-2">
               <div className="rounded-2xl bg-white p-6 shadow-sm">
                 <h2 className="text-2xl font-bold text-gray-900">
                   Pendências
@@ -291,9 +331,7 @@ export default function DashboardAdmin() {
                   </div>
                 )}
               </div>
-            </section>
 
-            <section className="mt-8 grid gap-6 lg:grid-cols-2">
               <div className="rounded-2xl bg-white p-6 shadow-sm">
                 <h2 className="text-2xl font-bold text-gray-900">
                   Próximos eventos
@@ -325,50 +363,6 @@ export default function DashboardAdmin() {
                     ))}
                   </div>
                 )}
-              </div>
-
-              <div className="rounded-2xl bg-white p-6 shadow-sm">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Resumo financeiro
-                </h2>
-
-                <div className="mt-6 space-y-4">
-                  <div className="rounded-xl bg-gray-50 p-4">
-                    <p className="text-sm text-gray-500">Recebido</p>
-
-                    <p className="mt-1 text-xl font-bold text-green-600">
-                      {formatCurrency(financial?.paidAmount)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl bg-gray-50 p-4">
-                    <p className="text-sm text-gray-500">Em aberto</p>
-
-                    <p className="mt-1 text-xl font-bold text-gray-900">
-                      {formatCurrency(financial?.openAmount)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl bg-gray-50 p-4">
-                    <p className="text-sm text-gray-500">Em atraso</p>
-
-                    <p className="mt-1 text-xl font-bold text-red-600">
-                      {formatCurrency(financial?.overdueAmount)}
-                    </p>
-
-                    <p className="mt-2 text-xs text-gray-500">
-                      {operations?.invoicesOverdue15Days ?? 0} com 15+ dias · {operations?.invoicesOverdue30Days ?? 0}{" "}
-                      com 30+ dias
-                    </p>
-                  </div>
-                </div>
-
-                <Link
-                  to="/admin/financeiro"
-                  className="mt-4 inline-block text-sm font-semibold text-blue-600 hover:underline"
-                >
-                  Ver painel financeiro completo →
-                </Link>
               </div>
             </section>
 

@@ -15,13 +15,24 @@ function createServiceError(message, statusCode) {
 }
 
 /**
- * Lista todos os cursos cadastrados (rota pública).
+ * Lista cursos ativos (rota pública).
  *
  * courses.price nunca é selecionado aqui -- desde a reformulação de
  * precificação, course_pricing_plans é a única fonte de preço
  * comercial. `pricing` é anexado em lote (uma única query agrupada
  * para todos os cursos da página, nunca uma consulta por curso).
  */
+async function assertPublicCourse(db, courseId) {
+  const [rows] = await db.promise().query(
+    `SELECT id FROM courses WHERE id = ? AND status = 'active' LIMIT 1`,
+    [courseId]
+  );
+
+  if (rows.length === 0) {
+    throw createServiceError("Curso não encontrado.", 404);
+  }
+}
+
 async function listCourses(db) {
   const [rows] = await db.promise().query(
     `
@@ -30,6 +41,7 @@ async function listCourses(db) {
       workload_hours, image_url, nivel, syllabus, category,
       status, created_at, updated_at
     FROM courses
+    WHERE status = 'active'
     ORDER BY name ASC
     `
   );
@@ -59,9 +71,11 @@ async function getCourseById(db, courseId) {
       image_url,
       nivel,
       syllabus,
-      category
+      category,
+      status
     FROM courses
     WHERE id = ?
+      AND status = 'active'
     LIMIT 1
     `,
     [normalizedId]
@@ -90,6 +104,8 @@ async function getActivePricingPlans(db, courseId) {
     throw createServiceError("ID do curso inválido.", 400);
   }
 
+  await assertPublicCourse(db, normalizedId);
+
   const plans = await listActivePlansForCourse(db, normalizedId);
 
   return plans.map((plan) => ({
@@ -110,6 +126,7 @@ async function getActivePricingPlans(db, courseId) {
 
 module.exports = {
   createServiceError,
+  assertPublicCourse,
   listCourses,
   getCourseById,
   getActivePricingPlans,

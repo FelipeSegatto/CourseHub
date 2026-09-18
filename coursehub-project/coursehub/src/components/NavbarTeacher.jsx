@@ -55,6 +55,10 @@ export default function NavbarTeacher() {
       label: "Frequência",
       to: "/professor/frequencia"
     },
+    {
+      label: "Elegibilidade",
+      to: "/professor/elegibilidade"
+    },
   ]
 
   function handleLogout() {

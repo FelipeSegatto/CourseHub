@@ -10,7 +10,6 @@ const { retryOnDeadlock } = require("../testHelpers");
 const { updateEnrollmentStatus, listEnrollments } = require("../../services/admin/adminEnrollmentService");
 const { createStudentContractWithInitialInvoice } = require("../../services/financial/contractCreationService");
 const { registerManualPayment } = require("../../services/financial/paymentService");
-const { cancelFinancialContract } = require("../../services/financial/contractCancellationService");
 const {
   findOrCreateSelfContractingPartyForStudent,
 } = require("../../services/financial/contractingPartyService");
@@ -229,10 +228,10 @@ test("enrollment + contrato cancelled: backend bloqueia com 409 e mensagem clara
 
   await updateEnrollmentStatus(db, enrollmentId, "inactive");
 
-  await cancelFinancialContract(db, contractId, {
-    reason: "Teste automatizado de bloqueio de reativação",
-    actorUserId: ADMIN_USER_ID,
-  });
+  await db.promise().query(
+    `UPDATE financial_contracts SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW() WHERE id = ?`,
+    [contractId]
+  );
 
   await assert.rejects(
     () => updateEnrollmentStatus(db, enrollmentId, "active"),
@@ -257,10 +256,10 @@ test("tentar contornar pelo backend diretamente (sem passar pelo frontend) conti
 
   await updateEnrollmentStatus(db, enrollmentId, "cancelled");
 
-  await cancelFinancialContract(db, contractId, {
-    reason: "Teste automatizado (tentativa de contorno)",
-    actorUserId: ADMIN_USER_ID,
-  });
+  await db.promise().query(
+    `UPDATE financial_contracts SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW() WHERE id = ?`,
+    [contractId]
+  );
 
   // Simula uma chamada de API direta (PATCH /api/admin/enrollments/:id/status
   // chama exatamente esta function, sem lógica adicional) -- não há

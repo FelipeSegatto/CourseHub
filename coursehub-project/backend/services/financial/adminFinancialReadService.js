@@ -1262,7 +1262,7 @@ async function listFinancialInvoices(
               invoice.payment_count || 0
             ),
 
-          approvedPaymentAmount:
+          paidAmount:
             normalizeMoney(
               invoice.approved_payment_amount
             ),

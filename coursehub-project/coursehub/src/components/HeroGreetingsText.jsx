@@ -4,6 +4,8 @@ import { useAuth } from "../auth/AuthContext";
 export default function HeroGreetingsText({
   titleClassName = "",
   descriptionClassName = "",
+  className = "mb-10",
+  description = "Aprenda tecnologia, design e desenvolvimento web com cursos práticos, objetivos e focados em projetos reais.",
 }) {
   const { usuarioLogado } = useAuth();
 
@@ -60,7 +62,7 @@ export default function HeroGreetingsText({
   }, [fullText]);
 
   return (
-    <div className="mb-10">
+    <div className={className}>
       <h1
         className={`text-4xl font-bold ${titleClassName}`}
       >
@@ -94,9 +96,7 @@ export default function HeroGreetingsText({
           ${descriptionClassName}
         `}
       >
-        Aprenda tecnologia, design e desenvolvimento
-        web com cursos práticos, objetivos e focados em
-        projetos reais.
+        {description}
       </p>
     </div>
   );
