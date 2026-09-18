@@ -21,12 +21,12 @@ export default function PrivacyPolicy() {
 
       <div className="mt-8 space-y-4 text-sm leading-6 text-gray-600">
         <p>
-          [PREENCHER] Esta Política de Privacidade descreve como o CourseHub coleta, usa e protege os
+          Esta Política de Privacidade descreve como o CourseHub coleta, usa e protege os
           dados pessoais de alunos, contratantes e demais usuários da plataforma, em conformidade com
           a legislação aplicável de proteção de dados.
         </p>
         <p>
-          [PREENCHER] Dados de pagamento (como número de cartão) nunca são coletados ou armazenados
+          Dados de pagamento (como número de cartão) nunca são coletados ou armazenados
           pelo CourseHub -- são processados diretamente pelo provedor de pagamentos contratado.
         </p>
       </div>

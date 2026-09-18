@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import CardCourses from "../../components/CardCourses";
+import { apiFetch } from "../../services/APIService";
 
 export default function CoursesPage() {
   const [courses, setCourses] = useState([]);
@@ -9,11 +10,7 @@ export default function CoursesPage() {
   useEffect(() => {
     async function fetchCursos() {
       try {
-        const resposta = await fetch(
-          "http://localhost:3001/api/courses"
-        );
-
-        const dados = await resposta.json();
+        const dados = await apiFetch("/api/courses");
 
         console.log(
           "Cursos vindos da API:",

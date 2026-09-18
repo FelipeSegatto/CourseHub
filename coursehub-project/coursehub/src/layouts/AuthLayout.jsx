@@ -10,10 +10,10 @@ const AUTH_COPY_BY_PATH = {
       "Acesse seus cursos, acompanhe seu progresso e continue exatamente de onde parou.",
   },
   "/register": {
-    eyebrow: "Comece sua jornada",
-    title: "Novas possibilidades começam com um primeiro passo.",
+    eyebrow: "Matrícula",
+    title: "A conta do aluno nasce junto com o contrato.",
     description:
-      "Crie sua conta para acessar cursos, atividades e recursos de aprendizagem.",
+      "Escolha um curso e avance no checkout. Não há cadastro avulso na plataforma.",
   },
   "/esqueci-minha-senha": {
     eyebrow: "Recuperação de acesso",

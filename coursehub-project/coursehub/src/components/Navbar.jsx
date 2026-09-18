@@ -56,10 +56,10 @@ export default function Navbar() {
 
         <div className="flex items-center justify-end gap-2 font-pt text-semibold sm:gap-3">
           <Link
-            to="/register"
+            to="/courses"
             className="hidden rounded-full border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50 md:inline-flex"
           >
-            Criar conta
+            Ver cursos
           </Link>
 
           <Link
@@ -102,11 +102,11 @@ export default function Navbar() {
 
         <div className="mt-4 flex flex-col gap-2 border-t border-gray-200 pt-4">
           <Link
-            to="/register"
+            to="/courses"
             onClick={() => setIsMenuOpen(false)}
             className="rounded-full border border-gray-200 bg-white px-5 py-2.5 text-center text-sm font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
           >
-            Criar conta
+            Ver cursos
           </Link>
 
           <Link

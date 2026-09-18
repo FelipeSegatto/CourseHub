@@ -211,9 +211,11 @@ function getSessionStatusClasses(status) {
 }
 
 function normalizeAttendanceStatus(status) {
-  return VALID_ATTENDANCE_STATUSES.has(status)
-    ? status
-    : "present";
+  if (!status) {
+    return "";
+  }
+
+  return VALID_ATTENDANCE_STATUSES.has(status) ? status : "";
 }
 
 /*

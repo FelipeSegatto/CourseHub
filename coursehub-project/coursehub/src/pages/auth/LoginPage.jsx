@@ -180,10 +180,10 @@ export default function LoginPage() {
           Ainda não possui uma conta?{" "}
           <button
             type="button"
-            onClick={() => navigate("/register")}
+            onClick={() => navigate("/courses")}
             className="font-semibold text-blue-600 transition hover:text-blue-700"
           >
-            Criar conta
+            Ver cursos
           </button>
         </p>
       </div>

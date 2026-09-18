@@ -279,12 +279,23 @@ async function registerScholarshipEnrollment(db, payload, actorUserId) {
     }
 
     const [duplicateRows] = await connection.query(
-      `SELECT id FROM enrollments WHERE student_id = ? AND course_id = ? AND status = 'active' LIMIT 1`,
+      `
+        SELECT id, status
+        FROM enrollments
+        WHERE student_id = ? AND course_id = ?
+          AND status NOT IN ('cancelled', 'withdrawn')
+        LIMIT 1
+      `,
       [studentId, normalizedCourseId]
     );
 
     if (duplicateRows.length > 0) {
-      throw createServiceError("Este aluno já está matriculado neste curso.", 409);
+      throw createServiceError(
+        duplicateRows[0].status === "completed"
+          ? "Este aluno já concluiu este curso e não pode se rematricular."
+          : "Este aluno já está matriculado neste curso.",
+        409
+      );
     }
 
     const [enrollmentResult] = await connection.query(
@@ -413,6 +424,28 @@ async function registerMigratedEnrollment(db, payload, actorUserId) {
 
     if (courseRows.length === 0) {
       throw createServiceError("Curso não encontrado.", 404);
+    }
+
+    if (["active", "inactive", "locked", "completed"].includes(normalizedAcademicStatus)) {
+      const [aliveRows] = await connection.query(
+        `
+          SELECT id, status
+          FROM enrollments
+          WHERE student_id = ? AND course_id = ?
+            AND status NOT IN ('cancelled', 'withdrawn')
+          LIMIT 1
+        `,
+        [studentId, normalizedCourseId]
+      );
+
+      if (aliveRows.length > 0) {
+        throw createServiceError(
+          aliveRows[0].status === "completed"
+            ? "Este aluno já concluiu este curso e não pode se rematricular."
+            : "Este aluno já está matriculado neste curso.",
+          409
+        );
+      }
     }
 
     const [enrollmentResult] = await connection.query(

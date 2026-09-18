@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import useEnrollment from "../../services/EnrollmentService";
+import useStudentProgress from "../../services/StudentProgressService";
 
 export default function StudentCourses() {
   const { usuarioLogado } = useAuth();
@@ -9,6 +10,14 @@ export default function StudentCourses() {
   matriculas,
   loading,
 } = useEnrollment();
+  const { overview } = useStudentProgress(usuarioLogado?.id);
+
+  const progressByCourseId = new Map(
+    (overview?.courses || []).map((course) => [
+      Number(course.course_id),
+      Number(course.content_progress?.progress_percentage || 0),
+    ])
+  );
 
   if (loading) {
     return <p className="p-6">Carregando...</p>;
@@ -45,7 +54,7 @@ export default function StudentCourses() {
 
         <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {matriculas.map((course) => {
-            const progress = 0;
+            const progress = progressByCourseId.get(Number(course.id)) || 0;
 
             return (
               <article

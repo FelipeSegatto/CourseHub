@@ -22,6 +22,7 @@ const router = express.Router();
 router.get(
   "/students/by-user/activities",
   authenticateToken,
+  authorizeRoles("student"),
   async (req, res) => {
     try {
       const activities = await listStudentActivities(db, {
@@ -46,6 +47,7 @@ router.get(
 router.get(
   "/students/by-user/activities/:activityId/full",
   authenticateToken,
+  authorizeRoles("student"),
   async (req, res) => {
     try {
       const activity = await getStudentActivityDetail(db, {
@@ -70,6 +72,7 @@ router.get(
 router.post(
   "/students/activities/:activityId/submissions",
   authenticateToken,
+  authorizeRoles("student"),
   async (req, res) => {
     try {
       const { answers, fullscreen_exit_count: fullscreenExitCount } =

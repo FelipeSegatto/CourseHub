@@ -122,8 +122,9 @@ async function activateContractFromPaidInvoice(db, invoiceId, options = {}) {
 
     const [existingEnrollmentRows] = await connection.query(
       `
-        SELECT id FROM enrollments
-        WHERE student_id = ? AND course_id = ? AND status = 'active'
+        SELECT id, status FROM enrollments
+        WHERE student_id = ? AND course_id = ?
+          AND status NOT IN ('cancelled', 'withdrawn')
         LIMIT 1
         FOR UPDATE
       `,
@@ -134,6 +135,13 @@ async function activateContractFromPaidInvoice(db, invoiceId, options = {}) {
     let enrollmentCreated = false;
 
     if (existingEnrollmentRows.length > 0) {
+      if (existingEnrollmentRows[0].status === "completed") {
+        throw createServiceError(
+          "Este aluno já concluiu este curso e não pode se rematricular.",
+          409
+        );
+      }
+
       enrollmentId = existingEnrollmentRows[0].id;
     } else {
       const [enrollmentResult] = await connection.query(

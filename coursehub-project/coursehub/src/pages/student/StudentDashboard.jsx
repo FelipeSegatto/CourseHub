@@ -4,7 +4,6 @@ import { useAuth } from "../../auth/AuthContext";
 
 import useStudentProgress from "../../services/StudentProgressService";
 
-import HeroGreetingsText from "../../components/HeroGreetingsText";
 
 /**
  * Normaliza um percentual para que nunca fique
@@ -240,12 +239,9 @@ export default function StudentDashboard() {
                 Área do aluno
               </div>
 
-              <div className="mt-5">
-                <HeroGreetingsText
-                  titleClassName="text-white"
-                  descriptionClassName="text-slate-300"
-                />
-              </div>
+              <h1 className="mt-5 max-w-3xl text-4xl font-bold text-white">
+                O estudo se aprofunda quando há um lugar para retomar.
+              </h1>
 
               <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">
                 Continue seus estudos,

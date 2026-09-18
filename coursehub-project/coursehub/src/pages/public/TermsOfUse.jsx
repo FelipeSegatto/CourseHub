@@ -24,13 +24,13 @@ export default function TermsOfUse() {
 
       <div className="mt-8 space-y-4 text-sm leading-6 text-gray-600">
         <p>
-          [PREENCHER] Estes Termos de Uso regulam a relação entre o CourseHub e seus usuários,
+          Estes Termos de Uso regulam a relação entre o CourseHub e seus usuários,
           incluindo alunos, contratantes e responsáveis financeiros, no que diz respeito à
           contratação de cursos, condições de pagamento, cancelamento e demais regras de uso da
           plataforma.
         </p>
         <p>
-          [PREENCHER] Ao aceitar estes termos durante o checkout, o contratante concorda com as
+          Ao aceitar estes termos durante o checkout, o contratante concorda com as
           condições comerciais do plano selecionado, incluindo valor, forma de pagamento e política
           de cobrança vigente no momento da contratação.
         </p>

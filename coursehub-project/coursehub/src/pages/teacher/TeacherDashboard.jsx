@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { getTeacherDashboard } from "../../services/DashboardService";
+import ClassAttendanceBarChart from "../../components/charts/ClassAttendanceBarChart";
 import StatCard from "../../components/ui/StatCard";
 import QuickActionsCard from "../../components/ui/QuickActionsCard";
 import { formatDisplayDate } from "../../utils/dateUtils";
@@ -146,6 +147,10 @@ export default function TeacherDashboard() {
               />
             </section>
 
+            <section className="mt-8">
+              <ClassAttendanceBarChart classes={classesOverview} />
+            </section>
+
             <section className="mt-8 grid gap-6 lg:grid-cols-3">
               <div className="rounded-2xl bg-white p-6 shadow-sm lg:col-span-2">
                 <div className="mb-6 flex items-center justify-between gap-4">
@@ -256,24 +261,6 @@ export default function TeacherDashboard() {
                             {classItem.activeStudentCount} alunos
                           </span>
                         </div>
-
-                        {classItem.averageAttendancePercentage !== null && (
-                          <>
-                            <div className="mt-4 h-2 rounded-full bg-gray-200">
-                              <div
-                                className="h-2 rounded-full bg-blue-600"
-                                style={{
-                                  width: `${classItem.averageAttendancePercentage}%`,
-                                }}
-                              />
-                            </div>
-
-                            <p className="mt-2 text-sm text-gray-500">
-                              Frequência média:{" "}
-                              {classItem.averageAttendancePercentage}%
-                            </p>
-                          </>
-                        )}
                       </Link>
                     ))}
                   </div>

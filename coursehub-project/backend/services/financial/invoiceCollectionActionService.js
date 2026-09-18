@@ -52,6 +52,7 @@ async function generateMissingCollectionActions(db, { invoiceIds } = {}) {
       INSERT INTO invoice_collection_actions (invoice_id, action_type, status, scheduled_for)
       SELECT i.id, offsets.action_type, 'pending', DATE_ADD(i.due_date, INTERVAL offsets.day_offset DAY)
       FROM invoices i
+      INNER JOIN financial_contracts fc ON fc.id = i.financial_contract_id
       CROSS JOIN (
         SELECT 'reminder_3_days_before' AS action_type, -3 AS day_offset
         UNION ALL SELECT 'due_date_notice', 0
@@ -61,6 +62,7 @@ async function generateMissingCollectionActions(db, { invoiceIds } = {}) {
         UNION ALL SELECT 'enrollment_locked_30_days', 30
       ) AS offsets
       WHERE i.status IN ('pending', 'processing', 'overdue')
+        AND fc.enrollment_id IS NOT NULL
       ${scopeClause}
       ON DUPLICATE KEY UPDATE invoice_collection_actions.id = invoice_collection_actions.id
     `,

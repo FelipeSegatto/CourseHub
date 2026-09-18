@@ -676,6 +676,10 @@ async function getInvoicePaymentByAccessContext(db, { paymentId, accessContext }
     throw createServiceError("O identificador do pagamento é obrigatório e deve ser válido.", 400);
   }
 
+  await withTransaction(db, (connection) =>
+    expireDuePaymentAttempts(connection, accessContext.invoiceId)
+  );
+
   const payment = await fetchPaymentByAccessContext(db, { paymentId: normalizedPaymentId, accessContext });
 
   if (!payment) {
