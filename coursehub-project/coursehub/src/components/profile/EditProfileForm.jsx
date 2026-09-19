@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 import { Save } from "lucide-react";
+import { avatarsForGender, resolveAvatarSrc } from "../../data/profileAvatars";
+import { updateUserAvatar, uploadProfileAvatar } from "../../services/ProfileService";
+import { FormatInfoBalloon } from "../uploads/FileUploadField";
+import { validateSelectedFile } from "../../data/fileUploadRules";
 
 function InputField({
   label,
@@ -40,6 +44,7 @@ function EditProfileForm({
   isSaving,
   message,
   error,
+  onProfileChange,
 }) {
   const [formData, setFormData] = useState({
     name: "",
@@ -49,6 +54,9 @@ function EditProfileForm({
     address: "",
     specialty: "",
   });
+
+  const [avatarError, setAvatarError] = useState("");
+  const [isSavingAvatar, setIsSavingAvatar] = useState(false);
 
   useEffect(() => {
     setFormData({
@@ -79,14 +87,100 @@ function EditProfileForm({
     }));
   }
 
+  async function handleSelectCatalogAvatar(avatarKey) {
+    try {
+      setAvatarError("");
+      setIsSavingAvatar(true);
+      const response = await updateUserAvatar({ avatarKey });
+      onProfileChange?.(response.profile);
+    } catch (requestError) {
+      setAvatarError(requestError.message || "Não foi possível atualizar o avatar.");
+    } finally {
+      setIsSavingAvatar(false);
+    }
+  }
+
+  async function handleUploadAvatar(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    const validationError = validateSelectedFile(file, "avatar");
+
+    if (validationError) {
+      setAvatarError(validationError);
+      return;
+    }
+
+    try {
+      setAvatarError("");
+      setIsSavingAvatar(true);
+      const response = await uploadProfileAvatar(file);
+      onProfileChange?.(response.profile);
+    } catch (requestError) {
+      setAvatarError(requestError.message || "Não foi possível enviar a foto.");
+    } finally {
+      setIsSavingAvatar(false);
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
 
     await onSave(formData);
   }
 
+  const catalog = avatarsForGender(formData.gender || profile.gender);
+  const currentAvatar = resolveAvatarSrc({
+    avatarKey: profile.avatarKey,
+    gender: formData.gender || profile.gender,
+    avatarFileId: profile.avatarFileId,
+  });
+
   return (
     <form onSubmit={handleSubmit}>
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <p className="text-sm font-medium text-slate-700">Foto de perfil</p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <img
+            src={currentAvatar.src}
+            alt={currentAvatar.alt}
+            className="h-16 w-16 rounded-full object-cover"
+          />
+          <label className="cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            Enviar foto
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              disabled={isSavingAvatar || isSaving}
+              onChange={handleUploadAvatar}
+            />
+          </label>
+          <FormatInfoBalloon purpose="avatar" />
+        </div>
+        <p className="mt-4 text-xs text-slate-500">Ou escolha um avatar do catálogo, separado por gênero:</p>
+        <div className="mt-3 flex flex-wrap gap-3">
+          {catalog.map((avatar) => (
+            <button
+              key={avatar.key}
+              type="button"
+              disabled={isSavingAvatar || isSaving}
+              onClick={() => handleSelectCatalogAvatar(avatar.key)}
+              className={`rounded-full ring-2 ring-offset-2 transition ${
+                !profile.avatarFileId && profile.avatarKey === avatar.key
+                  ? "ring-blue-600"
+                  : "ring-transparent hover:ring-slate-300"
+              }`}
+            >
+              <img src={avatar.src} alt={avatar.alt} className="h-12 w-12 rounded-full object-cover" />
+            </button>
+          ))}
+        </div>
+        {avatarError && <p className="mt-3 text-sm text-red-600">{avatarError}</p>}
+      </div>
+
       <div className="grid gap-5 md:grid-cols-2">
         <InputField
           label="Nome completo"

@@ -100,6 +100,7 @@ const publicCheckoutRoutes = require("./routes/publicCheckoutRoutes");
 const publicInstitutionRoutes = require("./routes/publicInstitutionRoutes");
 const publicContactRoutes = require("./routes/publicContactRoutes");
 const adminContactRoutes = require("./routes/adminContactRoutes");
+const fileRoutes = require("./routes/fileRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -145,6 +146,7 @@ app.use(cookieParser());
 
 app.use("/api", authRoutes);
 app.use("/api", profileRoutes);
+app.use("/api", fileRoutes);
 app.use("/api", publicCourseRoutes);
 app.use("/api", publicUserRoutes);
 

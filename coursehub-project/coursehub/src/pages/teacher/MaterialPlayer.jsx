@@ -42,7 +42,7 @@ export default function MaterialPlayer() {
         let data;
         try {
           data = await apiFetch(
-            `/api/teacher/by-user/${usuarioLogado.id}/classes/${classId}/contents`
+            `/api/teacher/by-user/${usuarioLogado.id}/classes/${classId}/contents?status=active`
           );
         } catch (contentsRequestError) {
           throw new Error(
@@ -52,9 +52,9 @@ export default function MaterialPlayer() {
           );
         }
 
-        const contentsData = Array.isArray(data?.contents)
-          ? data.contents
-          : [];
+        const contentsData = (Array.isArray(data?.contents) ? data.contents : []).filter(
+          (content) => !content.status || content.status === "active"
+        );
 
         setClassInfo(data?.class || null);
         setAllContents(contentsData);

@@ -27,6 +27,8 @@ registerNotificationType({
       "Se você não reconhece esta ação, ignore este e-mail.",
     ].join("\n"),
 
+  actionLabel: "Criar senha",
+
   buildActionPath: (context) => `/ativar-conta?token=${context.activationToken}`,
 
   // One invitation per issued token -- a resend/manual-link generation

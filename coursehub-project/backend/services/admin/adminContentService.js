@@ -2,6 +2,7 @@ const {
   CONTENT_TYPES,
   resolveContentScope,
 } = require("../courseContents/courseContentScopeService");
+const { resolveMaterialContentUrl } = require("../files/uploadedFileService");
 
 const ALLOWED_STATUSES = ["active", "inactive", "draft", "archived"];
 
@@ -424,10 +425,11 @@ function normalizeMaterialPayload(payload) {
   };
 }
 
-async function createMaterial(db, payload) {
+async function createMaterial(db, payload, { userId } = {}) {
   const { course_id: courseId } = payload;
+  const contentUrl = await resolveMaterialContentUrl(db, { userId, payload });
   const normalizedCourseId = normalizeId(courseId, "Curso é obrigatório e deve ser válido.");
-  const normalized = normalizeMaterialPayload(payload);
+  const normalized = normalizeMaterialPayload({ ...payload, content_url: contentUrl });
 
   const connection = await db.promise().getConnection();
 
@@ -494,9 +496,10 @@ async function createMaterial(db, payload) {
   }
 }
 
-async function updateMaterial(db, id, payload) {
+async function updateMaterial(db, id, payload, { userId } = {}) {
   const contentId = normalizeId(id, "ID do material inválido.");
-  const normalized = normalizeMaterialPayload(payload);
+  const contentUrl = await resolveMaterialContentUrl(db, { userId, payload });
+  const normalized = normalizeMaterialPayload({ ...payload, content_url: contentUrl });
 
   const connection = await db.promise().getConnection();
 

@@ -6,6 +6,8 @@ import {
   getScopeImpact,
 } from "../../services/AdminContentService";
 import { listClasses } from "../../services/AdminClassService";
+import { uploadUserFile } from "../../services/ProfileService";
+import FileUploadField from "../uploads/FileUploadField";
 
 const TYPE_OPTIONS = [
   { value: "video", label: "Vídeo" },
@@ -22,7 +24,11 @@ const STATUS_OPTIONS = [
 ];
 
 function requiresUrl(type) {
-  return type === "video" || type === "pdf" || type === "live_class";
+  return type === "video" || type === "live_class";
+}
+
+function acceptsUpload(type) {
+  return type === "pdf";
 }
 
 function requiresText(type) {
@@ -61,6 +67,7 @@ function AdminContentModal({ mode = "create", initialData = null, handleCloseMod
   });
 
   const [pendingScopeImpact, setPendingScopeImpact] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
 
   useEffect(() => {
     let ignoreRequest = false;
@@ -138,6 +145,14 @@ function AdminContentModal({ mode = "create", initialData = null, handleCloseMod
       return "A URL é obrigatória para este tipo de material.";
     }
 
+    if (
+      acceptsUpload(formData.type) &&
+      !selectedFile &&
+      !formData.content_url.trim()
+    ) {
+      return "Envie um arquivo PDF ou informe a URL do material.";
+    }
+
     if (requiresText(formData.type) && !formData.content_text.trim()) {
       return "O texto do conteúdo é obrigatório para este tipo de material.";
     }
@@ -176,6 +191,11 @@ function AdminContentModal({ mode = "create", initialData = null, handleCloseMod
       setError("");
 
       const payload = buildPayload();
+
+      if (selectedFile) {
+        const uploaded = await uploadUserFile(selectedFile, "course_material");
+        payload.file_id = uploaded.file.id;
+      }
 
       const result = isEditMode
         ? await updateMaterial(initialData.id, payload)
@@ -411,9 +431,20 @@ function AdminContentModal({ mode = "create", initialData = null, handleCloseMod
             </select>
           </label>
 
-          {requiresUrl(formData.type) && (
+          {acceptsUpload(formData.type) && (
+            <FileUploadField
+              purpose="course_material"
+              file={selectedFile}
+              onFileChange={setSelectedFile}
+              label="Arquivo"
+              disabled={isBusy}
+              inputClass={inputClass}
+            />
+          )}
+
+          {(requiresUrl(formData.type) || acceptsUpload(formData.type)) && (
             <label className={labelClass}>
-              URL
+              {acceptsUpload(formData.type) ? "URL (opcional, se não enviar arquivo)" : "URL"}
               <input
                 name="content_url"
                 value={formData.content_url}

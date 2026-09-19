@@ -1,83 +1,101 @@
+import { API_URL } from "../services/APIService";
+
+export const FEMININE_AVATARS = [
+  {
+    key: "feminine-01",
+    src: "/avatars/feminine/feminine-01.png",
+    alt: "Avatar feminino 1",
+  },
+  {
+    key: "feminine-02",
+    src: "/avatars/feminine/feminine-02.png",
+    alt: "Avatar feminino 2",
+  },
+  {
+    key: "feminine-03",
+    src: "/avatars/feminine/feminine-03.png",
+    alt: "Avatar feminino 3",
+  },
+  {
+    key: "feminine-04",
+    src: "/avatars/feminine/feminine-04.png",
+    alt: "Avatar feminino 4",
+  },
+];
+
+export const MASCULINE_AVATARS = [
+  {
+    key: "masculine-01",
+    src: "/avatars/masculine/masculine-01.png",
+    alt: "Avatar masculino 1",
+  },
+  {
+    key: "masculine-02",
+    src: "/avatars/masculine/masculine-02.png",
+    alt: "Avatar masculino 2",
+  },
+  {
+    key: "masculine-03",
+    src: "/avatars/masculine/masculine-03.png",
+    alt: "Avatar masculino 3",
+  },
+  {
+    key: "masculine-04",
+    src: "/avatars/masculine/masculine-04.png",
+    alt: "Avatar masculino 4",
+  },
+];
+
 export const profileAvatars = {
-  student: [
-    {
-      key: "student-01",
-      src: "/avatars/student-01.webp",
-      alt: "Avatar de estudante 1",
-    },
-    {
-      key: "student-02",
-      src: "/avatars/student-02.webp",
-      alt: "Avatar de estudante 2",
-    },
-    {
-      key: "student-03",
-      src: "/avatars/student-03.webp",
-      alt: "Avatar de estudante 3",
-    },
-    {
-      key: "student-04",
-      src: "/avatars/student-04.p",
-      alt: "Avatar de estudante 4",
-    },
-  ],
-
-  teacher: [
-    {
-      key: "teacher-01",
-      src: "/avatars/teacher-01.webp",
-      alt: "Avatar de professor 1",
-    },
-    {
-      key: "teacher-02",
-      src: "/avatars/teacher-02.webp",
-      alt: "Avatar de professor 2",
-    },
-    {
-      key: "teacher-03",
-      src: "/avatars/teachers/teacher-03.png",
-      alt: "Avatar de professor 3",
-    },
-    {
-      key: "teacher-04",
-      src: "/avatars/teachers/teacher-04.png",
-      alt: "Avatar de professor 4",
-    },
-  ],
-
-  admin: [
-    {
-      key: "admin-01",
-      src: "/avatars/admin-01.webp",
-      alt: "Avatar de administrador 1",
-    },
-    {
-      key: "admin-02",
-      src: "/avatars/admins/admin-02.png",
-      alt: "Avatar de administrador 2",
-    },
-    {
-      key: "admin-03",
-      src: "/avatars/admins/admin-03.png",
-      alt: "Avatar de administrador 3",
-    },
-    {
-      key: "admin-04",
-      src: "/avatars/admins/admin-04.png",
-      alt: "Avatar de administrador 4",
-    },
-  ],
+  feminine: FEMININE_AVATARS,
+  masculine: MASCULINE_AVATARS,
+  unspecified: [...FEMININE_AVATARS, ...MASCULINE_AVATARS],
 };
 
-export function getAvatarByKey(role, avatarKey) {
-  const roleAvatars = profileAvatars[role] || [];
+const AVATARS_BY_KEY = Object.fromEntries(
+  [...FEMININE_AVATARS, ...MASCULINE_AVATARS].map((avatar) => [avatar.key, avatar])
+);
+
+const FEMININE_GENDERS = new Set(["feminino", "female", "f", "woman", "mulher"]);
+const MASCULINE_GENDERS = new Set(["masculino", "male", "m", "man", "homem"]);
+
+export function genderBucket(gender) {
+  const normalized = String(gender || "").trim().toLowerCase();
+
+  if (FEMININE_GENDERS.has(normalized)) return "feminine";
+  if (MASCULINE_GENDERS.has(normalized)) return "masculine";
+
+  return "unspecified";
+}
+
+export function avatarsForGender(gender) {
+  return profileAvatars[genderBucket(gender)] || profileAvatars.unspecified;
+}
+
+export function getAvatarByKey(avatarKey, gender) {
+  if (AVATARS_BY_KEY[avatarKey]) {
+    return AVATARS_BY_KEY[avatarKey];
+  }
+
+  const pool = avatarsForGender(gender);
 
   return (
-    roleAvatars.find((avatar) => avatar.key === avatarKey) ||
-    roleAvatars[0] || {
+    pool[0] || {
       key: "default",
-      src: "/avatars/default-avatar.webp",
+      src: "/avatars/feminine/feminine-01.png",
       alt: "Avatar padrão",
     }
   );
+}
+
+export function resolveAvatarSrc({ avatarKey, gender, avatarFileId }) {
+  if (avatarFileId) {
+    return {
+      key: `upload-${avatarFileId}`,
+      src: `${API_URL}/api/files/${avatarFileId}`,
+      alt: "Foto de perfil",
+    };
+  }
+
+  return getAvatarByKey(avatarKey, gender);
 }

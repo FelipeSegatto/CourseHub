@@ -16,11 +16,41 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char]);
 }
 
+function frontendOrigin() {
+  return String(process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
+}
+
+/**
+ * `actionPath` is usually an internal path ("/aluno/notas"). Some
+ * flows already hand a full URL (invoice payment links). Never prefix
+ * FRONTEND_URL onto an absolute URL -- that used to produce
+ * `http://localhost:5173http://localhost:5173/...`.
+ */
+function resolveActionUrl(actionPath) {
+  const pathOrUrl = String(actionPath || "").trim();
+
+  if (/^https?:\/\//i.test(pathOrUrl)) {
+    return pathOrUrl;
+  }
+
+  const origin = frontendOrigin();
+
+  if (!pathOrUrl) {
+    return origin;
+  }
+
+  return `${origin}${pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`}`;
+}
+
 /**
  * Shared HTML shell for every transactional email CourseHub sends.
  * `bodyHtml` must already be escaped/composed safely by the caller --
  * this function does not escape it again (it wraps pre-built markup,
  * not raw text).
+ *
+ * Visual tokens match the official PDF letterhead (navy + CourseHub
+ * orange), so password reset, checkout, activation and in-app
+ * notifications read as the same family.
  */
 function renderBaseLayout({ preheader = "", bodyHtml }) {
   return `
@@ -38,8 +68,8 @@ function renderBaseLayout({ preheader = "", bodyHtml }) {
             <td align="center">
               <table role="presentation" width="100%" style="max-width:520px; background:#ffffff; border-radius:12px; overflow:hidden;">
                 <tr>
-                  <td style="background:#1e3a8a; padding:20px 24px;">
-                    <span style="color:#ffffff; font-size:18px; font-weight:bold;">CourseHub</span>
+                  <td style="background:#0a2a57; padding:20px 24px;">
+                    <span style="color:#ffffff; font-size:18px; font-weight:bold; letter-spacing:-0.02em;">Course</span><span style="color:#f46c3c; font-size:18px; font-weight:bold; letter-spacing:-0.02em;">Hub</span>
                   </td>
                 </tr>
                 <tr>
@@ -61,4 +91,38 @@ function renderBaseLayout({ preheader = "", bodyHtml }) {
   `;
 }
 
-module.exports = { escapeHtml, renderBaseLayout };
+function renderTransactionalBody({
+  title,
+  message,
+  actionUrl,
+  actionLabel = "Acessar no CourseHub",
+  notice = "Canal institucional do CourseHub — esta comunicação pode ser acessada pela gestão autorizada para atendimento, segurança e auditoria.",
+}) {
+  return `
+    <h1 style="font-size:18px; margin:0 0 12px; color:#0a2a57;">${escapeHtml(title)}</h1>
+    <p style="font-size:14px; line-height:1.5; margin:0 0 20px; white-space:pre-line;">${escapeHtml(
+      message
+    )}</p>
+    <p style="margin:0 0 20px;">
+      <a
+        href="${escapeHtml(actionUrl)}"
+        style="display:inline-block; background:#0a2a57; color:#ffffff; text-decoration:none; padding:10px 18px; border-radius:8px; font-size:14px; font-weight:bold;"
+      >
+        ${escapeHtml(actionLabel)}
+      </a>
+    </p>
+    ${
+      notice
+        ? `<p style="font-size:12px; color:#6b7280; margin:0;">${escapeHtml(notice)}</p>`
+        : ""
+    }
+  `;
+}
+
+module.exports = {
+  escapeHtml,
+  frontendOrigin,
+  resolveActionUrl,
+  renderBaseLayout,
+  renderTransactionalBody,
+};

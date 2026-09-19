@@ -18,6 +18,8 @@ registerNotificationType({
   buildMessage: (context) =>
     `Pagamento confirmado. Sua nova matrícula em "${context.courseName}" já está disponível.`,
 
+  actionLabel: "Ver meus cursos",
+
   buildActionPath: () => "/aluno/cursos",
 
   // Keyed on the invoice whose payment triggered activation -- a

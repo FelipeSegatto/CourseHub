@@ -113,11 +113,13 @@ export default function CoursePlayer() {
 
         if (ignoreRequest) return;
 
-        const contentList = Array.isArray(
-          contentsData?.contents
-        )
-          ? contentsData.contents
-          : [];
+        const contentList = (
+          Array.isArray(contentsData?.contents)
+            ? contentsData.contents
+            : []
+        ).filter(
+          (content) => !content.status || content.status === "active"
+        );
 
         setCourse(courseData);
         setAllContents(contentList);

@@ -1,4 +1,5 @@
 require("dotenv").config();
+require("../services/notifications/eventDefinitions");
 
 const os = require("os");
 const path = require("path");

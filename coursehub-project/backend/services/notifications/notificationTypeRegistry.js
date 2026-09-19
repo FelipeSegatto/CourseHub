@@ -91,6 +91,15 @@ function validateDefinition(definition) {
       `Notification type "${type}": 'sensitiveActionPath', when present, must be a boolean.`
     );
   }
+
+  if (
+    definition.actionLabel !== undefined &&
+    (typeof definition.actionLabel !== "string" || !definition.actionLabel.trim())
+  ) {
+    throw new Error(
+      `Notification type "${type}": 'actionLabel', when present, must be a non-empty string.`
+    );
+  }
 }
 
 function assertRequiredContext(definition, context) {

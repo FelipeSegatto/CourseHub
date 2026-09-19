@@ -22,6 +22,12 @@ logs/
 # PDFs de documentos gerados (storage local privado, nunca versionado)
 **/backend/storage/generated-documents/
 
+# Uploads de usuários (avatares custom, envios, materiais)
+**/backend/storage/uploads/
+
+# Saída do laboratório de documentos (PDFs/HTML gerados localmente)
+**/backend/storage/document-lab/
+
 # Editor e sistema
 .vscode/
 .DS_Store

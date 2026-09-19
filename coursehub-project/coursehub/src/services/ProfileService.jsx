@@ -17,3 +17,31 @@ export function updateUserPassword(passwordData) {
     body: JSON.stringify(passwordData),
   });
 }
+
+export function updateUserAvatar(payload) {
+  return apiFetch("/api/profile/me/avatar", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function uploadProfileAvatar(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return apiFetch("/api/profile/me/avatar", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export function uploadUserFile(file, purpose) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("purpose", purpose);
+
+  return apiFetch("/api/uploads", {
+    method: "POST",
+    body: formData,
+  });
+}

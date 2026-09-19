@@ -120,7 +120,7 @@ router.post(
   authorizeRoles("admin"),
   async (req, res) => {
     try {
-      const material = await createMaterial(db, req.body);
+      const material = await createMaterial(db, req.body, { userId: req.auth.userId });
 
       return res.status(201).json({
         message: "Material cadastrado com sucesso.",
@@ -141,7 +141,9 @@ router.put(
   authorizeRoles("admin"),
   async (req, res) => {
     try {
-      const result = await updateMaterial(db, req.params.contentId, req.body);
+      const result = await updateMaterial(db, req.params.contentId, req.body, {
+        userId: req.auth.userId,
+      });
 
       return res.status(200).json({
         message: "Material atualizado com sucesso.",

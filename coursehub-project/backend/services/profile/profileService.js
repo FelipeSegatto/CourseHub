@@ -24,7 +24,7 @@ function createServiceError(message, statusCode) {
 async function getFullProfile(db, userId) {
   const [userRows] = await db.promise().query(
     `
-    SELECT id, name, email, gender, role, status, avatar_key
+    SELECT id, name, email, gender, role, status, avatar_key, avatar_file_id
     FROM users
     WHERE id = ?
     LIMIT 1
@@ -46,6 +46,7 @@ async function getFullProfile(db, userId) {
     role: user.role,
     status: user.status,
     avatarKey: user.avatar_key || null,
+    avatarFileId: user.avatar_file_id || null,
 
     phone: null,
     address: null,
@@ -267,9 +268,42 @@ async function updatePassword(db, { userId, currentPassword, newPassword }) {
   await revokeAllUserRefreshTokens(userId);
 }
 
+async function updateAvatar(db, { userId, avatarKey = null, avatarFileId = null }) {
+  const { isCatalogAvatarKey } = require("./avatarCatalog");
+  const { assertOwnedFile } = require("../files/uploadedFileService");
+
+  let nextKey = null;
+  let nextFileId = null;
+
+  if (avatarFileId) {
+    await assertOwnedFile(db, {
+      fileId: avatarFileId,
+      ownerUserId: userId,
+      purpose: "avatar",
+    });
+    nextFileId = Number(avatarFileId);
+  } else if (avatarKey) {
+    if (!isCatalogAvatarKey(avatarKey)) {
+      throw createServiceError("Avatar de catálogo inválido.", 400);
+    }
+
+    nextKey = avatarKey;
+  } else {
+    throw createServiceError("Informe um avatar do catálogo ou o arquivo enviado.", 400);
+  }
+
+  await db.promise().query(
+    `UPDATE users SET avatar_key = ?, avatar_file_id = ?, updated_at = NOW() WHERE id = ?`,
+    [nextKey, nextFileId, userId]
+  );
+
+  return getFullProfile(db, userId);
+}
+
 module.exports = {
   createServiceError,
   getFullProfile,
   updateProfile,
   updatePassword,
+  updateAvatar,
 };

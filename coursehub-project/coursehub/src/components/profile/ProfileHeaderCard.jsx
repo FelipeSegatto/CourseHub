@@ -1,5 +1,5 @@
 import { CalendarDays, Mail } from "lucide-react";
-import { getAvatarByKey } from "../../data/profileAvatars";
+import { resolveAvatarSrc } from "../../data/profileAvatars";
 
 const roleLabels = {
   admin: "Administrador",
@@ -36,10 +36,11 @@ function formatDate(date) {
 }
 
 function ProfileHeaderCard({ profile }) {
-  const avatar = getAvatarByKey(
-    profile.role,
-    profile.avatarKey
-  );
+  const avatar = resolveAvatarSrc({
+    avatarKey: profile.avatarKey,
+    gender: profile.gender,
+    avatarFileId: profile.avatarFileId,
+  });
 
   const status =
     profile.details?.status ||

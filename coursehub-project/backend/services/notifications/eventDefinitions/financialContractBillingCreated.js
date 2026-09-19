@@ -46,6 +46,8 @@ registerNotificationType({
   // cobrança). `role` só vem preenchido para destinatário interno
   // (ver notificationService.js#createNotificationEvent) -- é isso
   // que decide o branch, não um campo à parte no contexto.
+  actionLabel: "Pagar cobrança",
+
   buildActionPath: (context, role) => (role ? "/aluno/financeiro" : context.externalPaymentPath || "/aluno/financeiro"),
 
   // externalPaymentPath embute um token de pagamento de uso -- ver

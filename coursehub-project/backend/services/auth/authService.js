@@ -37,7 +37,7 @@ async function login(db, { email, password }) {
 
   const [userRows] = await db.promise().query(
     `
-    SELECT id, name, email, password_hash, role, status, avatar_key
+    SELECT id, name, email, password_hash, role, status, avatar_key, avatar_file_id
     FROM users
     WHERE email = ?
     LIMIT 1
@@ -87,6 +87,7 @@ async function login(db, { email, password }) {
       role: user.role,
       status: user.status,
       avatarKey: user.avatar_key || null,
+      avatarFileId: user.avatar_file_id || null,
     },
   };
 }

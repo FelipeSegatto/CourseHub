@@ -1,15 +1,19 @@
 export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
-async function performRequest(endpoint, options) {
+async function performRequest(endpoint, options = {}) {
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
 
     credentials: "include",
 
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
+    headers: isFormData
+      ? { ...options.headers }
+      : {
+          "Content-Type": "application/json",
+          ...options.headers,
+        },
   });
 
   const responseText = await response.text();
@@ -101,4 +105,44 @@ export async function apiFetch(endpoint, options = {}) {
   }
 
   return data;
+}
+
+export async function apiFetchBlob(endpoint, options = {}) {
+  async function performBlobRequest() {
+    return fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      credentials: "include",
+      headers: { ...options.headers },
+    });
+  }
+
+  let response = await performBlobRequest();
+
+  if (
+    response.status === 401 &&
+    !ENDPOINTS_WITHOUT_SILENT_REFRESH.has(endpoint)
+  ) {
+    const refreshed = await refreshSession();
+
+    if (refreshed) {
+      response = await performBlobRequest();
+    }
+  }
+
+  if (!response.ok) {
+    let data = {};
+
+    try {
+      data = await response.json();
+    } catch {
+      data = {};
+    }
+
+    throw buildRequestError(response, data);
+  }
+
+  return {
+    blob: await response.blob(),
+    mimeType: response.headers.get("Content-Type") || "",
+  };
 }

@@ -10,6 +10,14 @@ const MAX_POLL_ATTEMPTS = 20;
  *
  * endpoints: { request, status, downloadUrl } (ver DocumentGenerationService.jsx)
  */
+function unwrapDocument(payload) {
+  return payload?.data ?? payload ?? {};
+}
+
+function documentPipelineStatus(dto) {
+  return dto.documentStatus || dto.status || "";
+}
+
 export default function DocumentDownloadButton({ endpoints, label, className = "" }) {
   const [state, setState] = useState("idle"); // idle | requesting | polling | ready | failed | timeout
   const [errorMessage, setErrorMessage] = useState("");
@@ -17,10 +25,28 @@ export default function DocumentDownloadButton({ endpoints, label, className = "
   const timerRef = useRef(null);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function hydrateFromStatus() {
+      try {
+        const dto = unwrapDocument(await endpoints.status());
+        if (cancelled) return;
+
+        if (dto.canDownload) {
+          setState("ready");
+        }
+      } catch {
+        // Documento ainda não solicitado — o botão permanece em idle.
+      }
+    }
+
+    hydrateFromStatus();
+
     return () => {
+      cancelled = true;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, []);
+  }, [endpoints.downloadUrl]);
 
   function scheduleNextPoll() {
     timerRef.current = setTimeout(pollStatus, POLL_INTERVAL_MS);
@@ -30,14 +56,14 @@ export default function DocumentDownloadButton({ endpoints, label, className = "
     pollAttemptsRef.current += 1;
 
     try {
-      const { data } = await endpoints.status();
+      const dto = unwrapDocument(await endpoints.status());
 
-      if (data.canDownload) {
+      if (dto.canDownload) {
         setState("ready");
         return;
       }
 
-      if (data.status === "failed") {
+      if (documentPipelineStatus(dto) === "failed") {
         setState("failed");
         return;
       }
@@ -60,10 +86,25 @@ export default function DocumentDownloadButton({ endpoints, label, className = "
     pollAttemptsRef.current = 0;
 
     try {
-      const { data } = await endpoints.request();
+      let dto;
 
-      if (data.canDownload) {
+      try {
+        dto = unwrapDocument(await endpoints.request());
+      } catch (requestError) {
+        if (requestError.status !== 404 && requestError.status !== 405) {
+          throw requestError;
+        }
+
+        dto = unwrapDocument(await endpoints.status());
+      }
+
+      if (dto.canDownload) {
         setState("ready");
+        return;
+      }
+
+      if (documentPipelineStatus(dto) === "failed") {
+        setState("failed");
         return;
       }
 

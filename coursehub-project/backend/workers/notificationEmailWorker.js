@@ -136,6 +136,7 @@ async function processJob(
      * 1. MONTA O CONTEÚDO DO E-MAIL
      * --------------------------------------------------------
      */
+    const actionLabel = getNotificationType(job.type)?.actionLabel;
     const {
       subject,
       text,
@@ -145,6 +146,7 @@ async function processJob(
       message: job.message,
       actionPath: job.action_path,
       priority: job.priority,
+      actionLabel,
     });
 
 

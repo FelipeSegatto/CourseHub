@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../../services/APIService";
+import { uploadUserFile } from "../../services/ProfileService";
+import FileUploadField from "../../components/uploads/FileUploadField";
 
 function getDraftStorageKey(activityId) {
   return `activity-draft-${activityId}`;
@@ -395,15 +397,6 @@ export default function StudentActivityRunner() {
         );
       }
 
-      if (
-        question.question_type === "upload" &&
-        answer.file
-      ) {
-        throw new Error(
-          "O envio de arquivos ainda precisa da rota de upload. Use questões discursivas ou de múltipla escolha por enquanto."
-        );
-      }
-
       return {
         question_id: Number(question.id),
         option_id: answer.option_id
@@ -411,7 +404,7 @@ export default function StudentActivityRunner() {
           : null,
         answer_text:
           answer.answer_text?.trim() || null,
-        file_url: null,
+        file: answer.file || null,
       };
     });
   }
@@ -460,12 +453,30 @@ export default function StudentActivityRunner() {
 
       const normalizedAnswers = validateAnswers();
 
+      const answersPayload = [];
+
+      for (const answer of normalizedAnswers) {
+        let fileId = null;
+
+        if (answer.file) {
+          const uploaded = await uploadUserFile(answer.file, "submission");
+          fileId = uploaded.file.id;
+        }
+
+        answersPayload.push({
+          question_id: answer.question_id,
+          option_id: answer.option_id,
+          answer_text: answer.answer_text,
+          file_id: fileId,
+        });
+      }
+
       const data = await apiFetch(
   `/api/students/activities/${activityId}/submissions`,
         {
           method: "POST",
           body: JSON.stringify({
-            answers: normalizedAnswers,
+            answers: answersPayload,
             fullscreen_exit_count: isExam
               ? fullscreenExitCount
               : 0,
@@ -991,29 +1002,15 @@ export default function StudentActivityRunner() {
                 )}
 
                 {question.question_type === "upload" && (
-                  <div className="mt-4 rounded-xl border border-dashed border-gray-300 bg-white p-4">
-                    <input
-                      type="file"
-                      onChange={(event) =>
-                        handleFileChange(
-                          question.id,
-                          event.target.files?.[0]
-                        )
+                  <div className="mt-4">
+                    <FileUploadField
+                      purpose="submission"
+                      file={answers[question.id]?.file || null}
+                      onFileChange={(file) =>
+                        handleFileChange(question.id, file)
                       }
-                      className="text-sm"
+                      label="Arquivo da resposta"
                     />
-
-                    {answers[question.id]?.file && (
-                      <p className="mt-2 text-sm text-green-700">
-                        Arquivo selecionado:{" "}
-                        {answers[question.id].file.name}
-                      </p>
-                    )}
-
-                    <p className="mt-3 text-xs text-yellow-700">
-                      O arquivo será enviado quando a rota de
-                      upload estiver implementada.
-                    </p>
                   </div>
                 )}
               </article>

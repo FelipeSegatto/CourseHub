@@ -29,6 +29,8 @@ registerNotificationType({
   // O destinatário interno já tem sua própria área financeira; o
   // destinatário externo (sem conta) usa o link privado desta invoice
   // -- mesmo branch de financialContractBillingCreated.js.
+  actionLabel: "Pagar cobrança",
+
   buildActionPath: (context, role) => (role ? "/aluno/financeiro" : context.paymentLinkUrl),
 
   buildDeduplicationKey: (context) => `financial.invoice.payment_link_shared:${context.invoiceId}:${context.linkToken}`,

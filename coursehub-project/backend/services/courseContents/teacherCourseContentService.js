@@ -18,6 +18,7 @@ const { createNotificationEvent } = require("../notifications/notificationServic
 const {
   resolveActiveStudentsForCourseOrClass,
 } = require("../notifications/notificationRecipientResolvers");
+const { resolveMaterialContentUrl } = require("../files/uploadedFileService");
 
 const ALLOWED_STATUSES = ["active", "inactive", "draft", "archived"];
 
@@ -232,7 +233,9 @@ async function listClassCourseContents(db, { userId, classId, status }) {
     throw createServiceError("ID da turma inválido.", 400);
   }
 
-  if (status && !ALLOWED_STATUSES.includes(status)) {
+  const statusFilter = status || "active";
+
+  if (!ALLOWED_STATUSES.includes(statusFilter)) {
     throw createServiceError("Status de conteúdo inválido.", 400);
   }
 
@@ -252,14 +255,10 @@ async function listClassCourseContents(db, { userId, classId, status }) {
     classData.course_id,
     normalizedClassId,
     ...CONTENT_TYPES,
+    statusFilter,
   ];
 
-  let statusCondition = "";
-
-  if (status) {
-    statusCondition = "AND cc.status = ?";
-    params.push(status);
-  }
+  const statusCondition = "AND cc.status = ?";
 
   const [rows] = await runner.execute(
     `
@@ -423,7 +422,8 @@ function normalizeContentPayload(payload) {
  * (classId null) ou exclusivo de uma turma daquele mesmo curso.
  */
 async function createCourseContent(db, { userId, payload }) {
-  const normalized = normalizeContentPayload(payload);
+  const contentUrl = await resolveMaterialContentUrl(db, { userId, payload });
+  const normalized = normalizeContentPayload({ ...payload, content_url: contentUrl });
 
   return withTransaction(db, async (connection) => {
     const teacherId = await resolveTeacherId(connection, userId);
@@ -514,7 +514,8 @@ async function updateCourseContent(db, { userId, contentId, payload }) {
     throw createServiceError("ID do conteúdo inválido.", 400);
   }
 
-  const normalized = normalizeContentPayload(payload);
+  const contentUrl = await resolveMaterialContentUrl(db, { userId, payload });
+  const normalized = normalizeContentPayload({ ...payload, content_url: contentUrl });
 
   return withTransaction(db, async (connection) => {
     const teacherId = await resolveTeacherId(connection, userId);

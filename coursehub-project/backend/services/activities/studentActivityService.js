@@ -11,6 +11,7 @@ const {
 
 const { createNotificationEvent } = require("../notifications/notificationService");
 const { resolveTeachersForCourse } = require("../notifications/notificationRecipientResolvers");
+const { assertOwnedFile } = require("../files/uploadedFileService");
 
 function normalizePositiveId(value) {
   const normalized = Number(value);
@@ -426,13 +427,18 @@ async function submitActivityAnswers(
         }
 
         case "upload": {
-          if (!answer.file_url?.trim()) {
-            throw createServiceError(
-              "O envio de arquivos ainda não está disponível.",
-              400
-            );
+          const fileId = Number(answer.file_id);
+          if (!Number.isInteger(fileId) || fileId <= 0) {
+            throw createServiceError("Envie o arquivo de todas as questões de upload.", 400);
           }
 
+          const file = await assertOwnedFile(db, {
+            fileId,
+            ownerUserId: userId,
+            purpose: "submission",
+          });
+
+          answer.file_url = `/api/files/${file.id}`;
           break;
         }
 

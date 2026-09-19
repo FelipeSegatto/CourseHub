@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../services/APIService";
+import { uploadUserFile } from "../../services/ProfileService";
+import FileUploadField from "../uploads/FileUploadField";
 
 function ContentModal({
   mode = "create",
@@ -17,6 +19,7 @@ function ContentModal({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [selectedFile, setSelectedFile] = useState(null);
 
   const [formData, setFormData] = useState({
     course_id: courseId ? String(courseId) : "",
@@ -190,12 +193,23 @@ function ContentModal({
       "archived",
     ];
 
-    if (
-      !allowedStatuses.includes(
-        formData.status
-      )
-    ) {
+    if (!allowedStatuses.includes(formData.status)) {
       return "Status do conteúdo inválido.";
+    }
+
+    if (
+      formData.type === "pdf" &&
+      !selectedFile &&
+      !formData.content_url.trim()
+    ) {
+      return "Envie um arquivo PDF ou informe a URL do material.";
+    }
+
+    if (
+      (formData.type === "video" || formData.type === "live_class") &&
+      !formData.content_url.trim()
+    ) {
+      return "Informe a URL do conteúdo.";
     }
 
     return "";
@@ -237,6 +251,18 @@ function ContentModal({
       ),
       status: formData.status,
     };
+
+    if (selectedFile) {
+      try {
+        setLoading(true);
+        const uploaded = await uploadUserFile(selectedFile, "course_material");
+        payload.file_id = uploaded.file.id;
+      } catch (uploadError) {
+        setLoading(false);
+        setError(uploadError.message || "Não foi possível enviar o arquivo.");
+        return;
+      }
+    }
 
     const endpoint = isEditMode
       ? `/api/course-contents/${content.id}`
@@ -491,8 +517,19 @@ function ContentModal({
             />
           </label>
 
+          {formData.type === "pdf" && (
+            <FileUploadField
+              purpose="course_material"
+              file={selectedFile}
+              onFileChange={setSelectedFile}
+              label="Arquivo"
+              disabled={loading}
+              inputClass={inputClass}
+            />
+          )}
+
           <label className={labelClass}>
-            URL do conteúdo
+            {formData.type === "pdf" ? "URL do conteúdo (opcional)" : "URL do conteúdo"}
 
             <input
               name="content_url"

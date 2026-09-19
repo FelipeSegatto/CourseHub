@@ -1,3 +1,125 @@
+import { useEffect, useState } from "react";
+import { API_URL, apiFetchBlob } from "../services/APIService";
+
+function getStoredFilePath(url = "") {
+  if (!url) return "";
+
+  if (url.startsWith("/api/files/")) {
+    return url;
+  }
+
+  try {
+    const parsed = new URL(url);
+
+    if (parsed.pathname.startsWith("/api/files/")) {
+      return `${parsed.pathname}${parsed.search}`;
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
+function AuthenticatedFilePreview({ url, title }) {
+  const filePath = getStoredFilePath(url);
+  const [objectUrl, setObjectUrl] = useState("");
+  const [mimeType, setMimeType] = useState("");
+  const [loading, setLoading] = useState(Boolean(filePath));
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!filePath) return undefined;
+
+    let cancelled = false;
+    let createdUrl = "";
+
+    async function loadFile() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const { blob, mimeType: responseMime } = await apiFetchBlob(filePath);
+
+        if (cancelled) return;
+
+        createdUrl = URL.createObjectURL(blob);
+
+        if (cancelled) {
+          URL.revokeObjectURL(createdUrl);
+          return;
+        }
+
+        setObjectUrl(createdUrl);
+        setMimeType(responseMime || blob.type || "");
+      } catch (requestError) {
+        if (!cancelled) {
+          setError(requestError.message || "Não foi possível abrir o arquivo.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadFile();
+
+    return () => {
+      cancelled = true;
+
+      if (createdUrl) {
+        URL.revokeObjectURL(createdUrl);
+      }
+    };
+  }, [filePath]);
+
+  if (!filePath) {
+    return (
+      <iframe
+        src={getDrivePreviewUrl(url)}
+        width="100%"
+        title={title}
+        className="h-[380px] w-full rounded-xl border sm:h-[520px]"
+      />
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-[380px] items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-500 sm:h-[520px]">
+        Carregando arquivo...
+      </div>
+    );
+  }
+
+  if (error || !objectUrl) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        {error || "Não foi possível visualizar este arquivo."}
+      </div>
+    );
+  }
+
+  if (mimeType.startsWith("image/")) {
+    return (
+      <img
+        src={objectUrl}
+        alt={title}
+        className="max-h-[520px] w-full rounded-xl border border-gray-200 object-contain bg-gray-50"
+      />
+    );
+  }
+
+  return (
+    <iframe
+      src={objectUrl}
+      title={title}
+      className="h-[380px] w-full rounded-xl border sm:h-[520px]"
+    />
+  );
+}
+
 export default function LessonPlayer({ lesson }) {
   if (!lesson) {
     return (
@@ -36,11 +158,9 @@ export default function LessonPlayer({ lesson }) {
           {lesson.title}
         </h2>
 
-        <iframe
-          src={getDrivePreviewUrl(lesson.content_url)}
-          width="100%"
+        <AuthenticatedFilePreview
+          url={lesson.content_url || lesson.contentUrl}
           title={lesson.title}
-          className="h-[380px] w-full rounded-xl border sm:h-[520px]"
         />
       </div>
     );
@@ -98,5 +218,5 @@ function getDrivePreviewUrl(url = "") {
     return `https://drive.google.com/file/d/${match[1]}/preview`;
   }
 
-  return url;
+  return url.startsWith("/api/") ? `${API_URL}${url}` : url;
 }

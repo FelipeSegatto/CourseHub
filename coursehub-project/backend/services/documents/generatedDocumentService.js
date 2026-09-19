@@ -50,7 +50,25 @@ async function enqueueDocument(
     );
 
     if (existingRows.length > 0) {
-      return toDocumentDto(existingRows[0]);
+      const existing = existingRows[0];
+
+      if (existing.status === "failed") {
+        await connection.query(
+          `UPDATE generated_documents
+           SET status = 'queued', failure_reason = NULL, updated_at = NOW()
+           WHERE id = ? AND status = 'failed'`,
+          [existing.id]
+        );
+
+        const [retriedRows] = await connection.query(
+          `SELECT * FROM generated_documents WHERE id = ?`,
+          [existing.id]
+        );
+
+        return toDocumentDto(retriedRows[0]);
+      }
+
+      return toDocumentDto(existing);
     }
 
     const template = await getActiveTemplate(db, documentType);

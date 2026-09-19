@@ -1,4 +1,5 @@
 const nodemailer = require("nodemailer");
+const { buildPasswordResetEmail } = require("../email/templates/passwordResetEmail");
 
 let transporterPromise = null;
 
@@ -77,16 +78,8 @@ async function sendEmail({ to, subject, text, html }) {
 }
 
 async function sendPasswordResetEmail({ to, resetUrl }) {
-  const result = await sendEmail({
-    to,
-    subject: "Redefinição de senha — CourseHub",
-    text: `Recebemos uma solicitação para redefinir sua senha.\n\nAcesse o link abaixo (válido por 15 minutos):\n${resetUrl}\n\nSe você não pediu isso, ignore este e-mail.`,
-    html: `
-      <p>Recebemos uma solicitação para redefinir sua senha.</p>
-      <p><a href="${resetUrl}">Clique aqui para criar uma nova senha</a> (válido por 15 minutos).</p>
-      <p>Se você não pediu isso, ignore este e-mail.</p>
-    `,
-  });
+  const { subject, text, html } = buildPasswordResetEmail({ resetUrl });
+  const result = await sendEmail({ to, subject, text, html });
 
   if (result.previewUrl) {
     console.log("[mailer] Conta de teste (Ethereal) — preview do e-mail:", result.previewUrl);

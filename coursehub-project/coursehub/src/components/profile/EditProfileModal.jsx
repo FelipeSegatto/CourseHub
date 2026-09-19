@@ -7,6 +7,7 @@ function EditProfileModal({
   profile,
   onClose,
   onSave,
+  onProfileChange,
   isSaving,
   message,
   error,
@@ -83,6 +84,7 @@ function EditProfileModal({
             profile={profile}
             onSave={onSave}
             onCancel={onClose}
+            onProfileChange={onProfileChange}
             isSaving={isSaving}
             message={message}
             error={error}

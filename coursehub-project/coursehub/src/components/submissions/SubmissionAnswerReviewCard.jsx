@@ -1,3 +1,5 @@
+import { API_URL } from "../../services/APIService";
+
 function formatPoints(value) {
   const number = Number(value);
 
@@ -11,7 +13,7 @@ function formatPoints(value) {
   });
 }
 
-export default function SubmissionAnswerReviewCard({
+function SubmissionAnswerReviewCard({
   answer = {},
   questionNumber,
   readOnly = false,
@@ -126,7 +128,11 @@ export default function SubmissionAnswerReviewCard({
           <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 p-4">
             {file_url ? (
               <a
-                href={file_url}
+                href={
+                  String(file_url).startsWith("/api/files/")
+                    ? `${API_URL}${file_url}`
+                    : file_url
+                }
                 target="_blank"
                 rel="noreferrer"
                 className="text-sm font-semibold text-purple-700 underline hover:text-purple-800"
@@ -194,3 +200,5 @@ export default function SubmissionAnswerReviewCard({
     </article>
   );
 }
+
+export default SubmissionAnswerReviewCard;

@@ -27,6 +27,8 @@ registerNotificationType({
       "Se você não reconhece esta ação, ignore esta mensagem -- nenhum cadastro ou cobrança é criado sem essa confirmação.",
     ].join("\n"),
 
+  actionLabel: "Confirmar e-mail",
+
   buildActionPath: (context) => context.verificationPath,
 
   // Uma chave nova por sessão -- reenviar a verificação (nova sessão)

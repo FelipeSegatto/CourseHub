@@ -130,10 +130,15 @@ export default function UserProfile() {
             receivedProfile.status ??
             "",
 
-          avatarKey:
-            receivedProfile.avatarKey ??
-            receivedProfile.avatar_key ??
-            null,
+        avatarKey:
+          receivedProfile.avatarKey ??
+          receivedProfile.avatar_key ??
+          null,
+
+        avatarFileId:
+          receivedProfile.avatarFileId ??
+          receivedProfile.avatar_file_id ??
+          null,
 
           phone:
             receivedProfile.phone ??
@@ -198,6 +203,26 @@ export default function UserProfile() {
     setIsEditModalOpen(false);
     setProfileMessage("");
     setProfileError("");
+  }
+
+  function handleProfileChange(updatedProfile) {
+    if (!updatedProfile) return;
+
+    setProfile((current) => ({
+      ...current,
+      ...updatedProfile,
+      avatarKey: updatedProfile.avatarKey ?? updatedProfile.avatar_key ?? current?.avatarKey,
+      avatarFileId: updatedProfile.avatarFileId ?? updatedProfile.avatar_file_id ?? null,
+    }));
+
+    if (typeof atualizarUsuarioLogado === "function") {
+      atualizarUsuarioLogado({
+        ...usuarioLogado,
+        ...updatedProfile,
+        avatarKey: updatedProfile.avatarKey ?? updatedProfile.avatar_key,
+        avatarFileId: updatedProfile.avatarFileId ?? updatedProfile.avatar_file_id ?? null,
+      });
+    }
   }
 
   async function handleSaveProfile(formData) {
@@ -267,6 +292,11 @@ export default function UserProfile() {
           updatedProfile.avatar_key ??
           null,
 
+        avatarFileId:
+          updatedProfile.avatarFileId ??
+          updatedProfile.avatar_file_id ??
+          null,
+
         phone:
           updatedProfile.phone ??
           "",
@@ -306,6 +336,12 @@ export default function UserProfile() {
             updatedProfile.avatarKey ??
             updatedProfile.avatar_key ??
             usuarioLogado.avatarKey ??
+            null,
+
+          avatarFileId:
+            updatedProfile.avatarFileId ??
+            updatedProfile.avatar_file_id ??
+            usuarioLogado.avatarFileId ??
             null,
         });
       }
@@ -433,6 +469,7 @@ export default function UserProfile() {
         profile={profile}
         onClose={handleCloseEditModal}
         onSave={handleSaveProfile}
+        onProfileChange={handleProfileChange}
         isSaving={isSavingProfile}
         message={profileMessage}
         error={profileError}

@@ -1,4 +1,8 @@
-const { escapeHtml, renderBaseLayout } = require("./baseLayout");
+const {
+  renderBaseLayout,
+  renderTransactionalBody,
+  resolveActionUrl,
+} = require("./baseLayout");
 
 const PRIORITY_LABELS = {
   normal: null,
@@ -10,14 +14,14 @@ const PRIORITY_LABELS = {
  * Renders the outbox worker's one and only email shape: title +
  * message (both already built by the notificationTypeRegistry, so
  * they're the intended safe summary, not a raw entity dump) + a link
- * back into the app. `actionPath` is always an internal path
- * (validated server-side by the registry, e.g. "/aluno/notas/42"),
- * never a client-supplied URL.
+ * back into the app. `actionPath` is usually an internal path
+ * (validated server-side by the registry, e.g. "/aluno/notas/42");
+ * absolute URLs (invoice payment links) are kept as-is.
  */
-function buildNotificationEmail({ title, message, actionPath, priority }) {
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-  const actionUrl = `${frontendUrl}${actionPath}`;
+function buildNotificationEmail({ title, message, actionPath, priority, actionLabel }) {
+  const actionUrl = resolveActionUrl(actionPath);
   const priorityLabel = PRIORITY_LABELS[priority] || null;
+  const buttonLabel = actionLabel || "Acessar no CourseHub";
 
   const subject = priorityLabel ? `[${priorityLabel}] ${title}` : title;
 
@@ -31,24 +35,12 @@ function buildNotificationEmail({ title, message, actionPath, priority }) {
     "Canal institucional do CourseHub -- esta comunicação pode ser acessada pela gestão autorizada para atendimento, segurança e auditoria.",
   ].join("\n");
 
-  const bodyHtml = `
-    <h1 style="font-size:18px; margin:0 0 12px;">${escapeHtml(title)}</h1>
-    <p style="font-size:14px; line-height:1.5; margin:0 0 20px; white-space:pre-line;">${escapeHtml(
-      message
-    )}</p>
-    <p style="margin:0 0 20px;">
-      <a
-        href="${actionUrl}"
-        style="display:inline-block; background:#1e3a8a; color:#ffffff; text-decoration:none; padding:10px 18px; border-radius:8px; font-size:14px;"
-      >
-        Acessar no CourseHub
-      </a>
-    </p>
-    <p style="font-size:12px; color:#6b7280; margin:0;">
-      Canal institucional do CourseHub — esta comunicação pode ser acessada pela gestão autorizada
-      para atendimento, segurança e auditoria.
-    </p>
-  `;
+  const bodyHtml = renderTransactionalBody({
+    title,
+    message,
+    actionUrl,
+    actionLabel: buttonLabel,
+  });
 
   const html = renderBaseLayout({ preheader: message, bodyHtml });
 

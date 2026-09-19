@@ -17,6 +17,18 @@
  * do worker.
  */
 const crypto = require("crypto");
+const os = require("os");
+const path = require("path");
+
+const DEFAULT_PUPPETEER_CACHE = path.join(os.homedir(), ".cache", "puppeteer");
+
+if (
+  !process.env.PUPPETEER_CACHE_DIR ||
+  /cursor-sandbox-cache/i.test(process.env.PUPPETEER_CACHE_DIR)
+) {
+  process.env.PUPPETEER_CACHE_DIR = DEFAULT_PUPPETEER_CACHE;
+}
+
 const puppeteer = require("puppeteer");
 const {
   MAX_HTML_BYTES,

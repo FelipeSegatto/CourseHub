@@ -40,22 +40,44 @@ export function getAdminCertificateEndpoints(enrollmentId) {
 
 // Aluno -- só leitura (status/download; POST não existe do lado do backend)
 export function getStudentEnrollmentDeclarationEndpoints(enrollmentId) {
-  return buildEndpoints(`/api/student/academic-documents/enrollments/${enrollmentId}/declarations/enrollment`);
+  const basePath = `/api/student/academic-documents/enrollments/${enrollmentId}/declarations/enrollment`;
+
+  return {
+    request: () => apiFetch(basePath),
+    status: () => apiFetch(basePath),
+    downloadUrl: `${API_URL}${basePath}/download`,
+  };
 }
 
 export function getStudentAttendanceDeclarationEndpoints(enrollmentId, period) {
-  return buildEndpointsWithQuery(
-    `/api/student/academic-documents/enrollments/${enrollmentId}/declarations/attendance`,
-    period
-  );
+  const basePath = `/api/student/academic-documents/enrollments/${enrollmentId}/declarations/attendance`;
+  const queryString = period ? `?${new URLSearchParams(period).toString()}` : "";
+
+  return {
+    request: () => apiFetch(`${basePath}${queryString}`),
+    status: () => apiFetch(`${basePath}${queryString}`),
+    downloadUrl: `${API_URL}${basePath}/download${queryString}`,
+  };
 }
 
 export function getStudentCompletionDeclarationEndpoints(enrollmentId) {
-  return buildEndpoints(`/api/student/academic-documents/enrollments/${enrollmentId}/declarations/completion`);
+  const basePath = `/api/student/academic-documents/enrollments/${enrollmentId}/declarations/completion`;
+
+  return {
+    request: () => apiFetch(basePath),
+    status: () => apiFetch(basePath),
+    downloadUrl: `${API_URL}${basePath}/download`,
+  };
 }
 
 export function getStudentCertificateEndpoints(enrollmentId) {
-  return buildEndpoints(`/api/student/academic-documents/enrollments/${enrollmentId}/certificate`);
+  const basePath = `/api/student/academic-documents/enrollments/${enrollmentId}/certificate`;
+
+  return {
+    request: () => apiFetch(basePath),
+    status: () => apiFetch(basePath),
+    downloadUrl: `${API_URL}${basePath}/download`,
+  };
 }
 
 export async function getMyAcademicDocuments() {

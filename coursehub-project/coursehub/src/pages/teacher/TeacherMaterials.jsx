@@ -458,9 +458,10 @@ export default function TeacherMaterials() {
       );
 
       const updatedStatus =
+        data?.status ||
         data?.content?.status ||
         data?.course_content?.status ||
-        "inactive";
+        "archived";
 
       /*
        * O backend utiliza soft delete.
